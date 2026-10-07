@@ -37,7 +37,7 @@ def newest_firmware(fleet: Fleet) -> dict[str, str]:
     return newest
 
 
-def _in_scope(d: Device, policy: Policy) -> bool:
+def in_scope(d: Device, policy: Policy) -> bool:
     if d.name in policy.exclude_devices:
         return False
     return not policy.groups or d.group in policy.groups
@@ -48,7 +48,7 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
     newest = newest_firmware(fleet)
     storage_count = 0
     for d in sorted(fleet.devices.values(), key=lambda x: x.name.lower()):
-        if not _in_scope(d, policy):
+        if not in_scope(d, policy):
             continue
         if any(w in STORAGE_WARNINGS for w in d.warnings):
             storage_count += 1

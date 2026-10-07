@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fleetwatch.model import Finding, Fleet, Readiness
+from fleetwatch.model import Finding, Fleet, Readiness, SweepResult
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS findings (
@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS findings (
 CREATE TABLE IF NOT EXISTS readiness (event_key TEXT PRIMARY KEY, posted_at TEXT, verdict TEXT);
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at TEXT, kind TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY, at TEXT, devices INTEGER, online INTEGER);
+CREATE TABLE IF NOT EXISTS sweeps (
+  id INTEGER PRIMARY KEY, at TEXT, devices INTEGER, online INTEGER, offline TEXT, behind TEXT, newly_offline TEXT,
+  back_online TEXT, posted_at TEXT);
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, name TEXT, model TEXT, group_name TEXT, online INTEGER, firmware TEXT, recording INTEGER,
   last_seen TEXT);
@@ -217,6 +220,51 @@ class State:
         row = self.db.execute("SELECT at FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
         return _dt(row["at"]) if row else None
 
+    def audit_since(self, since: datetime) -> list[tuple[datetime, str, dict]]:
+        rows = self.db.execute("SELECT at, kind, detail FROM audit WHERE at >= ? ORDER BY id", (_iso(since),))
+        return [(_dt(r["at"]), r["kind"], json.loads(r["detail"])) for r in rows]
+
+    def prune_snapshots(self, before: datetime) -> int:
+        """Heartbeat counts pile up every few minutes; history only needs the last few months."""
+        n = self.db.execute("DELETE FROM snapshots WHERE at < ?", (_iso(before),)).rowcount
+        self.db.commit()
+        return n
+
+    # --- sweeps -------------------------------------------------------------------------------------
+    def record_sweep(self, s: SweepResult) -> int:
+        cur = self.db.execute(
+            "INSERT INTO sweeps (at, devices, online, offline, behind, newly_offline, back_online, posted_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (
+                _iso(s.at),
+                s.devices,
+                s.online,
+                json.dumps(list(s.offline)),
+                json.dumps([list(b) for b in s.behind]),
+                json.dumps(list(s.newly_offline)),
+                json.dumps(list(s.back_online)),
+                _iso(s.posted_at),
+            ),
+        )
+        self.db.commit()
+        return int(cur.lastrowid)
+
+    def mark_sweep_posted(self, sweep_id: int, now: datetime) -> None:
+        self.db.execute("UPDATE sweeps SET posted_at=? WHERE id=?", (_iso(now), sweep_id))
+        self.db.commit()
+
+    def last_sweep(self) -> SweepResult | None:
+        row = self.db.execute("SELECT * FROM sweeps ORDER BY id DESC LIMIT 1").fetchone()
+        return _sweep_from_row(row) if row else None
+
+    def unposted_sweep(self) -> SweepResult | None:
+        row = self.db.execute("SELECT * FROM sweeps WHERE posted_at IS NULL ORDER BY id DESC LIMIT 1").fetchone()
+        return _sweep_from_row(row) if row else None
+
+    def sweeps_since(self, since: datetime) -> list[SweepResult]:
+        rows = self.db.execute("SELECT * FROM sweeps WHERE at >= ? ORDER BY id", (_iso(since),))
+        return [_sweep_from_row(r) for r in rows]
+
     def snapshots_since(self, since: datetime) -> list[tuple[datetime, int, int]]:
         rows = self.db.execute(
             "SELECT at, devices, online FROM snapshots WHERE at >= ? ORDER BY at", (_iso(since),)
@@ -236,6 +284,20 @@ def _finding_from_row(row: sqlite3.Row) -> Finding:
         impact=row["impact"] or "",
         fix=row["fix"] or "",
         fyi=bool(row["fyi"]),
+    )
+
+
+def _sweep_from_row(row: sqlite3.Row) -> SweepResult:
+    return SweepResult(
+        at=_dt(row["at"]),
+        devices=row["devices"],
+        online=row["online"],
+        offline=tuple(json.loads(row["offline"] or "[]")),
+        behind=tuple(tuple(b) for b in json.loads(row["behind"] or "[]")),
+        newly_offline=tuple(json.loads(row["newly_offline"] or "[]")),
+        back_online=tuple(json.loads(row["back_online"] or "[]")),
+        posted_at=_dt(row["posted_at"]),
+        id=row["id"],
     )
 
 

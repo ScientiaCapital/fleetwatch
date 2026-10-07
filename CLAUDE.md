@@ -16,7 +16,8 @@ slack-sdk · SQLite · launchd / systemd / Docker · Zensical (pinned) on GitHub
 policy.yaml              behaviour: heartbeat, quiet hours, scope, thresholds (autonomy forced to observe)
 tool_policy.yaml         the read list; anything else is refused by the guard
 src/fleetwatch/
-  cli.py                 login | digest | run | status | doctor | logout | ask, --replay DIR, --serve
+  cli.py                 login | digest | run | status | doctor | logout | ask | sweep | history
+  sweep.py               nightly sweep (offline, behind on firmware, changes) and the history view
   ask.py, ask_page.py    typed questions answered from the state DB; the local page (stdlib http.server)
   doctor.py              read-only health checks for a new machine (no sign-in, no tool calls)
   config.py              FLEETWATCH_* settings from env / .env

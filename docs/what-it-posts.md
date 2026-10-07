@@ -9,6 +9,9 @@
 - Quiet hours (22:00 to 06:30 by default) only let *Fix first* items through.
 - Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. A room is *Not ready* when it is offline
   or a channel it records has no picture. Low storage never makes a room Not ready.
+- Once a day (`sweep_at`, 03:00 by default): a *Nightly sweep* line with who is offline, who is behind on firmware,
+  and what changed since the last sweep. It opens no new items, and in quiet hours it waits for the morning.
+  `fleetwatch history` shows the days side by side.
 
 Example from the sample fleet in [Replay mode](replay.md):
 
