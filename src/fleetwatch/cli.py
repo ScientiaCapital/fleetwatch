@@ -66,12 +66,22 @@ async def _run(settings: Settings) -> None:
             await asyncio.sleep(policy.heartbeat_seconds)
 
 
+def _package_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("fleetwatch")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def main() -> None:
     p = argparse.ArgumentParser(
         prog="fleetwatch",
         description="Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet.",
     )
     p.add_argument("command", choices=["login", "digest", "run", "status", "doctor", "logout"])
+    p.add_argument("--version", action="version", version=f"fleetwatch {_package_version()}")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument(
         "--check", action="store_true", help="status: exit 1 unless a heartbeat read the fleet recently (health check)"

@@ -3,6 +3,21 @@ name = "fleetwatch"
 version = "0.1.0"
 description = "Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet (heartbeat, Slack digest, pre-class readiness)"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["epiphan", "epiphan-edge", "pearl", "ec20", "av-monitoring", "lecture-capture", "mcp", "raspberry-pi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: System Administrators",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: System :: Monitoring",
+]
 authors = [
     { name = "Tim Kipper", email = "tkipper@epiphan.com" }
 ]
@@ -14,6 +29,13 @@ dependencies = [
     "pyyaml>=6.0.3",
     "slack-sdk>=3.45.0",
 ]
+
+[project.urls]
+Homepage = "https://scientiacapital.github.io/fleetwatch/"
+Documentation = "https://scientiacapital.github.io/fleetwatch/"
+Source = "https://github.com/ScientiaCapital/fleetwatch"
+Issues = "https://github.com/ScientiaCapital/fleetwatch/issues"
+Security = "https://github.com/ScientiaCapital/fleetwatch/security/policy"
 
 [project.scripts]
 fleetwatch = "fleetwatch.cli:main"
