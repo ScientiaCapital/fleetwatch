@@ -137,7 +137,9 @@ and feature requests go in [issues](https://github.com/ScientiaCapital/fleetwatc
 
 ## Status
 
-v0.1. Unit and replay tests pass. The first live run against a real team is still to do. Later versions add
+v0.1. Unit and replay tests pass. The first live run against a real team is still to do. What's next is in
+[docs/next-sprint.md](docs/next-sprint.md) and the
+[Sprint 2 milestone](https://github.com/ScientiaCapital/fleetwatch/milestone/1). Later versions add
 proposals with Slack approval, then routine fixes on their own; the guard, the dry run and the redaction stay.
 
 ## License

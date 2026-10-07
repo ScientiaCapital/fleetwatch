@@ -36,6 +36,7 @@ markdown_extensions:
 
 exclude_docs: |
   next-sprint-repo-brief.md
+  next-sprint.md
 
 nav:
   - Home: index.md
