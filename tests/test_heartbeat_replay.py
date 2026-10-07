@@ -21,8 +21,12 @@ class Capture:
         return True
 
 
+def replay_client():
+    return ReplayClient(ROOT / "tests/fixtures", load_tool_policy(ROOT / "tool_policy.yaml"), now=NOW)
+
+
 async def test_replay_heartbeat_posts_once_then_stays_quiet():
-    client = ReplayClient(ROOT / "tests/fixtures", load_tool_policy(ROOT / "tool_policy.yaml"))
+    client = replay_client()
     state, out = State(), Capture()
     policy = Policy(quiet_start=None, quiet_end=None)
     async with client:
@@ -31,13 +35,14 @@ async def test_replay_heartbeat_posts_once_then_stays_quiet():
         assert "offline" in text.lower() and "No picture on" in text
         for banned in ("critical", "urgent", "P1", "—"):
             assert banned not in text
+        first_posts = len(out.posts)
         again = await tick(client, state, policy, out, now=NOW + timedelta(minutes=3))
         assert again is None, "nothing changed, so nothing is posted"
-    assert len(out.posts) == 1
+    assert len(out.posts) == first_posts, "readiness checks are posted once per class too"
 
 
 async def test_quiet_hours_let_only_fix_first_through():
-    client = ReplayClient(ROOT / "tests/fixtures", load_tool_policy(ROOT / "tool_policy.yaml"))
+    client = replay_client()
     state, out = State(), Capture()
     from datetime import time
 
@@ -45,3 +50,24 @@ async def test_quiet_hours_let_only_fix_first_through():
     async with client:
         text = await tick(client, state, policy, out, first_run=True, now=NOW)
     assert text and "Fix soon" not in text and "When convenient" not in text and "Fix first" in text
+
+
+async def test_demo_sample_covers_every_read_and_both_readiness_verdicts(caplog):
+    """The sample is the offline demo: every tool the heartbeat reads has a saved result, and it shows the
+    whole product, including a Ready and a Not ready check before class."""
+    client, state, out = replay_client(), State(), Capture()
+    async with client:
+        text = await tick(client, state, Policy(quiet_start=None, quiet_end=None), out, first_run=True, now=NOW)
+    assert not [r for r in caplog.records if "failed" in r.getMessage()], "no tool should be missing from the sample"
+    assert "working hard" in text and "running warm" in text and "restarted about 12 minutes ago" in text
+    readiness = [p for p in out.posts if " at " in p.splitlines()[0] and p.startswith("*")]
+    assert any(p.splitlines()[0].endswith("*Not ready*") and "No picture on Camera 2" in p for p in readiness)
+    assert any(p.splitlines()[0].endswith("*Ready*") for p in readiness)
+    assert len(readiness) == 2, "the class three hours out is not checked yet"
+
+
+async def test_replay_resolves_relative_times(tmp_path):
+    (tmp_path / "get_team_presets.json").write_text('{"a": "{{now+25m}}", "b": "{{now-2h}}", "c": "{{now}}"}')
+    client = ReplayClient(tmp_path, load_tool_policy(ROOT / "tool_policy.yaml"), now=NOW)
+    got = await client.call("get_team_presets")
+    assert got == {"a": "2026-10-07T15:25:00Z", "b": "2026-10-07T13:00:00Z", "c": "2026-10-07T15:00:00Z"}
