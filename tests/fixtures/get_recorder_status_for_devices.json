@@ -1,0 +1,379 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. Times like {{now+25m}} are resolved when the replay runs.",
+  "devices": {
+    "1f00000000f": {
+      "channels": {
+        "1": {
+          "name": "Channel 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000004": {
+      "channels": {
+        "1": {
+          "name": "Program Mix",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Camera 2",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Content",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000005": {
+      "channels": {
+        "1": {
+          "name": "Camera 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Camera 2",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Camera 3",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f00000000e": {
+      "channels": {
+        "1": {
+          "name": "Wide Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Mayor Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "PTZ Cam 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "PTZ Cam 2",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "5": {
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "6": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000002": {
+      "channels": {
+        "1": {
+          "name": "Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Mixed Feed",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f00000001b": {
+      "channels": {
+        "1": {
+          "name": "Test Station",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000012": {
+      "channels": {
+        "1": {
+          "name": "101-Room",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000017": {
+      "channels": {
+        "1": {
+          "name": "Main Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Host Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Panelist Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "Zoom Guest",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "5": {
+          "name": "Media Playback",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "6": {
+          "name": "Program",
+          "recording_status": {
+            "state": "recording"
+          }
+        }
+      }
+    },
+    "1f000000010": {
+      "channels": {
+        "1": {
+          "name": "Studio Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000006": {
+      "channels": {
+        "1": {
+          "name": "Panel Discussion T",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000001": {
+      "channels": {
+        "1": {
+          "name": "Interactive Area",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000015": {
+      "channels": {
+        "1": {
+          "name": "Stage Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Presenter Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000019": {
+      "channels": {
+        "1": {
+          "name": "PTZ A",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Content",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000016": {
+      "channels": {
+        "1": {
+          "name": "Stage Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Host Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Zoom Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "Dolly Cam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "5": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000013": {
+      "channels": {
+        "1": {
+          "name": "Streamer Sessions",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000007": {
+      "channels": {
+        "1": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000003": {
+      "channels": {
+        "1": {
+          "name": "Main Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f00000000a": {
+      "channels": {
+        "1": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Zcam",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "EC20",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "Guest Laptop",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "5": {
+          "name": "Lectern Laptop",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000018": {
+      "channels": {
+        "1": {
+          "name": "Channel 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f00000000b": {
+      "channels": {
+        "1": {
+          "name": "Channel 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    }
+  }
+}

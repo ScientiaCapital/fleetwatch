@@ -1,0 +1,29 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. Times like {{now+25m}} are resolved when the replay runs.",
+  "devices": {
+    "1f000000004": {
+      "event": {
+        "id": "demo-law-210",
+        "title": "LAW 210",
+        "start": "{{now+25m}}",
+        "end": "{{now+100m}}"
+      }
+    },
+    "1f000000019": {
+      "event": {
+        "id": "demo-bio-101",
+        "title": "BIO 101",
+        "start": "{{now+20m}}",
+        "end": "{{now+80m}}"
+      }
+    },
+    "1f000000002": {
+      "event": {
+        "id": "demo-media-150",
+        "title": "MEDIA 150",
+        "start": "{{now+3h}}",
+        "end": "{{now+4h}}"
+      }
+    }
+  }
+}
