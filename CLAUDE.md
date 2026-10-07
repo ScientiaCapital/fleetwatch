@@ -16,7 +16,8 @@ slack-sdk · SQLite · launchd / systemd / Docker · MkDocs Material (pinned `<2
 policy.yaml              behaviour: heartbeat, quiet hours, scope, thresholds (autonomy forced to observe)
 tool_policy.yaml         the read list; anything else is refused by the guard
 src/fleetwatch/
-  cli.py                 login | digest | run | status | doctor | logout, --replay DIR
+  cli.py                 login | digest | run | status | doctor | logout | ask, --replay DIR, --serve
+  ask.py, ask_page.py    typed questions answered from the state DB; the local page (stdlib http.server)
   doctor.py              read-only health checks for a new machine (no sign-in, no tool calls)
   config.py              FLEETWATCH_* settings from env / .env
   epiphan/               auth.py (OAuth, 127.0.0.1 callback), mcp.py (guard + redact), parse.py, replay.py
@@ -57,6 +58,7 @@ All optional, read from `.env` (see `.env.example`).
 | `FLEETWATCH_SLACK_CHANNEL` | `#av-ops` | Where the digest goes |
 | `FLEETWATCH_EPIPHAN_TOKEN` | unset | Static bearer token for hosts that can't run OAuth |
 | `FLEETWATCH_OAUTH_CALLBACK_PORT` | `8765` | Login callback on 127.0.0.1 |
+| `FLEETWATCH_ASK_PORT` | `8766` | `fleetwatch ask --serve` page on 127.0.0.1 |
 | `FLEETWATCH_STATE_DB`, `FLEETWATCH_TOKEN_FILE` | `~/.fleetwatch/...` | State and token paths |
 
 ## Rules

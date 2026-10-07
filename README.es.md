@@ -68,6 +68,7 @@ uv run fleetwatch login         # inicio de sesión único en Epiphan Edge
 uv run fleetwatch digest        # un ciclo: imprime o publica el resumen
 uv run fleetwatch run           # sigue ejecutándose, cada 3 minutos
 uv run fleetwatch doctor        # ¿está lista esta máquina?
+uv run fleetwatch ask "¿Está lista Courtroom?"   # pregunta en palabras simples; --serve abre una página con botones
 ```
 
 Las cuentas de Europa o Australia ponen `FLEETWATCH_EPIPHAN_MCP_URL` en `eu.` o `au.epiphan.cloud`.
