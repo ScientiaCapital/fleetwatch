@@ -16,15 +16,22 @@ Sprint 1 finished steps 1 to 5 of [next-sprint-repo-brief.md](next-sprint-repo-b
 | Distribution | `install.sh` one-liner, Docker image + compose (GHCR on tags, SBOM, provenance), docs on Pages |
 | Not yet | A live run against a real team; any release |
 
+## Deadline: InfoComm LATAM booth (about 2026-10-21)
+
+The booth demo is a Raspberry Pi on the presenter's phone hotspot, running Fleetwatch against the Edge Showcase
+team (cleared with its co-owner), with the digest on screen. Items #13, #15 and #25 serve the booth and come
+first. Slack stays off until a demo channel exists; the console digest is the fallback.
+
 ## Order
 
-1. **#13 First live run** (blocked: ask the maintainer which team and when; Edge Showcase is shared).
+1. **#13 First live run** on the booth Pi against Edge Showcase (cleared with its co-owner on 2026-10-07).
    Save the missing tool results as redacted fixtures.
 2. **#14 Release v0.1.0**: reserve the PyPI name, tag, GHCR image public, generated notes.
 3. **#12 Move the docs off MkDocs before 2.0.** Must land this sprint. Evaluate Zensical vs pinned MkDocs 1.6.
 4. **#15 Verify the installer** on a real Pi 5 and Mac mini (CI only dry-runs it).
 5. Housekeeping: **#17** unused `anthropic` dependency, **#16** Docker HEALTHCHECK, **#18** Keychain / systemd-creds.
-6. Features, after the release: **#19** Teams, **#20** two-way `check`, **#21** nightly sweep, **#22** `doctor`,
+6. **#25 Voice**: ask Fleetwatch out loud. First slice by the booth if time allows; read-only.
+7. Features, after the release: **#19** Teams, **#20** two-way `check`, **#21** nightly sweep, **#22** `doctor`,
    **#23** per-room notes.
 
 ## Ground rules
