@@ -74,6 +74,9 @@ def main() -> None:
     p.add_argument("command", choices=["login", "digest", "run", "status", "doctor", "logout"])
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument(
+        "--check", action="store_true", help="status: exit 1 unless a heartbeat read the fleet recently (health check)"
+    )
+    p.add_argument(
         "--replay", metavar="DIR", help="digest: use saved tool results from DIR instead of Epiphan (no sign-in)"
     )
     args = p.parse_args()
@@ -96,6 +99,12 @@ def main() -> None:
         checks = run_checks(settings)
         print_report(checks)
         raise SystemExit(exit_code(checks))
+    elif args.check:
+        from fleetwatch.heartbeat import health
+
+        ok, msg = health(State(settings.state_db), load_policy(settings.policy_file).heartbeat_seconds)
+        print(msg)
+        raise SystemExit(0 if ok else 1)
     else:
         state = State(settings.state_db)
         items = state.open_findings()

@@ -38,6 +38,19 @@ async def snapshot(client: EpiphanClient, now: datetime) -> Fleet:
     return fleet
 
 
+def health(state: State, heartbeat_seconds: int, now: datetime | None = None) -> tuple[bool, str]:
+    """Healthy when a heartbeat read the fleet within the last three intervals. Used by `status --check`."""
+    now = now or datetime.now(UTC)
+    last = state.last_snapshot()
+    every = f"every {max(1, round(heartbeat_seconds / 60))} min"
+    if last is None:
+        return False, f"No heartbeat yet (expected {every})"
+    ago = int((now - last).total_seconds() // 60)
+    if now - last <= timedelta(seconds=3 * heartbeat_seconds):
+        return True, f"Last heartbeat {ago} min ago"
+    return False, f"Last heartbeat {ago} min ago; expected {every}"
+
+
 async def tick(
     client: EpiphanClient,
     state: State,

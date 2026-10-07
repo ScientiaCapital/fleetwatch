@@ -28,5 +28,7 @@ ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 USER 10001:10001
 # Token and state live here. Mount a volume so they survive restarts.
 VOLUME ["/home/fleetwatch/.fleetwatch"]
+# Healthy while a heartbeat has read the fleet in the last three intervals (9 minutes by default).
+HEALTHCHECK --interval=5m --timeout=30s --start-period=10m --retries=2 CMD ["fleetwatch", "status", "--check"]
 ENTRYPOINT ["fleetwatch"]
 CMD ["run"]
