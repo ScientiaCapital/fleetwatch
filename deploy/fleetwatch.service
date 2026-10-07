@@ -1,20 +1,20 @@
 # systemd unit for Linux hosts (Raspberry Pi 5 and friends). Installed by deploy/install.sh.
 [Unit]
-Description=ProAV Agent Sentinel: read-only watcher for an Epiphan Edge fleet
+Description=Fleetwatch for Epiphan Edge: read-only watcher for an Epiphan Edge fleet
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=%i
-WorkingDirectory=%h/proav-agent
-EnvironmentFile=-%h/proav-agent/.env
-ExecStart=%h/.local/bin/uv run --frozen proav-agent run
+WorkingDirectory=%h/fleetwatch
+EnvironmentFile=-%h/fleetwatch/.env
+ExecStart=%h/.local/bin/uv run --frozen fleetwatch run
 Restart=on-failure
 RestartSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=%h/.proav-agent %h/proav-agent/.venv
+ReadWritePaths=%h/.fleetwatch %h/fleetwatch/.venv
 PrivateTmp=true
 
 [Install]

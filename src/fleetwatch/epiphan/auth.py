@@ -1,4 +1,4 @@
-"""Sign in to Epiphan Edge once; keep the token in ~/.proav-agent, readable only by this user.
+"""Sign in to Epiphan Edge once; keep the token in ~/.fleetwatch, readable only by this user.
 
 The MCP SDK does the OAuth dance (discovery, PKCE, refresh). We supply where to keep the token, how to show
 the sign-in link, how to catch the redirect, and one nudge: Epiphan's server admits anonymous sessions and
@@ -164,7 +164,7 @@ def _headless() -> bool:
 def make_provider(server_url: str, storage: FileTokenStorage, port: int, interactive: bool) -> OAuthClientProvider:
     redirect = f"http://localhost:{port}/callback"
     metadata = OAuthClientMetadata(
-        client_name="proav-agent",
+        client_name="fleetwatch",
         redirect_uris=[redirect],
         grant_types=["authorization_code", "refresh_token"],
         response_types=["code"],
@@ -173,7 +173,7 @@ def make_provider(server_url: str, storage: FileTokenStorage, port: int, interac
 
     async def show_link(url: str) -> None:
         if not interactive:
-            raise RuntimeError("Epiphan sign-in has expired. Run `proav-agent login` once, then start the agent again.")
+            raise RuntimeError("Epiphan sign-in has expired. Run `fleetwatch login` once, then start the agent again.")
         print("\nSign in to Epiphan Edge and pick the team to watch:\n\n  " + url + "\n")
         if not _headless():
             webbrowser.open(url)
@@ -191,7 +191,7 @@ def make_provider(server_url: str, storage: FileTokenStorage, port: int, interac
 
 
 class LoginAuth(httpx2.Auth):
-    """Wraps the SDK provider for `proav-agent login`. With no stored token, the first request is answered
+    """Wraps the SDK provider for `fleetwatch login`. With no stored token, the first request is answered
     with a synthetic 401 so the SDK starts its flow; the discovery, authorize and token requests it then
     yields go to the network as usual. With a token stored, it's a plain pass-through."""
 

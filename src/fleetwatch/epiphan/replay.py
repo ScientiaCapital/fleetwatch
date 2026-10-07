@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proav_agent.policy import ToolPolicy
-from proav_agent.redact import redact
+from fleetwatch.policy import ToolPolicy
+from fleetwatch.redact import redact
 
 
 class ReplayClient:
@@ -14,7 +14,7 @@ class ReplayClient:
         self.directory, self.tools = Path(directory), tools
 
     def guard(self, tool: str) -> None:
-        from proav_agent.epiphan.mcp import ToolNotAllowed
+        from fleetwatch.epiphan.mcp import ToolNotAllowed
 
         if not self.tools.is_read(tool):
             raise ToolNotAllowed(f"refused non-read tool {tool!r} in replay")

@@ -4,7 +4,7 @@ running when a field is absent, and must never invent state it didn't read."""
 from datetime import UTC, datetime
 from typing import Any
 
-from proav_agent.model import Channel, Device, Event, Fleet, SystemStatus
+from fleetwatch.model import Channel, Device, Event, Fleet, SystemStatus
 
 STORAGE_WARNINGS = frozenset({"disk_space_error", "no_storage_detected"})
 

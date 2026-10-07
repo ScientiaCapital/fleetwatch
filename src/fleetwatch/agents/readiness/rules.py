@@ -1,8 +1,8 @@
 """Ready / Ready, with notes / Not ready, from what we can read without touching the room.
 Ported from the Edge Claude Kit's /check-room. Space never makes a room Not ready."""
 
-from proav_agent.epiphan.parse import STORAGE_WARNINGS
-from proav_agent.model import Device, Event, Readiness
+from fleetwatch.epiphan.parse import STORAGE_WARNINGS
+from fleetwatch.model import Device, Event, Readiness
 
 READY, NOTES, NOT_READY = "Ready", "Ready, with notes", "Not ready"
 

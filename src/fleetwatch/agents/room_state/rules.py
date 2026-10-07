@@ -3,7 +3,7 @@ market regime: live rooms are left alone, pre-class rooms get a readiness check.
 
 from datetime import datetime, timedelta
 
-from proav_agent.model import Device, Event, RoomState
+from fleetwatch.model import Device, Event, RoomState
 
 
 def room_state(device: Device, event: Event | None, now: datetime, lead: timedelta) -> RoomState:

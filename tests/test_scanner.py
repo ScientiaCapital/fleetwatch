@@ -1,8 +1,8 @@
 from datetime import timedelta
 
-from proav_agent.agents.scanner.rules import firmware_family, newest_firmware, scan
-from proav_agent.model import Channel, Device, Fleet, Priority, SystemStatus
-from proav_agent.policy import Policy, Thresholds
+from fleetwatch.agents.scanner.rules import firmware_family, newest_firmware, scan
+from fleetwatch.model import Channel, Device, Fleet, Priority, SystemStatus
+from fleetwatch.policy import Policy, Thresholds
 from tests.conftest import NOW
 
 

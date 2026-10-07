@@ -6,7 +6,7 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from proav_agent.model import Finding
+from fleetwatch.model import Finding
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS findings (
@@ -96,7 +96,7 @@ class State:
 
 
 def _finding_from_row(row: sqlite3.Row) -> Finding:
-    from proav_agent.model import Priority
+    from fleetwatch.model import Priority
 
     return Finding(
         key=row["key"],

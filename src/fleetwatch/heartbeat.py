@@ -3,17 +3,17 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from proav_agent.agents.readiness.rules import check as readiness_check
-from proav_agent.agents.room_state.rules import room_state
-from proav_agent.agents.scanner.rules import scan
-from proav_agent.epiphan.mcp import EpiphanClient
-from proav_agent.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
-from proav_agent.model import Fleet, Priority, RoomState
-from proav_agent.notify.digest import render_digest, render_readiness
-from proav_agent.notify.slack import Notifier
-from proav_agent.policy import Policy
-from proav_agent.redact import redact
-from proav_agent.state import State
+from fleetwatch.agents.readiness.rules import check as readiness_check
+from fleetwatch.agents.room_state.rules import room_state
+from fleetwatch.agents.scanner.rules import scan
+from fleetwatch.epiphan.mcp import EpiphanClient
+from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
+from fleetwatch.model import Fleet, Priority, RoomState
+from fleetwatch.notify.digest import render_digest, render_readiness
+from fleetwatch.notify.slack import Notifier
+from fleetwatch.policy import Policy
+from fleetwatch.redact import redact
+from fleetwatch.state import State
 
 log = logging.getLogger(__name__)
 

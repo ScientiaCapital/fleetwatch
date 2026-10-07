@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from proav_agent.epiphan.parse import parse_devices
-from proav_agent.policy import Policy
+from fleetwatch.epiphan.parse import parse_devices
+from fleetwatch.policy import Policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 10, 7, 15, 0, tzinfo=UTC)
