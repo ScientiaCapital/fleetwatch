@@ -8,7 +8,7 @@ assistant; this file adds Claude Code specifics and project status.
 ## Stack
 
 Python 3.12 · uv · ruff · pytest (+ pytest-asyncio) · `mcp` SDK (no AI model in v0.1) (streamable HTTP, OAuth) · pydantic-settings ·
-slack-sdk · SQLite · launchd / systemd / Docker · MkDocs Material (pinned `<2`) on GitHub Pages.
+slack-sdk · SQLite · launchd / systemd / Docker · Zensical (pinned) on GitHub Pages.
 
 ## Directory Structure
 
@@ -29,7 +29,7 @@ src/fleetwatch/
 deploy/                  launchd plist, systemd unit, install.sh (--dry-run)
 install.sh               curl | bash one-liner
 Dockerfile, compose.yaml hardened image (non-root uid 10001, read-only, no ports)
-docs/                    MkDocs site; next-sprint.md is the current plan
+docs/                    docs site (Zensical); planning/next-sprint.md is the current plan
 tests/                   pytest suite; fixtures/ is the replay demo (real device list renamed, rest synthetic)
 .github/                 CI, issue forms, PR template, CODEOWNERS, dependabot, release.yml
 LICENSE, NOTICE          Apache-2.0; copyright Epiphan Systems Inc.; NOTICE credits the MIT kit and trademarks
@@ -44,7 +44,7 @@ uv run fleetwatch digest --replay tests/fixtures      # full heartbeat, no sign-
 uv run ruff check . && uv run ruff format --check .
 uvx pre-commit run --all-files                         # same checks as CI lint
 deploy/install.sh --dry-run                            # render + validate the service file
-uv run --group docs mkdocs serve                       # docs at localhost:8000
+uv run --group docs zensical serve                     # docs at localhost:8000
 ```
 
 ## Environment Variables
@@ -80,5 +80,5 @@ All optional, read from `.env` (see `.env.example`).
 ## Status (2026-10-07)
 
 - Sprint 1 (repo) done: public repo, protected main, CI, security files, Docker, installer, docs site, README.
-- Sprint 2 plan: [docs/next-sprint.md](docs/next-sprint.md), milestone "Sprint 2" on GitHub. Done: #16, #17, #22, offline demo, booth runbook.
+- Sprint 2 plan: [planning/next-sprint.md](planning/next-sprint.md), milestone "Sprint 2" on GitHub. Done: #16, #17, #22, offline demo, booth runbook.
 - Must land in Sprint 2: move docs off MkDocs before 2.0 (#12). Blocked on the maintainer: first live run (#13).
