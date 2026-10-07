@@ -60,3 +60,4 @@ shellcheck deploy/install.sh && deploy/install.sh --dry-run
 | `src/fleetwatch/notify/` | Digest templates; Slack or console |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
 | `tests/fixtures/` | Redacted, renamed fleet sample used by replay mode |
+| `docs/next-sprint.md` | The current sprint plan; issues are in the GitHub milestone of the same name |
