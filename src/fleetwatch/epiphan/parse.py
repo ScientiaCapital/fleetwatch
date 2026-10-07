@@ -152,7 +152,7 @@ def apply_events(fleet: Fleet, raw: Any) -> None:
             continue
         fleet.events[str(dev_id)] = Event(
             device_id=str(dev_id),
-            title=str(ev.get("title") or ev.get("name") or "Scheduled class"),
+            title=str(ev.get("title") or ev.get("name") or "Scheduled event"),
             start=start,
             end=_when(ev.get("end") or ev.get("end_time") or ev.get("ends_at") or _find(ev, "end")),
             id=str(ev.get("id") or ev.get("event_id") or ev.get("occurrence_id") or ""),

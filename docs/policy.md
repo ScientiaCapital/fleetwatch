@@ -7,7 +7,8 @@ Two files control behaviour. Both are plain YAML in the repo folder.
 | Setting | Default | Meaning |
 |---|---|---|
 | `heartbeat_seconds` | `180` | How often to look at the fleet |
-| `preclass_lead_minutes` | `30` | Post Ready / Not ready this long before each class |
+| `vertical` | `events` | The word for a scheduled recording: `events` (event), `education` (class), `business` (meeting), `courts` (hearing), `worship` (service) |
+| `lead_minutes` | `30` | Post Ready / Not ready this long before each event (`preclass_lead_minutes` still works) |
 | `remind_after_minutes` | `240` | Repeat an open item at most this often |
 | `quiet_hours.start` / `.end` | `22:00` / `06:30` | Only *Fix first* items are posted in this window, in the machine's local time |
 | `scope.groups` | `[]` | Only watch these Edge groups; empty watches the whole team |

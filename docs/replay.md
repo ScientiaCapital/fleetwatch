@@ -10,7 +10,7 @@ Quiet hours don't apply, so the digest looks the same at any time of day.
 
 The bundled sample is also the offline demo. It covers every tool a heartbeat reads, so one run shows the whole
 product: rooms offline, a channel with no picture, a unit working hard, one running warm, a recent restart, the
-storage FYI, and two checks before class, one *Ready* and one *Not ready*. The device list is a real fleet, renamed
+storage FYI, and two checks before an event, one *Ready* and one *Not ready*. The device list is a real fleet, renamed
 and with IDs replaced; the recorder, system and schedule files are synthetic.
 
 ## Your own sample

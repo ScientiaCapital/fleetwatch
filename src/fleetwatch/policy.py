@@ -14,18 +14,37 @@ class Thresholds:
     recent_reboot_minutes: int = 30
 
 
+# What a scheduled recording is called where Fleetwatch runs: (singular, plural). Edge itself says "event".
+VERTICALS: dict[str, tuple[str, str]] = {
+    "events": ("event", "events"),
+    "education": ("class", "classes"),
+    "business": ("meeting", "meetings"),
+    "courts": ("hearing", "hearings"),
+    "worship": ("service", "services"),
+}
+
+
 @dataclass(frozen=True)
 class Policy:
     autonomy: str = "observe"
     dry_run: bool = True
     heartbeat_seconds: int = 180
-    preclass_lead_minutes: int = 30
+    lead_minutes: int = 30
+    vertical: str = "events"
     remind_after_minutes: int = 240
     quiet_start: time | None = None
     quiet_end: time | None = None
     groups: tuple[str, ...] = ()
     exclude_devices: tuple[str, ...] = ()
     thresholds: Thresholds = field(default_factory=Thresholds)
+
+    @property
+    def event_word(self) -> str:
+        return VERTICALS[self.vertical][0]
+
+    @property
+    def events_word(self) -> str:
+        return VERTICALS[self.vertical][1]
 
     def in_quiet_hours(self, now: time) -> bool:
         if self.quiet_start is None or self.quiet_end is None:
@@ -57,13 +76,17 @@ def load_policy(path: Path) -> Policy:
     raw = raw or {}
     if raw.get("autonomy", "observe") != "observe":
         raise ValueError("v0.1 supports autonomy: observe only")
+    vertical = str(raw.get("vertical", "events"))
+    if vertical not in VERTICALS:
+        raise ValueError(f"vertical must be one of {', '.join(VERTICALS)}, not {vertical!r}")
     quiet = raw.get("quiet_hours") or {}
     scope = raw.get("scope") or {}
     return Policy(
         autonomy="observe",
         dry_run=True,  # v0.1 never writes, whatever the file says
         heartbeat_seconds=int(raw.get("heartbeat_seconds", 180)),
-        preclass_lead_minutes=int(raw.get("preclass_lead_minutes", 30)),
+        lead_minutes=int(raw.get("lead_minutes", raw.get("preclass_lead_minutes", 30))),  # old name still works
+        vertical=vertical,
         remind_after_minutes=int(raw.get("remind_after_minutes", 240)),
         quiet_start=_hhmm(quiet.get("start")),
         quiet_end=_hhmm(quiet.get("end")),

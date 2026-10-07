@@ -83,7 +83,7 @@ async def tick(
             now,
         )
 
-    lead = timedelta(minutes=policy.preclass_lead_minutes)
+    lead = timedelta(minutes=policy.lead_minutes)
     for dev_id, event in fleet.events.items():
         dev = fleet.devices.get(dev_id)
         if dev is None or state.readiness_posted(event.key):
@@ -91,7 +91,7 @@ async def tick(
         if room_state(dev, event, now, lead) is RoomState.PRE_CLASS or (
             not dev.online and now < event.start <= now + lead
         ):
-            r = readiness_check(dev, event)
+            r = readiness_check(dev, event, policy)
             if notifier.post(render_readiness(r)):
                 state.mark_readiness(event.key, r.verdict, now)
                 state.audit("readiness", {"event": event.key, "verdict": r.verdict}, now)
