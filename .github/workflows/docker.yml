@@ -36,6 +36,7 @@ jobs:
           tags: fleetwatch:ci
       - name: Replay heartbeat inside the image
         run: |
+          set -o pipefail
           docker run --rm --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
             fleetwatch:ci digest --replay tests/fixtures | tee digest.txt
           grep -q "Fleet check" digest.txt
