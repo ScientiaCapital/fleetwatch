@@ -6,8 +6,10 @@ repo_name: ScientiaCapital/fleetwatch
 edit_uri: edit/main/docs/
 copyright: Copyright 2026 Epiphan Systems Inc. · Apache-2.0 · Not an officially supported Epiphan product
 
+# Built with Zensical, which reads this file as-is. The classic variant keeps the Material for MkDocs look.
 theme:
   name: material
+  variant: classic
   features:
     - navigation.sections
     - navigation.footer
@@ -33,10 +35,6 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: ["."]
       check_paths: true
-
-exclude_docs: |
-  next-sprint-repo-brief.md
-  next-sprint.md
 
 nav:
   - Home: index.md
