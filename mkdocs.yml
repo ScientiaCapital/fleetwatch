@@ -48,6 +48,7 @@ nav:
       - On a Mac mini: mac-mini.md
       - On a Raspberry Pi: raspberry-pi.md
       - With Docker: docker.md
+      - At a booth: booth.md
   - Reference:
       - Policy: policy.md
       - What it posts: what-it-posts.md
