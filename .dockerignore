@@ -9,3 +9,10 @@
 .fleetwatch
 docs
 deploy
+.env.*
+!.env.example
+.DS_Store
+.ruff_cache
+.mypy_cache
+htmlcov
+site

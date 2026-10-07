@@ -8,7 +8,7 @@ COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/app/.venv
 WORKDIR /app
 # Dependencies first, so code changes don't rebuild them.
-COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY pyproject.toml uv.lock README.md LICENSE NOTICE ./
 RUN uv sync --frozen --no-dev --no-install-project --no-editable
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
@@ -17,7 +17,8 @@ FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3
 LABEL org.opencontainers.image.title="Fleetwatch for Epiphan Edge" \
       org.opencontainers.image.description="Always-on, read-only watcher for an Epiphan Edge fleet" \
       org.opencontainers.image.source="https://github.com/ScientiaCapital/fleetwatch" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="Epiphan Systems Inc."
 RUN useradd --create-home --uid 10001 fleetwatch \
  && mkdir -p /home/fleetwatch/.fleetwatch && chown fleetwatch:fleetwatch /home/fleetwatch/.fleetwatch
 WORKDIR /app

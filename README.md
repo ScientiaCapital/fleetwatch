@@ -145,6 +145,8 @@ proposals with Slack approval, then routine fixes on their own; the guard, the d
 
 ## License
 
-[Apache-2.0](LICENSE). Built from the
-[Epiphan Edge Claude Kit](https://github.com/ScientiaCapital/epiphan-edge-claude-kit). Not an official Epiphan
-product.
+Copyright 2026 Epiphan Systems Inc. Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) for attributions.
+Built from the [Epiphan Edge Claude Kit](https://github.com/ScientiaCapital/epiphan-edge-claude-kit) (MIT).
+
+Fleetwatch is not an officially supported Epiphan product. Epiphan, Epiphan Edge, Pearl and EC20 are trademarks
+of Epiphan Systems Inc.
