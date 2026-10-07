@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - name: ruff check
+        run: uv run --frozen ruff check .
+      - name: ruff format
+        run: uv run --frozen ruff format --check .
+      - name: shellcheck
+        run: shellcheck deploy/install.sh
+
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - run: uv run --frozen python -m pytest -q
+
+  redaction:
+    # Its own job so a redaction regression is visible at a glance on every PR.
+    name: Redaction suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - run: uv run --frozen python -m pytest -v tests/test_redact.py tests/test_guard.py
+
+  replay:
+    name: Replay heartbeat
+    runs-on: ubuntu-latest
+    env:
+      # Never post from CI, even if a token is ever added to the repo by mistake.
+      FLEETWATCH_SLACK_BOT_TOKEN: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - name: Digest from the saved fleet sample
+        run: |
+          uv run --frozen fleetwatch digest --replay tests/fixtures | tee digest.txt
+          grep -q "Fleet check" digest.txt
+          grep -q "Fix first" digest.txt
