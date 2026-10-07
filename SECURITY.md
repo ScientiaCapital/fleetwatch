@@ -23,7 +23,7 @@ Fleetwatch runs as one process on a machine you control, as your user, with one 
 team. It trusts that machine, its user account, `policy.yaml`, `tool_policy.yaml` and your Slack workspace. It
 does **not** trust anything that comes back from Epiphan: device names, channel and source names, CMS event
 titles and on-screen text can be typed by anyone with access to a room or a CMS, so they are treated as data,
-never as instructions. It listens on no network port except `127.0.0.1`: for the few seconds of `fleetwatch
+never as instructions. In Slack they are escaped, so a device named `<!channel>` can't ping anyone or post a link. It listens on no network port except `127.0.0.1`: for the few seconds of `fleetwatch
 login`, and while you run `fleetwatch ask --serve` (opt-in, answers only requests addressed to localhost, reads
 the local state and never calls Epiphan). It talks only outward: to your Epiphan region and, if configured, to
 Slack. Questions typed into `ask` are untrusted text too: they pick a fixed answer and a known room, nothing more.
