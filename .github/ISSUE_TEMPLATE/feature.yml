@@ -1,0 +1,27 @@
+name: Feature request
+description: A check, a channel, or a change to how Fleetwatch behaves.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fleetwatch is read-only on purpose. Requests that change devices will be designed around an approval flow, not a bypass flag.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What do AV techs keep having to check or ask today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What Fleetwatch should do
+      description: Ideally, the message you'd like to see in Slack.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: ["New check", "Pre-class readiness", "Slack / Teams / email", "Install and service", "Docs", "Other"]

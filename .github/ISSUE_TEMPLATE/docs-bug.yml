@@ -1,0 +1,21 @@
+name: Docs problem
+description: Something in the README or docs is wrong, missing or unclear.
+labels: ["documentation"]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Page or section
+      placeholder: README → Quick start
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested wording
