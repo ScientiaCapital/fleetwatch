@@ -94,6 +94,11 @@ class State:
         self.db.execute("INSERT INTO snapshots (at, devices, online) VALUES (?,?,?)", (_iso(now), devices, online))
         self.db.commit()
 
+    def last_snapshot(self) -> datetime | None:
+        """When the last heartbeat read the fleet successfully."""
+        row = self.db.execute("SELECT at FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
+        return _dt(row["at"]) if row else None
+
 
 def _finding_from_row(row: sqlite3.Row) -> Finding:
     from fleetwatch.model import Priority

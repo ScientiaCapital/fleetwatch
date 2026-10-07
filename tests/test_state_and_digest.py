@@ -75,3 +75,20 @@ def test_readiness_posted_once():
     assert not s.readiness_posted("d:e1")
     s.mark_readiness("d:e1", "Ready", NOW)
     assert s.readiness_posted("d:e1")
+
+
+def test_health_follows_the_last_heartbeat():
+    from fleetwatch.heartbeat import health
+
+    state = State()
+    assert state.last_snapshot() is None
+    ok, msg = health(state, heartbeat_seconds=180, now=NOW)
+    assert not ok and "No heartbeat yet" in msg
+
+    state.snapshot(NOW, devices=31, online=20)
+    assert state.last_snapshot() == NOW
+    ok, msg = health(state, heartbeat_seconds=180, now=NOW + timedelta(minutes=2))
+    assert ok and "2 min ago" in msg
+
+    ok, msg = health(state, heartbeat_seconds=180, now=NOW + timedelta(minutes=10))
+    assert not ok and "10 min ago" in msg and "every 3 min" in msg
