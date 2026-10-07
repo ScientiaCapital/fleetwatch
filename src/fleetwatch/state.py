@@ -3,10 +3,11 @@ SQLite, one file. Without this every heartbeat would re-post the same items."""
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fleetwatch.model import Finding
+from fleetwatch.model import Finding, Fleet, Readiness
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS findings (
@@ -15,7 +16,41 @@ CREATE TABLE IF NOT EXISTS findings (
 CREATE TABLE IF NOT EXISTS readiness (event_key TEXT PRIMARY KEY, posted_at TEXT, verdict TEXT);
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at TEXT, kind TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY, at TEXT, devices INTEGER, online INTEGER);
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY, name TEXT, model TEXT, group_name TEXT, online INTEGER, firmware TEXT, recording INTEGER,
+  last_seen TEXT);
 """
+
+# Columns added after v0.1's first schema. Old databases get them on open; new ones go through the same path.
+_ADDED_COLUMNS = {
+    "findings": ("impact TEXT", "fix TEXT"),
+    "readiness": ("device_id TEXT", "device_name TEXT", "title TEXT", "start TEXT", "notes TEXT"),
+}
+
+
+@dataclass(frozen=True)
+class KnownDevice:
+    """A device as last seen by a heartbeat. The name is untrusted text: match it, never act on it."""
+
+    id: str
+    name: str
+    model: str
+    group: str
+    online: bool
+    firmware: str
+    recording: bool
+    last_seen: datetime
+
+
+@dataclass(frozen=True)
+class PostedReadiness:
+    device_id: str
+    device_name: str
+    title: str
+    start: datetime | None
+    verdict: str
+    notes: tuple[str, ...]
+    posted_at: datetime
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -33,6 +68,15 @@ class State:
         self.db = sqlite3.connect(str(path))
         self.db.row_factory = sqlite3.Row
         self.db.executescript(_SCHEMA)
+        self._upgrade()
+
+    def _upgrade(self) -> None:
+        for table, columns in _ADDED_COLUMNS.items():
+            have = {r["name"] for r in self.db.execute(f"PRAGMA table_info({table})")}
+            for column in columns:
+                if column.split()[0] not in have:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+        self.db.commit()
 
     # --- findings -----------------------------------------------------------------------------------
     def reconcile(
@@ -46,12 +90,26 @@ class State:
             row = open_rows.pop(f.key, None)
             if row is None:
                 self.db.execute(
-                    "INSERT OR REPLACE INTO findings VALUES (?,?,?,?,?,?,?,?,NULL,NULL)",
-                    (f.key, f.device_id, f.device_name, f.priority.value, f.what, int(f.fyi), _iso(now), _iso(now)),
+                    "INSERT OR REPLACE INTO findings (key, device_id, device_name, priority, what, fyi, first_seen,"
+                    " last_seen, last_sent, resolved_at, impact, fix) VALUES (?,?,?,?,?,?,?,?,NULL,NULL,?,?)",
+                    (
+                        f.key,
+                        f.device_id,
+                        f.device_name,
+                        f.priority.value,
+                        f.what,
+                        int(f.fyi),
+                        _iso(now),
+                        _iso(now),
+                        f.impact,
+                        f.fix,
+                    ),
                 )
                 new.append(f)
             else:
-                self.db.execute("UPDATE findings SET last_seen=? WHERE key=?", (_iso(now), f.key))
+                self.db.execute(
+                    "UPDATE findings SET last_seen=?, impact=?, fix=? WHERE key=?", (_iso(now), f.impact, f.fix, f.key)
+                )
                 last_sent = _dt(row["last_sent"])
                 if last_sent is None:
                     new.append(f)  # seen before but never posted (quiet hours)
@@ -78,9 +136,63 @@ class State:
     def readiness_posted(self, event_key: str) -> bool:
         return self.db.execute("SELECT 1 FROM readiness WHERE event_key=?", (event_key,)).fetchone() is not None
 
-    def mark_readiness(self, event_key: str, verdict: str, now: datetime) -> None:
-        self.db.execute("INSERT OR REPLACE INTO readiness VALUES (?,?,?)", (event_key, _iso(now), verdict))
+    def record_readiness(self, r: Readiness, now: datetime) -> None:
+        self.db.execute(
+            "INSERT OR REPLACE INTO readiness (event_key, posted_at, verdict, device_id, device_name, title, start,"
+            " notes) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                r.event.key,
+                _iso(now),
+                r.verdict,
+                r.event.device_id,
+                r.device_name,
+                r.event.title,
+                _iso(r.event.start),
+                json.dumps(list(r.notes)),
+            ),
+        )
         self.db.commit()
+
+    def latest_readiness(self, device_id: str) -> PostedReadiness | None:
+        row = self.db.execute(
+            "SELECT * FROM readiness WHERE device_id=? ORDER BY posted_at DESC LIMIT 1", (device_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return PostedReadiness(
+            device_id=row["device_id"],
+            device_name=row["device_name"] or "",
+            title=row["title"] or "",
+            start=_dt(row["start"]),
+            verdict=row["verdict"],
+            notes=tuple(json.loads(row["notes"] or "[]")),
+            posted_at=_dt(row["posted_at"]),
+        )
+
+    # --- devices ------------------------------------------------------------------------------------
+    def record_devices(self, fleet: Fleet, now: datetime) -> None:
+        self.db.executemany(
+            "INSERT OR REPLACE INTO devices (id, name, model, group_name, online, firmware, recording, last_seen)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            [
+                (d.id, d.name, d.model, d.group, int(d.online), d.firmware, int(d.recording), _iso(now))
+                for d in fleet.devices.values()
+            ],
+        )
+        self.db.commit()
+
+    def devices(self) -> list[KnownDevice]:
+        rows = self.db.execute("SELECT * FROM devices").fetchall()
+        return sorted((_device_from_row(r) for r in rows), key=lambda d: (d.name.casefold(), d.id))
+
+    def find_devices(self, text: str) -> list[KnownDevice]:
+        """Devices whose name contains `text`, ignoring case. An exact name match wins on its own."""
+        needle = " ".join(text.split()).casefold()
+        if not needle:
+            return []
+        hits = [d for d in self.devices() if needle in " ".join(d.name.split()).casefold()]
+        exact = [d for d in hits if " ".join(d.name.split()).casefold() == needle]
+        return exact or hits
 
     # --- audit --------------------------------------------------------------------------------------
     def audit(self, kind: str, detail: dict, now: datetime | None = None) -> None:
@@ -90,6 +202,12 @@ class State:
         )
         self.db.commit()
 
+    def recent_audit(self, kind: str, limit: int = 10) -> list[tuple[datetime, dict]]:
+        rows = self.db.execute(
+            "SELECT at, detail FROM audit WHERE kind=? ORDER BY id DESC LIMIT ?", (kind, limit)
+        ).fetchall()
+        return [(_dt(r["at"]), json.loads(r["detail"])) for r in rows]
+
     def snapshot(self, now: datetime, devices: int, online: int) -> None:
         self.db.execute("INSERT INTO snapshots (at, devices, online) VALUES (?,?,?)", (_iso(now), devices, online))
         self.db.commit()
@@ -98,6 +216,12 @@ class State:
         """When the last heartbeat read the fleet successfully."""
         row = self.db.execute("SELECT at FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
         return _dt(row["at"]) if row else None
+
+    def snapshots_since(self, since: datetime) -> list[tuple[datetime, int, int]]:
+        rows = self.db.execute(
+            "SELECT at, devices, online FROM snapshots WHERE at >= ? ORDER BY at", (_iso(since),)
+        ).fetchall()
+        return [(_dt(r["at"]), r["devices"], r["online"]) for r in rows]
 
 
 def _finding_from_row(row: sqlite3.Row) -> Finding:
@@ -109,5 +233,20 @@ def _finding_from_row(row: sqlite3.Row) -> Finding:
         device_id=row["device_id"],
         device_name=row["device_name"],
         what=row["what"],
+        impact=row["impact"] or "",
+        fix=row["fix"] or "",
         fyi=bool(row["fyi"]),
+    )
+
+
+def _device_from_row(row: sqlite3.Row) -> KnownDevice:
+    return KnownDevice(
+        id=row["id"],
+        name=row["name"] or "",
+        model=row["model"] or "",
+        group=row["group_name"] or "",
+        online=bool(row["online"]),
+        firmware=row["firmware"] or "",
+        recording=bool(row["recording"]),
+        last_seen=_dt(row["last_seen"]),
     )

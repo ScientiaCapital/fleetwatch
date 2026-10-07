@@ -63,6 +63,7 @@ async def tick(
     now = now or datetime.now(UTC)
     fleet = await snapshot(client, now)
     state.snapshot(now, len(fleet.devices), sum(d.online for d in fleet.devices.values()))
+    state.record_devices(fleet, now)
 
     findings = scan(fleet, policy)
     new, reminders, resolved = state.reconcile(findings, now, timedelta(minutes=policy.remind_after_minutes))
@@ -93,6 +94,6 @@ async def tick(
         ):
             r = readiness_check(dev, event, policy)
             if notifier.post(render_readiness(r)):
-                state.mark_readiness(event.key, r.verdict, now)
+                state.record_readiness(r, now)
                 state.audit("readiness", {"event": event.key, "verdict": r.verdict}, now)
     return text
