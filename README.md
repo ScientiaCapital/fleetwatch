@@ -9,6 +9,7 @@
   <a href="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://scientiacapital.github.io/fleetwatch/"><img alt="docs" src="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/docs.yml/badge.svg"></a>
   <a href="https://www.python.org/"><img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue"></a>
+  <a href="https://github.com/ScientiaCapital/fleetwatch/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ScientiaCapital/fleetwatch?include_prereleases&amp;sort=semver"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
 </p>
 

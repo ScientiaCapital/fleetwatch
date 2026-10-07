@@ -28,6 +28,18 @@ deploy/install.sh             # run it as a service
 
 `deploy/install.sh --dry-run` renders and checks the service file without loading anything.
 
+## Updating
+
+Run the install line again. It fetches the latest Fleetwatch into `~/fleetwatch`, keeps your `.env`, sign-in and
+history, and restarts the service so the new version is running.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
+```
+
+On Docker: `docker compose pull && docker compose up -d`. Either way, `fleetwatch doctor` shows the version on
+its first line. Each [release](https://github.com/ScientiaCapital/fleetwatch/releases) lists what changed.
+
 ## Slack
 
 Create a Slack app with the `chat:write` scope, install it to your workspace, invite it to the channel, and put
