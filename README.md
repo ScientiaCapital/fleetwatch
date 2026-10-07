@@ -1,4 +1,4 @@
-# ProAV Agent Sentinel
+# Fleetwatch for Epiphan Edge
 
 An always-on, read-only watcher for an Epiphan Edge fleet. It checks every room on a heartbeat, posts a calm
 Slack digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled class.
@@ -13,19 +13,19 @@ Runs on an Apple Silicon Mac or Mac mini, a Raspberry Pi 5, or any Linux box. Ne
 ```bash
 uv sync
 cp .env.example .env            # Slack token + channel; leave the token empty to print to the console
-uv run proav-agent login        # one-time sign-in to Epiphan Edge; pick the team to watch
-uv run proav-agent once         # one heartbeat, prints or posts the digest
-uv run proav-agent run          # keep going, every 3 minutes (policy.yaml)
-uv run proav-agent status       # signed in? open items?
+uv run fleetwatch login        # one-time sign-in to Epiphan Edge; pick the team to watch
+uv run fleetwatch digest         # one heartbeat, prints or posts the digest
+uv run fleetwatch run          # keep going, every 3 minutes (policy.yaml)
+uv run fleetwatch status       # signed in? open items?
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 
 `login` prints a sign-in link and opens it when there is a browser. On a headless Pi, open the link on any
 device; if the final localhost page can't load, paste its URL back into the terminal. The token lives in
-`~/.proav-agent/epiphan-oauth.json` (mode 600) and refreshes itself. Europe or Australia accounts set
-`PROAV_EPIPHAN_MCP_URL` to `eu.` or `au.epiphan.cloud`.
+`~/.fleetwatch/epiphan-oauth.json` (mode 600) and refreshes itself. Europe or Australia accounts set
+`FLEETWATCH_EPIPHAN_MCP_URL` to `eu.` or `au.epiphan.cloud`.
 
-No account handy? `uv run proav-agent once --replay tests/fixtures` runs a full heartbeat against a saved
+No account handy? `uv run fleetwatch digest --replay tests/fixtures` runs a full heartbeat against a saved
 (redacted) fleet sample and prints the digest. Nothing is signed in and nothing is remembered.
 
 ## What it posts
@@ -42,7 +42,7 @@ No account handy? `uv run proav-agent once --replay tests/fixtures` runs a full 
 ```
 policy.yaml            how it behaves (heartbeat, quiet hours, scope, thresholds)
 tool_policy.yaml       which Epiphan tools may be called; only `read` is ever used
-src/proav_agent/
+src/fleetwatch/
   epiphan/             sign-in (auth.py), read-only MCP client (mcp.py), parsers (parse.py)
   agents/scanner/      what needs attention (ported from the Edge Claude Kit's /find-problems)
   agents/readiness/    Ready / Not ready before class (ported from /check-room)

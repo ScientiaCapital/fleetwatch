@@ -1,7 +1,7 @@
 [project]
-name = "proav-agent"
+name = "fleetwatch"
 version = "0.1.0"
-description = "ProAV Agent Sentinel: an always-on, read-only watcher for an Epiphan Edge fleet (heartbeat, Slack digest, pre-class readiness)"
+description = "Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet (heartbeat, Slack digest, pre-class readiness)"
 readme = "README.md"
 authors = [
     { name = "Tim Kipper", email = "tkipper@epiphan.com" }
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-proav-agent = "proav_agent.cli:main"
+fleetwatch = "fleetwatch.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]

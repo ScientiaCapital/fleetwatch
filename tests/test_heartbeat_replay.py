@@ -3,10 +3,10 @@
 from datetime import timedelta
 from pathlib import Path
 
-from proav_agent.epiphan.replay import ReplayClient
-from proav_agent.heartbeat import tick
-from proav_agent.policy import Policy, load_tool_policy
-from proav_agent.state import State
+from fleetwatch.epiphan.replay import ReplayClient
+from fleetwatch.heartbeat import tick
+from fleetwatch.policy import Policy, load_tool_policy
+from fleetwatch.state import State
 from tests.conftest import NOW
 
 ROOT = Path(__file__).resolve().parents[1]

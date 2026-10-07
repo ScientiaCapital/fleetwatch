@@ -1,8 +1,8 @@
 from datetime import timedelta
 
-from proav_agent.model import Finding, Priority
-from proav_agent.notify.digest import render_digest
-from proav_agent.state import State
+from fleetwatch.model import Finding, Priority
+from fleetwatch.notify.digest import render_digest
+from fleetwatch.state import State
 from tests.conftest import NOW
 
 A = Finding(

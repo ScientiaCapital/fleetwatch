@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from proav_agent.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
+from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
 from tests.conftest import NOW
 
 

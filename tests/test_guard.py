@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from proav_agent.epiphan.mcp import EpiphanClient, ToolNotAllowed
-from proav_agent.policy import load_policy, load_tool_policy
+from fleetwatch.epiphan.mcp import EpiphanClient, ToolNotAllowed
+from fleetwatch.policy import load_policy, load_tool_policy
 
 ROOT = Path(__file__).resolve().parents[1]
 
