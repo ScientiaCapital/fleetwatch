@@ -1,7 +1,7 @@
 [project]
 name = "proav-agent"
 version = "0.1.0"
-description = "Always-on, read-only watcher for an Epiphan Edge fleet: heartbeat, Slack digest, pre-class readiness"
+description = "ProAV Agent Sentinel: an always-on, read-only watcher for an Epiphan Edge fleet (heartbeat, Slack digest, pre-class readiness)"
 readme = "README.md"
 authors = [
     { name = "Tim Kipper", email = "tkipper@epiphan.com" }

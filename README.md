@@ -1,4 +1,4 @@
-# proav-agent
+# ProAV Agent Sentinel
 
 An always-on, read-only watcher for an Epiphan Edge fleet. It checks every room on a heartbeat, posts a calm
 Slack digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled class.
@@ -8,17 +8,25 @@ request leaves the machine (`tool_policy.yaml`), and `policy.yaml` is forced to 
 
 ## Quick start
 
+Runs on an Apple Silicon Mac or Mac mini, a Raspberry Pi 5, or any Linux box. Needs [uv](https://docs.astral.sh/uv/).
+
 ```bash
 uv sync
 cp .env.example .env            # Slack token + channel; leave the token empty to print to the console
-uv run proav-agent login        # one-time browser sign-in to Epiphan Edge; pick the team to watch
+uv run proav-agent login        # one-time sign-in to Epiphan Edge; pick the team to watch
 uv run proav-agent once         # one heartbeat, prints or posts the digest
 uv run proav-agent run          # keep going, every 3 minutes (policy.yaml)
 uv run proav-agent status       # signed in? open items?
+deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 
-The token lives in `~/.proav-agent/epiphan-oauth.json` (mode 600) and refreshes itself. Europe or Australia
-accounts set `PROAV_EPIPHAN_MCP_URL` to `eu.` or `au.epiphan.cloud`.
+`login` prints a sign-in link and opens it when there is a browser. On a headless Pi, open the link on any
+device; if the final localhost page can't load, paste its URL back into the terminal. The token lives in
+`~/.proav-agent/epiphan-oauth.json` (mode 600) and refreshes itself. Europe or Australia accounts set
+`PROAV_EPIPHAN_MCP_URL` to `eu.` or `au.epiphan.cloud`.
+
+No account handy? `uv run proav-agent once --replay tests/fixtures` runs a full heartbeat against a saved
+(redacted) fleet sample and prints the digest. Nothing is signed in and nothing is remembered.
 
 ## What it posts
 
@@ -43,8 +51,16 @@ src/proav_agent/
   notify/              digest templates in plain language; Slack or console
   heartbeat.py         one tick: read, diff, post once
   redact.py            stream keys and credentialed URLs never reach a log or a model
-tests/                 41 tests, including the kit's redaction cases and a real (redacted) fleet sample
+  epiphan/replay.py    run the heartbeat from saved tool results, for demos and tests
+deploy/                launchd agent (macOS), systemd unit (Linux), install.sh picks the right one
+tests/                 48 tests, including the kit's redaction cases and a real (redacted) fleet sample
 ```
+
+## Status
+
+v0.1. Unit and replay tests pass. The first live run against a real team is still to do (the shared test
+team was in use). Known: Epiphan's MCP server reports an expired or missing sign-in inside the tool result
+rather than as an HTTP 401, so `login` starts the OAuth flow itself.
 
 Most heartbeats are plain code with no LLM call. Later versions add proposals with Slack approval, then
 routine fixes on their own; the guard, the dry run and the redaction stay.
