@@ -41,8 +41,8 @@ watch.
   `policy.yaml` is forced to `autonomy: observe` and `dry_run: true`; any other value fails at start-up.
 - **Redaction first.** Every tool result passes through `src/fleetwatch/redact.py` before it is parsed, stored,
   logged or posted. Stream keys, passwords, tokens and credentialed or ingest URLs become `[redacted]`.
-- **No model call.** v0.1 builds every message from fixed templates. The `FLEETWATCH_LLM_POLISH` setting exists
-  for a later version and is not used yet.
+- **No model call.** v0.1 builds every message from fixed templates and has no AI model dependency. A later
+  feature that uses a model will get its own section here first.
 - **Token at rest.** The Epiphan OAuth token lives in `~/.fleetwatch/epiphan-oauth.json` with mode `600` and
   refreshes itself. `fleetwatch logout` deletes it.
 - **Service hardening.** The systemd unit sets `NoNewPrivileges`, `ProtectSystem=strict` and `PrivateTmp`, with
