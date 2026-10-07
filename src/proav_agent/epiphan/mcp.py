@@ -9,12 +9,12 @@ import json
 import logging
 from typing import Any, Self
 
-import httpx
+import httpx2 as httpx  # the MCP SDK bundles its own httpx fork; its types must match
 from mcp.client.client import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 
-from proav_agent.epiphan.auth import FileTokenStorage, make_provider
+from proav_agent.epiphan.auth import FileTokenStorage, LoginAuth, make_provider
 from proav_agent.policy import ToolPolicy
 from proav_agent.redact import redact
 
@@ -65,7 +65,9 @@ class EpiphanClient:
         if static_token:
             self._auth: httpx.Auth | None = _Bearer(static_token)
         elif storage is not None:
-            self._auth = make_provider(url, storage, callback_port, interactive)
+            provider = make_provider(url, storage, callback_port, interactive)
+            # `login` must start the flow itself: Epiphan reports "401" inside tool results, never as HTTP 401.
+            self._auth = LoginAuth(provider, storage) if interactive else provider
         else:
             raise ValueError("either storage or static_token is required")
         self._client: Client | None = None
