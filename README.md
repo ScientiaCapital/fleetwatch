@@ -1,15 +1,49 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+    <img alt="Fleetwatch for Epiphan Edge" src="docs/assets/banner-light.svg" width="720">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://scientiacapital.github.io/fleetwatch/"><img alt="docs" src="https://github.com/ScientiaCapital/fleetwatch/actions/workflows/docs.yml/badge.svg"></a>
+  <a href="https://www.python.org/"><img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
+</p>
+
+<p align="center">
+  <a href="https://scientiacapital.github.io/fleetwatch/">Docs</a> ·
+  <a href="#install">Install</a> ·
+
+  <a href="SECURITY.md">Security</a> ·
+  <a href="README.es.md">Español</a>
+</p>
+
 # Fleetwatch for Epiphan Edge
 
 **An always-on, read-only watcher for your Epiphan Edge fleet.** It checks every room on a heartbeat, posts a calm
 Slack digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled class.
 
-[![ci](https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/ScientiaCapital/fleetwatch/actions/workflows/ci.yml)
-[![docs](https://github.com/ScientiaCapital/fleetwatch/actions/workflows/docs.yml/badge.svg)](https://scientiacapital.github.io/fleetwatch/)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-
 v0.1 is **observe-only**. It can't change a device: write tools are refused inside the client before any request
 leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
+
+<p align="center">
+  <img alt="A Fleetwatch digest and two before-class checks, from the offline replay demo" src="docs/assets/digest-replay.svg" width="720">
+</p>
+
+<p align="center"><sub>From <code>fleetwatch digest --replay tests/fixtures</code>: a sample fleet, no real data.</sub></p>
+
+## What you get
+
+| | |
+|---|---|
+| **Calm digest** | Posts only when something changes. Each problem is posted once, reminded at most every 4 hours, and closed with *Back to normal*. |
+| **Ready / Not ready** | 30 minutes before each scheduled class, one line per room: is the picture there, is the unit online. |
+| **Read-only by construction** | Write tools are refused inside the client, before any request leaves the machine. |
+| **Runs on a Pi or a Mac mini** | One-line install as a systemd or launchd service, or Docker on amd64 and arm64. |
+| **`fleetwatch doctor`** | One line per check: policy, guard, redaction, sign-in, network, service. |
+| **Offline demo** | A full heartbeat against a saved sample fleet. No account, no network. |
 
 ## Install
 
@@ -94,6 +128,30 @@ Each heartbeat is plain code: fixed checks, a diff against SQLite, and a templat
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
 | `src/fleetwatch/redact.py` | Stream keys and credentialed URLs never reach a log or a message |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
+
+## Troubleshooting
+
+Start with `fleetwatch doctor`. It signs in to nothing and calls no tools, so it is safe to run anywhere:
+
+```text
+OK    Policy             observe-only, heartbeat every 180 s
+OK    Read-only guard    20 read tools allowed; every write tool is refused
+WARN  Sign-in            not signed in: run  fleetwatch login
+OK    Epiphan reachable  go.epiphan.cloud
+WARN  Service            launchd agent not installed: run  deploy/install.sh
+
+Nothing broken. 2 to look at.
+```
+
+| Symptom | Fix |
+|---|---|
+| `Sign-in` is WARN or FAIL | Run `fleetwatch login`. On a headless Pi, open the link on any device and paste the final `localhost` URL back. |
+| `Epiphan reachable` fails | Check the network, or set `FLEETWATCH_EPIPHAN_MCP_URL` to your region (`eu.` or `au.epiphan.cloud`). |
+| Nothing posts to Slack | No token means the console only. Set `FLEETWATCH_SLACK_BOT_TOKEN` (`chat:write`) and invite the bot to the channel. |
+| A digest never repeats | That's on purpose. An open problem is reminded at most every 4 hours. `fleetwatch status` lists open items. |
+| No network at all | `fleetwatch digest --replay tests/fixtures` runs the full heartbeat offline. |
+
+Still stuck? Open an [issue](https://github.com/ScientiaCapital/fleetwatch/issues) with the `doctor` output.
 
 ## Security
 
