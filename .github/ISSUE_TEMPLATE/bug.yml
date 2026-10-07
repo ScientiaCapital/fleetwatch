@@ -1,0 +1,55 @@
+name: Bug report
+description: Fleetwatch did something wrong, crashed, or posted something it shouldn't.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove real device names, IDs, IPs, serial numbers, stream keys and people's names before you paste anything.
+        Rename rooms to things like "Room 204". Security problems go to Security → Report a vulnerability instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did Fleetwatch do, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command you ran. A redacted tool result that reproduces it with `--replay` is the most useful thing you can attach.
+      placeholder: uv run fleetwatch digest --replay ./my-redacted-sample
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Console output or the Slack message, redacted.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Fleetwatch version or commit
+      placeholder: 0.1.0 or a commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where it runs
+      options:
+        - macOS on Apple Silicon (launchd)
+        - macOS on Intel (launchd)
+        - Raspberry Pi 5 / Linux aarch64 (systemd)
+        - Other Linux (systemd)
+        - Docker
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Epiphan region
+      options: ["North America (go.)", "Europe (eu.)", "Australia (au.)", "Replay only"]

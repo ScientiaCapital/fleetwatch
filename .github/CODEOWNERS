@@ -1,0 +1,9 @@
+# Default owner for everything.
+*                       @ScientiaCapital
+
+# Safety-critical paths: the read-only guard, redaction, tool policy, CI and installers.
+/tool_policy.yaml       @ScientiaCapital
+/src/fleetwatch/epiphan/ @ScientiaCapital
+/src/fleetwatch/redact.py @ScientiaCapital
+/.github/               @ScientiaCapital
+/deploy/                @ScientiaCapital
