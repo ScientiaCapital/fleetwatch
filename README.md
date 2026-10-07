@@ -52,6 +52,7 @@ uv run fleetwatch login         # one-time sign-in to Epiphan Edge; pick the tea
 uv run fleetwatch digest        # one heartbeat, prints or posts the digest
 uv run fleetwatch run           # keep going, every 3 minutes
 uv run fleetwatch status        # signed in? open items?
+uv run fleetwatch doctor        # is this machine ready? one line per check
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 

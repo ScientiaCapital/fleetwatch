@@ -1,4 +1,4 @@
-"""fleetwatch: login | digest | run | status. Observe-only in v0.1."""
+"""fleetwatch: login | digest | run | status | doctor | logout. Observe-only in v0.1."""
 
 import argparse
 import asyncio
@@ -71,7 +71,7 @@ def main() -> None:
         prog="fleetwatch",
         description="Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet.",
     )
-    p.add_argument("command", choices=["login", "digest", "run", "status", "logout"])
+    p.add_argument("command", choices=["login", "digest", "run", "status", "doctor", "logout"])
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument(
         "--replay", metavar="DIR", help="digest: use saved tool results from DIR instead of Epiphan (no sign-in)"
@@ -90,6 +90,12 @@ def main() -> None:
         asyncio.run(_digest(settings, args.replay))
     elif args.command == "run":
         asyncio.run(_run(settings))
+    elif args.command == "doctor":
+        from fleetwatch.doctor import exit_code, print_report, run_checks
+
+        checks = run_checks(settings)
+        print_report(checks)
+        raise SystemExit(exit_code(checks))
     else:
         state = State(settings.state_db)
         items = state.open_findings()

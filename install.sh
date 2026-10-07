@@ -84,3 +84,8 @@ elif $do_service; then
 else
   say "Done. To run it as a service later:  cd $dir && deploy/install.sh"
 fi
+
+if ! $dry_run; then
+  say "Health check"
+  uv run --frozen fleetwatch doctor || echo "Fix the FAIL lines above, then run:  cd $dir && uv run fleetwatch doctor"
+fi
