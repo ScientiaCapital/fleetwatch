@@ -27,7 +27,7 @@ first. Slack stays off until a demo channel exists; the console digest is the fa
 - Offline demo: the replay sample covers every tool and shows Ready and Not ready checks (#27).
 - `fleetwatch doctor` (#22), `status --check` with a Docker HEALTHCHECK (#16).
 - Unused Anthropic dependency removed (#17). `--version` and release metadata in place for #14.
-- Booth runbook: [At a booth](booth.md). Required-check policy no longer forces every PR to rebase.
+- Booth runbook: [At a booth](../docs/booth.md). Required-check policy no longer forces every PR to rebase.
 
 ## Decisions made 2026-10-07
 
