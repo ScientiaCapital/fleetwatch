@@ -14,7 +14,7 @@ Restart=on-failure
 RestartSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=%h/.fleetwatch %h/fleetwatch/.venv
+ReadWritePaths=%h/.fleetwatch %h/fleetwatch/.venv -%h/.cache/uv
 PrivateTmp=true
 
 [Install]
