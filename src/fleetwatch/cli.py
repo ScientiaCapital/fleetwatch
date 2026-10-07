@@ -1,4 +1,4 @@
-"""proav-agent: login | once | run | status. Observe-only in v0.1."""
+"""fleetwatch: login | digest | run | status. Observe-only in v0.1."""
 
 import argparse
 import asyncio
@@ -6,14 +6,14 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from proav_agent.config import Settings
-from proav_agent.epiphan.auth import FileTokenStorage
-from proav_agent.epiphan.mcp import EpiphanClient
-from proav_agent.epiphan.replay import ReplayClient
-from proav_agent.heartbeat import tick
-from proav_agent.notify.slack import Notifier
-from proav_agent.policy import load_policy, load_tool_policy
-from proav_agent.state import State
+from fleetwatch.config import Settings
+from fleetwatch.epiphan.auth import FileTokenStorage
+from fleetwatch.epiphan.mcp import EpiphanClient
+from fleetwatch.epiphan.replay import ReplayClient
+from fleetwatch.heartbeat import tick
+from fleetwatch.notify.slack import Notifier
+from fleetwatch.policy import load_policy, load_tool_policy
+from fleetwatch.state import State
 
 
 def _build(settings: Settings, interactive: bool, replay: str | None = None):
@@ -43,7 +43,7 @@ async def _login(settings: Settings) -> None:
     print(f"Signed in. This team has {n} devices. Token saved to {settings.token_file}.")
 
 
-async def _once(settings: Settings, replay: str | None) -> None:
+async def _digest(settings: Settings, replay: str | None) -> None:
     client, state, notifier = _build(settings, interactive=False, replay=replay)
     policy = load_policy(settings.policy_file)
     async with client:
@@ -61,20 +61,20 @@ async def _run(settings: Settings) -> None:
             try:
                 await tick(client, state, policy, notifier, first_run=first)
             except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
-                logging.getLogger("proav").warning("heartbeat failed: %s", e)
+                logging.getLogger("fleetwatch").warning("heartbeat failed: %s", e)
             first = False
             await asyncio.sleep(policy.heartbeat_seconds)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(
-        prog="proav-agent",
-        description="ProAV Agent Sentinel: an always-on, read-only watcher for an Epiphan Edge fleet.",
+        prog="fleetwatch",
+        description="Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet.",
     )
-    p.add_argument("command", choices=["login", "once", "run", "status", "logout"])
+    p.add_argument("command", choices=["login", "digest", "run", "status", "logout"])
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument(
-        "--replay", metavar="DIR", help="once: use saved tool results from DIR instead of Epiphan (no sign-in)"
+        "--replay", metavar="DIR", help="digest: use saved tool results from DIR instead of Epiphan (no sign-in)"
     )
     args = p.parse_args()
     logging.basicConfig(
@@ -86,8 +86,8 @@ def main() -> None:
     elif args.command == "logout":
         FileTokenStorage(settings.token_file).clear()
         print("Signed out.")
-    elif args.command == "once":
-        asyncio.run(_once(settings, args.replay))
+    elif args.command == "digest":
+        asyncio.run(_digest(settings, args.replay))
     elif args.command == "run":
         asyncio.run(_run(settings))
     else:
@@ -95,7 +95,7 @@ def main() -> None:
         items = state.open_findings()
         signed_in = FileTokenStorage(settings.token_file).has_tokens() or bool(settings.epiphan_token)
         print(
-            f"Signed in: {'yes' if signed_in else 'no (run proav-agent login)'}\nOpen items: {len(items)}  ({datetime.now(UTC):%Y-%m-%d %H:%M} UTC)"
+            f"Signed in: {'yes' if signed_in else 'no (run fleetwatch login)'}\nOpen items: {len(items)}  ({datetime.now(UTC):%Y-%m-%d %H:%M} UTC)"
         )
         for f in items:
             print(f"  {f.priority.value}: {f.what}")

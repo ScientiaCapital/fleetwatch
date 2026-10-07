@@ -1,4 +1,4 @@
-"""The fleet as the agent sees it. Vendor adapters (src/proav_agent/epiphan/) fill these in."""
+"""The fleet as the agent sees it. Vendor adapters (src/fleetwatch/epiphan/) fill these in."""
 
 from dataclasses import dataclass, field
 from datetime import datetime

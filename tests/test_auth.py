@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx2
 import pytest
 
-from proav_agent.epiphan.auth import FileTokenStorage, LoginAuth, parse_callback
+from fleetwatch.epiphan.auth import FileTokenStorage, LoginAuth, parse_callback
 
 
 def test_parse_callback_shapes():
@@ -76,7 +76,7 @@ async def test_login_forces_flow_only_when_no_token(tmp_path: Path):
 
 @pytest.mark.parametrize("env", [{}, {"SSH_CONNECTION": "1.2.3.4"}])
 def test_headless_detection_does_not_crash(monkeypatch, env):
-    from proav_agent.epiphan import auth
+    from fleetwatch.epiphan import auth
 
     for k in ("DISPLAY", "WAYLAND_DISPLAY", "SSH_CONNECTION"):
         monkeypatch.delenv(k, raising=False)

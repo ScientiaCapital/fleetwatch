@@ -6,9 +6,9 @@ locally and upload after class, so a full disk is routine.
 
 from datetime import timedelta
 
-from proav_agent.epiphan.parse import STORAGE_WARNINGS
-from proav_agent.model import Device, Finding, Fleet, Priority
-from proav_agent.policy import Policy
+from fleetwatch.epiphan.parse import STORAGE_WARNINGS
+from fleetwatch.model import Device, Finding, Fleet, Priority
+from fleetwatch.policy import Policy
 
 PEARL_FAMILY = ("pearl-2", "pearl 2", "pearl mini", "pearl nano", "pearl nexus")
 

@@ -1,6 +1,6 @@
 # Which Epiphan MCP tools the agent may call. This file is the single source of truth.
 # v0.1 is observe-only: only `read` tools are ever called. Any tool not listed under `read`
-# is refused by the client guard (src/proav_agent/epiphan/mcp.py), including tools Epiphan adds later.
+# is refused by the client guard (src/fleetwatch/epiphan/mcp.py), including tools Epiphan adds later.
 read:
   - get_devices_in_my_team
   - get_device_info

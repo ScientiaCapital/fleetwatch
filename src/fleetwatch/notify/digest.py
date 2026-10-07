@@ -1,7 +1,7 @@
 """Plain-language messages in the Edge Claude Kit's calm tone. Templates only: no alarm words, no codes,
 priorities in words. An optional LLM polish can rewrite these later; the templates are always the fallback."""
 
-from proav_agent.model import Finding, Priority, Readiness
+from fleetwatch.model import Finding, Priority, Readiness
 
 _ORDER = {Priority.FIX_FIRST: 0, Priority.FIX_SOON: 1, Priority.WHEN_CONVENIENT: 2}
 

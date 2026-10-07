@@ -4,11 +4,11 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-HOME = Path.home() / ".proav-agent"
+HOME = Path.home() / ".fleetwatch"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="PROAV_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="FLEETWATCH_", env_file=".env", extra="ignore")
 
     epiphan_mcp_url: str = "https://go.epiphan.cloud/mcp"
     # A static bearer token, for hosts that can't run the browser sign-in. Normally unset.

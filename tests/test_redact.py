@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from proav_agent.redact import MASK, redact, scrub_text
+from fleetwatch.redact import MASK, redact, scrub_text
 
 INNER = {
     "streams": [

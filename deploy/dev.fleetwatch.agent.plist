@@ -3,17 +3,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.epiphan.proav-agent</string>
+  <key>Label</key><string>com.epiphan.fleetwatch</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__UV__</string><string>run</string><string>--frozen</string><string>proav-agent</string><string>run</string>
+    <string>__UV__</string><string>run</string><string>--frozen</string><string>fleetwatch</string><string>run</string>
   </array>
   <key>WorkingDirectory</key><string>__DIR__</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ThrottleInterval</key><integer>30</integer>
-  <key>StandardOutPath</key><string>__HOME__/.proav-agent/agent.log</string>
-  <key>StandardErrorPath</key><string>__HOME__/.proav-agent/agent.log</string>
+  <key>StandardOutPath</key><string>__HOME__/.fleetwatch/agent.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.fleetwatch/agent.log</string>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/local/bin:__HOME__/.local/bin</string></dict>
 </dict>
 </plist>
