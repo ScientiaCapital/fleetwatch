@@ -18,9 +18,6 @@ class Settings(BaseSettings):
     slack_bot_token: str | None = None
     slack_channel: str = "#av-ops"
 
-    llm_polish: bool = False
-    llm_model: str = "claude-opus-5-5"
-
     policy_file: Path = Path("policy.yaml")
     tool_policy_file: Path = Path("tool_policy.yaml")
     state_db: Path = HOME / "state.db"
