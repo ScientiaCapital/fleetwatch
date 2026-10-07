@@ -1,0 +1,105 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. Times like {{now+25m}} are resolved when the replay runs.",
+  "devices": {
+    "1f00000000f": {
+      "cpu_load": 18,
+      "cpu_temp_c": 44,
+      "up_since": "{{now-48h}}"
+    },
+    "1f000000004": {
+      "cpu_load": 25,
+      "cpu_temp_c": 47,
+      "up_since": "{{now-53h}}"
+    },
+    "1f000000005": {
+      "cpu_load": 32,
+      "cpu_temp_c": 50,
+      "up_since": "{{now-58h}}"
+    },
+    "1f00000000e": {
+      "cpu_load": 39,
+      "cpu_temp_c": 53,
+      "up_since": "{{now-63h}}"
+    },
+    "1f000000002": {
+      "cpu_load": 46,
+      "cpu_temp_c": 56,
+      "up_since": "{{now-12m}}"
+    },
+    "1f00000001b": {
+      "cpu_load": 23,
+      "cpu_temp_c": 45,
+      "up_since": "{{now-73h}}"
+    },
+    "1f000000012": {
+      "cpu_load": 30,
+      "cpu_temp_c": 48,
+      "up_since": "{{now-78h}}"
+    },
+    "1f000000017": {
+      "cpu_load": 94,
+      "cpu_temp_c": 51,
+      "up_since": "{{now-83h}}"
+    },
+    "1f000000010": {
+      "cpu_load": 44,
+      "cpu_temp_c": 54,
+      "up_since": "{{now-88h}}"
+    },
+    "1f000000006": {
+      "cpu_load": 21,
+      "cpu_temp_c": 57,
+      "up_since": "{{now-93h}}"
+    },
+    "1f000000001": {
+      "cpu_load": 28,
+      "cpu_temp_c": 46,
+      "up_since": "{{now-98h}}"
+    },
+    "1f000000015": {
+      "cpu_load": 35,
+      "cpu_temp_c": 49,
+      "up_since": "{{now-103h}}"
+    },
+    "1f000000019": {
+      "cpu_load": 42,
+      "cpu_temp_c": 52,
+      "up_since": "{{now-108h}}"
+    },
+    "1f000000016": {
+      "cpu_load": 19,
+      "cpu_temp_c": 84,
+      "up_since": "{{now-113h}}"
+    },
+    "1f000000013": {
+      "cpu_load": 26,
+      "cpu_temp_c": 44,
+      "up_since": "{{now-118h}}"
+    },
+    "1f000000007": {
+      "cpu_load": 33,
+      "cpu_temp_c": 47,
+      "up_since": "{{now-123h}}"
+    },
+    "1f000000003": {
+      "cpu_load": 40,
+      "cpu_temp_c": 50,
+      "up_since": "{{now-128h}}"
+    },
+    "1f00000000a": {
+      "cpu_load": 47,
+      "cpu_temp_c": 53,
+      "up_since": "{{now-133h}}"
+    },
+    "1f000000018": {
+      "cpu_load": 24,
+      "cpu_temp_c": 56,
+      "up_since": "{{now-138h}}"
+    },
+    "1f00000000b": {
+      "cpu_load": 31,
+      "cpu_temp_c": 45,
+      "up_since": "{{now-143h}}"
+    }
+  }
+}
