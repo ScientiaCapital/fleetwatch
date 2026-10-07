@@ -2,7 +2,7 @@
 
 Always-on, **read-only** watcher for an Epiphan Edge fleet (Pearl encoders, EC20 cameras). Each heartbeat reads
 the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm Slack digest only when something
-changed; before each class it posts Ready / Not ready. [AGENTS.md](AGENTS.md) holds the same rules for every AI
+changed; before each event it posts Ready / Not ready. [AGENTS.md](AGENTS.md) holds the same rules for every AI
 assistant; this file adds Claude Code specifics and project status.
 
 ## Stack
@@ -20,7 +20,7 @@ src/fleetwatch/
   doctor.py              read-only health checks for a new machine (no sign-in, no tool calls)
   config.py              FLEETWATCH_* settings from env / .env
   epiphan/               auth.py (OAuth, 127.0.0.1 callback), mcp.py (guard + redact), parse.py, replay.py
-  agents/                scanner/ (what needs attention), readiness/ (before class), room_state/
+  agents/                scanner/ (what needs attention), readiness/ (before an event), room_state/
   heartbeat.py           one tick: read, diff, post once
   state.py               SQLite: open items, posts, audit log
   notify/                digest.py templates, slack.py (console when no token)
