@@ -1,4 +1,6 @@
-# Fleetwatch: brief for creating the public repo (next sprint)
+# Fleetwatch: brief for creating the public repo (Sprint 1)
+
+> **Status 2026-10-07:** steps 1 to 5 are done. Step 6 and 7 moved to [next-sprint.md](next-sprint.md).
 
 Written 2026-10-07 from three research passes (OpenClaw, Hermes Agent, naming). Decision taken the same day:
 the project is **Fleetwatch**, display name **"Fleetwatch for Epiphan Edge"** until Epiphan adopts it
