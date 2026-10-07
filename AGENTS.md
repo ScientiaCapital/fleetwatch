@@ -9,7 +9,7 @@ Fleetwatch for Epiphan Edge: an always-on, **read-only** watcher for an Epiphan 
 EC20 cameras. Each heartbeat reads the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm
 Slack digest only when something changed. Before each scheduled class it posts Ready or Not ready.
 
-Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | logout`.
+Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout`.
 
 ## Commands
 

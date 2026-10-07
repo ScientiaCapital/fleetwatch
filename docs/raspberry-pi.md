@@ -18,5 +18,14 @@ The installer writes a systemd user unit and enables it. To start at boot withou
 | Stop | `systemctl --user stop fleetwatch` |
 | Status | `systemctl --user status fleetwatch` |
 
+Something not working? Start here:
+
+```bash
+cd ~/fleetwatch && uv run fleetwatch doctor
+```
+
+It checks the policy, the read-only guard, redaction, the sign-in and token file, the network route to Epiphan
+(and Slack, if set), and the service. Each line is OK, WARN or FAIL; it exits non-zero on any FAIL.
+
 The unit runs with `NoNewPrivileges`, `ProtectSystem=strict` and `PrivateTmp`, and can write only to
 `~/.fleetwatch`, its virtual environment and uv's cache.
