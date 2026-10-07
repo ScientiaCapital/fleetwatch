@@ -29,6 +29,10 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
 ]
+docs = [
+    "mkdocs>=1.6.1,<2",
+    "mkdocs-material>=9.7.7,<10",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

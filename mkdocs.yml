@@ -1,0 +1,54 @@
+site_name: Fleetwatch for Epiphan Edge
+site_description: An always-on, read-only watcher for an Epiphan Edge fleet of Pearl encoders and EC20 cameras.
+site_url: https://scientiacapital.github.io/fleetwatch/
+repo_url: https://github.com/ScientiaCapital/fleetwatch
+repo_name: ScientiaCapital/fleetwatch
+edit_uri: edit/main/docs/
+copyright: Apache-2.0
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/brightness-7, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/brightness-4, name: Light mode }
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+exclude_docs: |
+  next-sprint-repo-brief.md
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Install: install.md
+      - Sign-in: sign-in.md
+      - Replay mode: replay.md
+  - Run it:
+      - On a Mac mini: mac-mini.md
+      - On a Raspberry Pi: raspberry-pi.md
+      - With Docker: docker.md
+  - Reference:
+      - Policy: policy.md
+      - What it posts: what-it-posts.md
+      - Security model: security.md
+  - Contributing: contributing.md
