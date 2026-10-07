@@ -1,11 +1,37 @@
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
+# Secrets and local config. .env.example is the only env file that belongs in git.
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+.claude/settings.local.json
+
+# Fleetwatch state and tokens, if they ever land in the repo folder
+.fleetwatch/
 *.db
 *.db-journal
-.fleetwatch/
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
 dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Docs build
 site/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

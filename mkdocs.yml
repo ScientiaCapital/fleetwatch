@@ -4,7 +4,7 @@ site_url: https://scientiacapital.github.io/fleetwatch/
 repo_url: https://github.com/ScientiaCapital/fleetwatch
 repo_name: ScientiaCapital/fleetwatch
 edit_uri: edit/main/docs/
-copyright: Apache-2.0
+copyright: Copyright 2026 Epiphan Systems Inc. · Apache-2.0 · Not an officially supported Epiphan product
 
 theme:
   name: material

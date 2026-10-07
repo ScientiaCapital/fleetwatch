@@ -1,0 +1,14 @@
+* text=auto
+# Scripts and service files run on macOS and Linux: always LF, even from a Windows checkout.
+*.sh text eol=lf
+*.service text eol=lf
+*.plist text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+Dockerfile text eol=lf
+uv.lock text eol=lf
+*.png binary
