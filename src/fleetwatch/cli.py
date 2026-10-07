@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import dataclasses
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -46,6 +47,8 @@ async def _login(settings: Settings) -> None:
 async def _digest(settings: Settings, replay: str | None) -> None:
     client, state, notifier = _build(settings, interactive=False, replay=replay)
     policy = load_policy(settings.policy_file)
+    if replay:  # a demo shows the whole digest at any hour; quiet hours protect real people, not a sample
+        policy = dataclasses.replace(policy, quiet_start=None, quiet_end=None)
     async with client:
         text = await tick(client, state, policy, notifier, first_run=True)
     if text is None:

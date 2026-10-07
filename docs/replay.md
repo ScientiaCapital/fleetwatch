@@ -6,6 +6,7 @@ uv run fleetwatch digest --replay tests/fixtures
 
 Replay runs a full heartbeat against saved, redacted tool results and prints the digest. Nothing is signed in,
 nothing is posted, and nothing is remembered: state lives in memory for that one run.
+Quiet hours don't apply, so the digest looks the same at any time of day.
 
 The bundled sample is also the offline demo. It covers every tool a heartbeat reads, so one run shows the whole
 product: rooms offline, a channel with no picture, a unit working hard, one running warm, a recent restart, the
