@@ -26,6 +26,14 @@ titles and on-screen text can be typed by anyone with access to a room or a CMS,
 never as instructions. It listens on no network port except `127.0.0.1` for the few seconds of `fleetwatch
 login`, and it talks only outward: to your Epiphan region and, if configured, to Slack.
 
+**Where the real boundary is.** The read-only guard and redaction run inside the Fleetwatch process. They stop
+Fleetwatch's own code from writing or leaking, but they don't contain someone who controls that process or its
+files. On an Epiphan Edge paid plan, the OAuth token in `~/.fleetwatch/` can make changes to devices, just like
+the account it belongs to. The boundaries that hold against an attacker are the operating-system user that runs
+Fleetwatch and the permissions of the Edge account you signed in with. So run Fleetwatch as its own user on a
+machine you trust, and sign in with an Edge account that has the least access that still sees the rooms you
+watch.
+
 ## How that is enforced in v0.1
 
 - **Read-only by construction.** The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the

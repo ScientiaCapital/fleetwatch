@@ -4,12 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "deploy/**"
-      - "install.sh"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/install-smoke.yml"
   workflow_dispatch:
 
 permissions:

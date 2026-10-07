@@ -3,9 +3,7 @@ name: actions-lint
 on:
   push:
     branches: [main]
-    paths: [".github/**"]
   pull_request:
-    paths: [".github/**"]
   workflow_dispatch:
 
 permissions:
