@@ -14,7 +14,7 @@ class Priority(str, Enum):
 class RoomState(str, Enum):
     OFFLINE = "offline"
     LIVE = "live"  # recording or streaming now
-    PRE_CLASS = "pre_class"  # a class starts within the lead window
+    PRE_CLASS = "pre_class"  # an event starts within the lead window
     IDLE = "idle"
 
 
@@ -81,7 +81,7 @@ class Finding:
     device_id: str
     device_name: str
     what: str  # plain words: "No picture on Program"
-    impact: str = ""  # what it means for the next class
+    impact: str = ""  # what it means for the next event
     fix: str = ""
     fyi: bool = False  # routine notes (storage); never counted as a problem
 

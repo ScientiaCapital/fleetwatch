@@ -23,13 +23,13 @@
 # Fleetwatch for Epiphan Edge
 
 **An always-on, read-only watcher for your Epiphan Edge fleet.** It checks every room on a heartbeat, posts a calm
-Slack digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled class.
+Slack digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled event.
 
 v0.1 is **observe-only**. It can't change a device: write tools are refused inside the client before any request
 leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
 
 <p align="center">
-  <img alt="A Fleetwatch digest and two before-class checks, from the offline replay demo" src="docs/assets/digest-replay.svg" width="720">
+  <img alt="A Fleetwatch digest and two before-event checks, from the offline replay demo" src="docs/assets/digest-replay.svg" width="720">
 </p>
 
 <p align="center"><sub>From <code>fleetwatch digest --replay tests/fixtures</code>: a sample fleet, no real data.</sub></p>
@@ -39,7 +39,7 @@ leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
 | | |
 |---|---|
 | **Calm digest** | Posts only when something changes. Each problem is posted once, reminded at most every 4 hours, and closed with *Back to normal*. |
-| **Ready / Not ready** | 30 minutes before each scheduled class, one line per room: is the picture there, is the unit online. |
+| **Ready / Not ready** | 30 minutes before each scheduled event, one line per room: is the picture there, is the unit online. |
 | **Read-only by construction** | Write tools are refused inside the client, before any request leaves the machine. |
 | **Runs on a Pi or a Mac mini** | One-line install as a systemd or launchd service, or Docker on amd64 and arm64. |
 | **`fleetwatch doctor`** | One line per check: policy, guard, redaction, sign-in, network, service. |
@@ -98,21 +98,23 @@ What a digest looks like:
 
 ```text
 *Fleet check*
-• *Fix first*: Room 312 Pearl Mini is offline. Classes in that room won't record or stream until it's back.
+• *Fix first*: Room 312 Pearl Mini is offline. Events in that room won't record or stream until it's back.
 • *Fix soon*: Hall A Auditorium runs firmware 4.24.5; others like it run 4.24.6. Works fine today.
 FYI: 3 Pearls have little or no local space left. That's normal when recordings upload to your CMS.
 ```
 
 - The same problem is posted once, reminded at most every 4 hours, and closed with **Back to normal**.
 - Quiet hours (22:00 to 06:30 by default) only let *Fix first* items through.
-- Before each class: `Room 204 · BIO 101 at 2:00 PM: Ready, with notes`.
+- Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`.
+- Say `vertical: education`, `business`, `courts` or `worship` in `policy.yaml` and the words change: class, meeting,
+  hearing, service.
 
 ## How it fits together
 
 ```mermaid
 flowchart LR
   E[Epiphan Edge<br/>MCP server] -->|read tools only| G[Guard and<br/>redaction]
-  G --> S[Scanner and<br/>pre-class readiness]
+  G --> S[Scanner and<br/>pre-event readiness]
   S --> D[(SQLite<br/>open items, audit log)]
   D -->|only what changed| N[Slack digest<br/>or console]
 ```

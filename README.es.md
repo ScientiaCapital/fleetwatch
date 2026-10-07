@@ -17,13 +17,13 @@
 
 **Un vigilante de solo lectura, siempre activo, para tu flota de Epiphan Edge.** Revisa cada sala en cada ciclo,
 publica un resumen tranquilo en Slack cuando algo cambia y dice **Ready** (listo) o **Not ready** (no listo)
-30 minutos antes de cada clase programada.
+30 minutos antes de cada evento programado.
 
 La versión 0.1 **solo observa**. No puede cambiar ningún equipo: las herramientas de escritura se rechazan dentro
 del cliente antes de que salga cualquier petición, y `policy.yaml` queda fijado en `autonomy: observe`.
 
 <p align="center">
-  <img alt="Un resumen de Fleetwatch y dos revisiones antes de clase, de la demo sin conexión" src="docs/assets/digest-replay.svg" width="720">
+  <img alt="Un resumen de Fleetwatch y dos revisiones antes de un evento, de la demo sin conexión" src="docs/assets/digest-replay.svg" width="720">
 </p>
 
 <p align="center"><sub>De <code>fleetwatch digest --replay tests/fixtures</code>: una flota de ejemplo, sin datos reales. Los mensajes están en inglés.</sub></p>
@@ -33,7 +33,7 @@ del cliente antes de que salga cualquier petición, y `policy.yaml` queda fijado
 | | |
 |---|---|
 | **Resumen tranquilo** | Publica solo cuando algo cambia. Cada problema se publica una vez, se recuerda como máximo cada 4 horas y se cierra con *Back to normal*. |
-| **Ready / Not ready** | 30 minutos antes de cada clase, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? |
+| **Ready / Not ready** | 30 minutos antes de cada evento, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? |
 | **Solo lectura por diseño** | Las herramientas de escritura se rechazan dentro del cliente, antes de que salga ninguna petición. |
 | **Funciona en una Pi o una Mac mini** | Instalación en una línea como servicio systemd o launchd, o Docker en amd64 y arm64. |
 | **`fleetwatch doctor`** | Una línea por revisión: política, protección, ocultación de secretos, inicio de sesión, red, servicio. |

@@ -47,7 +47,7 @@ With a Slack token in `.env`, the digest and the Ready / Not ready checks also s
 ## If the network fails
 
 Show the offline demo. It runs a full heartbeat on the bundled sample fleet, including a *Ready* and a
-*Not ready* check before class, with no network at all:
+*Not ready* check before an event, with no network at all:
 
 ```bash
 cd ~/fleetwatch && uv run fleetwatch digest --replay tests/fixtures
