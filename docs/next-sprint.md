@@ -29,6 +29,15 @@ first. Slack stays off until a demo channel exists; the console digest is the fa
 - Unused Anthropic dependency removed (#17). `--version` and release metadata in place for #14.
 - Booth runbook: [At a booth](booth.md). Required-check policy no longer forces every PR to rebase.
 
+## Decisions made 2026-10-07
+
+- The Pi is not on the hotspot yet, so blocks A and B swap: README (#34) and release (#14) first.
+- Slack stays console-only for the booth.
+- v0.1.0 ships on GitHub and GHCR only; no PyPI yet.
+- Voice (#25): typing is the main path. A `fleetwatch ask` command answers from the state DB with no network;
+  push-to-talk voice is an optional layer on top and falls back to typing. The booth needs a close-talk headset
+  mic, a USB push-to-talk button and a backup network for voice.
+
 ## Next session: full-day plan
 
 **Decisions to make at the start** (they unblock the rest):
@@ -56,7 +65,7 @@ first. Slack stays off until a demo channel exists; the console digest is the fa
 4. **#15 Verify the installer** on a real Pi 5 and Mac mini (CI only dry-runs it).
 5. Housekeeping: **#18** Keychain / systemd-creds.
 6. **#25 Voice**: ask Fleetwatch out loud. First slice by the booth if time allows; read-only.
-7. Features, after the release: **#19** Teams, **#20** two-way `check`, **#21** nightly sweep, **#22** `doctor`,
+7. Features, after the release: **#19** Teams, **#20** two-way `check`, **#21** nightly sweep,
    **#23** per-room notes.
 
 ## Ground rules
