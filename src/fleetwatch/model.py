@@ -87,6 +87,21 @@ class Finding:
 
 
 @dataclass(frozen=True)
+class SweepResult:
+    """One nightly sweep: a summary for people and a row of history. Names are untrusted text."""
+
+    at: datetime
+    devices: int
+    online: int
+    offline: tuple[str, ...] = ()
+    behind: tuple[tuple[str, str, str], ...] = ()  # (name, firmware, newest in its family)
+    newly_offline: tuple[str, ...] = ()
+    back_online: tuple[str, ...] = ()
+    posted_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(frozen=True)
 class Readiness:
     event: Event
     device_name: str

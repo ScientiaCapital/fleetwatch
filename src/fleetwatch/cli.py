@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import dataclasses
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fleetwatch.config import Settings
@@ -93,6 +93,36 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
     serve_page(ask, rooms, settings.ask_port)
 
 
+async def _maybe_sweep(client, state: State, policy, notifier) -> None:
+    from fleetwatch.sweep import due, post_pending, run_sweep
+
+    now = datetime.now(UTC)
+    last = state.last_sweep()
+    if due(now.astimezone(), policy.sweep_at, last.at.astimezone() if last else None):
+        await run_sweep(client, state, policy, notifier, now)
+    else:
+        post_pending(state, policy, notifier, now)
+
+
+async def _sweep(settings: Settings, replay: str | None) -> None:
+    from fleetwatch.sweep import run_sweep
+
+    client, state, notifier = _build(settings, interactive=False, replay=replay)
+    policy = load_policy(settings.policy_file)
+    if replay:
+        policy = dataclasses.replace(policy, quiet_start=None, quiet_end=None)
+    async with client:
+        if not await run_sweep(client, state, policy, notifier, datetime.now(UTC)):
+            print("Sweep saved. It will be posted after quiet hours.")
+
+
+def _history(settings: Settings, days: int) -> None:
+    from fleetwatch.sweep import render_history
+
+    now = datetime.now(UTC)
+    print(render_history(State(settings.state_db), since=now - timedelta(days=days), now=now))
+
+
 async def _run(settings: Settings) -> None:
     client, state, notifier = _build(settings, interactive=False)
     policy = load_policy(settings.policy_file)
@@ -104,6 +134,10 @@ async def _run(settings: Settings) -> None:
             except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
                 logging.getLogger("fleetwatch").warning("heartbeat failed: %s", e)
             first = False
+            try:
+                await _maybe_sweep(client, state, policy, notifier)
+            except Exception as e:  # noqa: BLE001  (a failed sweep retries on the next beat)
+                logging.getLogger("fleetwatch").warning("sweep failed: %s", e)
             await asyncio.sleep(policy.heartbeat_seconds)
 
 
@@ -121,7 +155,9 @@ def main() -> None:
         prog="fleetwatch",
         description="Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet.",
     )
-    p.add_argument("command", choices=["login", "digest", "run", "status", "doctor", "logout", "ask"])
+    p.add_argument(
+        "command", choices=["login", "digest", "run", "status", "doctor", "logout", "ask", "sweep", "history"]
+    )
     p.add_argument("question", nargs="*", help='ask: your question, e.g. fleetwatch ask "is Main Stage ready"')
     p.add_argument("--version", action="version", version=f"fleetwatch {_package_version()}")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -129,9 +165,12 @@ def main() -> None:
         "--check", action="store_true", help="status: exit 1 unless a heartbeat read the fleet recently (health check)"
     )
     p.add_argument(
-        "--replay", metavar="DIR", help="digest, ask: use saved tool results from DIR instead of Epiphan (no sign-in)"
+        "--replay",
+        metavar="DIR",
+        help="digest, ask, sweep: use saved tool results from DIR instead of Epiphan (no sign-in)",
     )
     p.add_argument("--serve", action="store_true", help="ask: open a local page with buttons on 127.0.0.1")
+    p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
     args = p.parse_intermixed_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
@@ -148,6 +187,10 @@ def main() -> None:
         if not args.question and not args.serve:
             p.error('ask needs a question, e.g. fleetwatch ask "what needs attention", or --serve for the page')
         asyncio.run(_ask(settings, " ".join(args.question), args.replay, args.serve))
+    elif args.command == "sweep":
+        asyncio.run(_sweep(settings, args.replay))
+    elif args.command == "history":
+        _history(settings, args.days)
     elif args.command == "run":
         asyncio.run(_run(settings))
     elif args.command == "doctor":
