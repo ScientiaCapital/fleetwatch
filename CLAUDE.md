@@ -78,8 +78,10 @@ All optional, read from `.env` (see `.env.example`).
 8. **Name:** Fleetwatch (capital F only). Display name "Fleetwatch for Epiphan Edge" until Epiphan adopts it.
 9. Before claiming something works, run the tests and the replay digest and show the output.
 
-## Status (2026-10-07)
+## Status (2026-10-07, end of day)
 
 - Sprint 1 (repo) done: public repo, protected main, CI, security files, Docker, installer, docs site, README.
-- Sprint 2 plan: [planning/next-sprint.md](planning/next-sprint.md), milestone "Sprint 2" on GitHub. Done: #16, #17, #22, offline demo, booth runbook.
-- Must land in Sprint 2: move docs off MkDocs before 2.0 (#12). Blocked on the maintainer: first live run (#13).
+- Sprint 2: [planning/next-sprint.md](planning/next-sprint.md) has what's done and tomorrow's plan with specs;
+  milestone "Sprint 2" on GitHub. Closed today: #12 (Zensical), #21 (sweep), #34 (README). In: `ask` (#25 part 1),
+  release workflow (#14 prep), vertical wording, Slack escaping.
+- Left: #13 + #15 (need the maintainer and the Pi), #14 tag, #23, #20, #19, #18, #25 voice. Booth about 2026-10-21.
