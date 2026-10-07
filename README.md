@@ -89,6 +89,7 @@ uv run fleetwatch run           # keep going, every 3 minutes
 uv run fleetwatch status        # signed in? open items?
 uv run fleetwatch doctor        # is this machine ready? one line per check
 uv run fleetwatch ask "is Main Stage ready"   # ask in plain words; --serve opens a page with buttons
+uv run fleetwatch history       # one line per day: fleet size, online, posts, nightly sweep
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 

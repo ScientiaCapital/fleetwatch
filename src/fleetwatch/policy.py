@@ -37,6 +37,7 @@ class Policy:
     groups: tuple[str, ...] = ()
     exclude_devices: tuple[str, ...] = ()
     thresholds: Thresholds = field(default_factory=Thresholds)
+    sweep_at: time | None = None  # nightly sweep, local time; None turns it off
 
     @property
     def event_word(self) -> str:
@@ -93,6 +94,7 @@ def load_policy(path: Path) -> Policy:
         groups=tuple(scope.get("groups") or ()),
         exclude_devices=tuple(scope.get("exclude_devices") or ()),
         thresholds=Thresholds(**(raw.get("thresholds") or {})),
+        sweep_at=_hhmm(raw.get("sweep_at", "03:00")),
     )
 
 

@@ -12,6 +12,10 @@ quiet_hours:
   start: "22:00"
   end: "06:30"
 
+# Once a day: who's offline, who's behind on firmware, what changed since yesterday. Kept as history.
+# Local time. If it falls in quiet hours, the summary is posted after they end. Set to "" to turn it off.
+sweep_at: "03:00"
+
 scope:
   groups: []               # only watch these groups; empty = whole team
   exclude_devices: []      # device names to ignore
