@@ -22,6 +22,13 @@ The booth demo is a Raspberry Pi on the presenter's phone hotspot, running Fleet
 team (cleared with its co-owner), with the digest on screen. Items #13, #15 and #25 serve the booth and come
 first. Slack stays off until a demo channel exists; the console digest is the fallback.
 
+## Done so far (2026-10-07)
+
+- Offline demo: the replay sample covers every tool and shows Ready and Not ready checks (#27).
+- `fleetwatch doctor` (#22), `status --check` with a Docker HEALTHCHECK (#16).
+- Unused Anthropic dependency removed (#17). `--version` and release metadata in place for #14.
+- Booth runbook: [At a booth](booth.md). Required-check policy no longer forces every PR to rebase.
+
 ## Order
 
 1. **#13 First live run** on the booth Pi against Edge Showcase (cleared with its co-owner on 2026-10-07).
@@ -29,7 +36,7 @@ first. Slack stays off until a demo channel exists; the console digest is the fa
 2. **#14 Release v0.1.0**: reserve the PyPI name, tag, GHCR image public, generated notes.
 3. **#12 Move the docs off MkDocs before 2.0.** Must land this sprint. Evaluate Zensical vs pinned MkDocs 1.6.
 4. **#15 Verify the installer** on a real Pi 5 and Mac mini (CI only dry-runs it).
-5. Housekeeping: **#17** unused `anthropic` dependency, **#16** Docker HEALTHCHECK, **#18** Keychain / systemd-creds.
+5. Housekeeping: **#18** Keychain / systemd-creds.
 6. **#25 Voice**: ask Fleetwatch out loud. First slice by the booth if time allows; read-only.
 7. Features, after the release: **#19** Teams, **#20** two-way `check`, **#21** nightly sweep, **#22** `doctor`,
    **#23** per-room notes.
