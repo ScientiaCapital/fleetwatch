@@ -43,6 +43,9 @@ jobs:
             fleetwatch:ci digest --replay tests/fixtures | tee digest.txt
           grep -q "Fleet check" digest.txt
           test "$(docker run --rm --entrypoint id fleetwatch:ci -u)" = "10001"
+          # The health check is wired in, and reports unhealthy before any heartbeat has run.
+          docker inspect --format '{{json .Config.Healthcheck.Test}}' fleetwatch:ci | grep -q 'status'
+          if docker run --rm fleetwatch:ci status --check; then echo "expected unhealthy with no heartbeat"; exit 1; fi
 
       - name: Image name and tags
         if: startsWith(github.ref, 'refs/tags/v')
