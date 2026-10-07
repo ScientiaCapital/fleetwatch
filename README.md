@@ -87,6 +87,7 @@ uv run fleetwatch digest        # one heartbeat, prints or posts the digest
 uv run fleetwatch run           # keep going, every 3 minutes
 uv run fleetwatch status        # signed in? open items?
 uv run fleetwatch doctor        # is this machine ready? one line per check
+uv run fleetwatch ask "is Main Stage ready"   # ask in plain words; --serve opens a page with buttons
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 
@@ -157,8 +158,8 @@ Still stuck? Open an [issue](https://github.com/ScientiaCapital/fleetwatch/issue
 
 ## Security
 
-Fleetwatch only reads. It listens on no network port except `127.0.0.1` for the few seconds of `fleetwatch login`,
-and talks only outward, to your Epiphan region and Slack. Every tool result is redacted before it is parsed,
+Fleetwatch only reads. It listens on no network port except `127.0.0.1`, and only during `fleetwatch login` or while
+you run `fleetwatch ask --serve`. It talks only outward, to your Epiphan region and Slack. Every tool result is redacted before it is parsed,
 stored, logged or posted. Device and event names are treated as untrusted data. The OAuth token is stored with
 mode `600` and refreshes itself. The guard runs inside the process, so the boundaries that hold against an
 attacker are the OS user that runs Fleetwatch and the permissions of the Edge account you sign in with.
