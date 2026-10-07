@@ -1,7 +1,7 @@
 """Fleet scan: what needs attention. Plain rules, no LLM. Ported from the Edge Claude Kit's /find-problems.
 
 Priorities are words, never codes. Storage warnings are an FYI, never a problem: Pearls on a CMS record
-locally and upload after class, so a full disk is routine.
+locally and upload afterwards, so a full disk is routine.
 """
 
 from datetime import timedelta
@@ -75,7 +75,7 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
                         device_id=d.id,
                         device_name=d.name,
                         what=f"{d.name} is offline",
-                        impact="Classes in that room won't record or stream until it's back",
+                        impact=f"{policy.events_word.capitalize()} in that room won't record or stream until it's back",
                         fix="Check power and the network cable at the unit",
                     )
                 )
@@ -90,7 +90,7 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
                         device_id=d.id,
                         device_name=d.name,
                         what=f"No picture on {c.name} in {d.name}",
-                        impact="The next class on that channel records a blank screen",
+                        impact=f"The next {policy.event_word} on that channel records a blank screen",
                         fix="Check the camera or the HDMI/SDI cable feeding it",
                     )
                 )

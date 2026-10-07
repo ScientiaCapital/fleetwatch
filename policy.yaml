@@ -3,7 +3,8 @@ autonomy: observe          # observe (v0.1). Later: propose (ask in Slack), auto
 dry_run: true              # never call a write tool, whatever autonomy says
 
 heartbeat_seconds: 180     # how often to look at the fleet
-preclass_lead_minutes: 30  # post a Ready / Not ready check this long before each class
+vertical: events           # the word for a scheduled recording: events, education, business, courts, worship
+lead_minutes: 30           # post a Ready / Not ready check this long before each event
 remind_after_minutes: 240  # repeat an open item at most this often
 
 # No new posts in this window, except "Fix first" items. Local time of the machine running the agent.

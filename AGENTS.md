@@ -7,7 +7,7 @@ Instructions for AI coding assistants (Claude Code, Codex, Cursor and others) wo
 
 Fleetwatch for Epiphan Edge: an always-on, **read-only** watcher for an Epiphan Edge fleet of Pearl encoders and
 EC20 cameras. Each heartbeat reads the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm
-Slack digest only when something changed. Before each scheduled class it posts Ready or Not ready.
+Slack digest only when something changed. Before each scheduled event it posts Ready or Not ready.
 
 Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout`.
 
@@ -54,7 +54,7 @@ shellcheck deploy/install.sh && deploy/install.sh --dry-run
 | `policy.yaml` | Heartbeat, quiet hours, scope, thresholds |
 | `tool_policy.yaml` | Which Epiphan tools may be called (read list only) |
 | `src/fleetwatch/epiphan/` | OAuth sign-in, read-only MCP client with the guard, parsers, replay client |
-| `src/fleetwatch/agents/` | Scanner (what needs attention), readiness (before class), room state |
+| `src/fleetwatch/agents/` | Scanner (what needs attention), readiness (before an event), room state |
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
 | `src/fleetwatch/state.py` | SQLite: open items, what was posted when, audit log |
 | `src/fleetwatch/notify/` | Digest templates; Slack or console |
