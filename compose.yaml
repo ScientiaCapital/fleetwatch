@@ -1,0 +1,25 @@
+# docker compose run --rm fleetwatch login   # one-time sign-in to Epiphan Edge
+# docker compose up -d                       # run the heartbeat
+# docker compose logs -f                     # watch it
+services:
+  fleetwatch:
+    image: ghcr.io/scientiacapital/fleetwatch:latest
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - fleetwatch-state:/home/fleetwatch/.fleetwatch
+      # Edit policy.yaml on the host to change quiet hours, scope or thresholds.
+      - ./policy.yaml:/app/policy.yaml:ro
+    restart: unless-stopped
+    # No ports: Fleetwatch only talks outward, to Epiphan and Slack.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    stdin_open: true
+    tty: true
+
+volumes:
+  fleetwatch-state:
