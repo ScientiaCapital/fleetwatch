@@ -1,0 +1,85 @@
+"""One heartbeat: read the fleet, work out what changed, say it once. No LLM, no writes."""
+
+import logging
+from datetime import UTC, datetime, timedelta
+
+from proav_agent.agents.readiness.rules import check as readiness_check
+from proav_agent.agents.room_state.rules import room_state
+from proav_agent.agents.scanner.rules import scan
+from proav_agent.epiphan.mcp import EpiphanClient
+from proav_agent.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
+from proav_agent.model import Fleet, Priority, RoomState
+from proav_agent.notify.digest import render_digest, render_readiness
+from proav_agent.notify.slack import Notifier
+from proav_agent.policy import Policy
+from proav_agent.redact import redact
+from proav_agent.state import State
+
+log = logging.getLogger(__name__)
+
+
+async def snapshot(client: EpiphanClient, now: datetime) -> Fleet:
+    fleet = parse_devices(await client.call("get_devices_in_my_team"), now)
+    online = [d.id for d in fleet.devices.values() if d.online]
+    if online:
+        for tool, apply in (
+            ("get_recorder_status_for_devices", apply_recorder_status),
+            ("get_system_status_for_devices", apply_system_status),
+        ):
+            try:
+                apply(fleet, await client.call(tool, {"device_ids": online}))
+            except Exception as e:  # noqa: BLE001  (one failed read shouldn't lose the heartbeat)
+                log.warning("%s failed: %s", tool, redact(str(e)))
+    try:
+        until = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        apply_events(fleet, await client.call("get_current_or_next_cms_events_for_devices", {"until": until}))
+    except Exception as e:  # noqa: BLE001
+        log.warning("event lookup failed: %s", redact(str(e)))
+    return fleet
+
+
+async def tick(
+    client: EpiphanClient,
+    state: State,
+    policy: Policy,
+    notifier: Notifier,
+    *,
+    first_run: bool = False,
+    now: datetime | None = None,
+) -> str | None:
+    now = now or datetime.now(UTC)
+    fleet = await snapshot(client, now)
+    state.snapshot(now, len(fleet.devices), sum(d.online for d in fleet.devices.values()))
+
+    findings = scan(fleet, policy)
+    new, reminders, resolved = state.reconcile(findings, now, timedelta(minutes=policy.remind_after_minutes))
+    quiet = policy.in_quiet_hours(now.astimezone().time())
+    if quiet:  # only Fix first gets through at night; the rest waits (never sent, so it posts later)
+        new = [f for f in new if f.priority is Priority.FIX_FIRST]
+        reminders, resolved = [], []
+    text = render_digest(new, reminders, resolved, first_run=first_run and not quiet)
+    if text and notifier.post(text):
+        state.mark_sent(new + reminders, now)
+        state.audit(
+            "digest",
+            {
+                "new": [f.key for f in new],
+                "reminders": [f.key for f in reminders],
+                "resolved": [f.key for f in resolved],
+            },
+            now,
+        )
+
+    lead = timedelta(minutes=policy.preclass_lead_minutes)
+    for dev_id, event in fleet.events.items():
+        dev = fleet.devices.get(dev_id)
+        if dev is None or state.readiness_posted(event.key):
+            continue
+        if room_state(dev, event, now, lead) is RoomState.PRE_CLASS or (
+            not dev.online and now < event.start <= now + lead
+        ):
+            r = readiness_check(dev, event)
+            if notifier.post(render_readiness(r)):
+                state.mark_readiness(event.key, r.verdict, now)
+                state.audit("readiness", {"event": event.key, "verdict": r.verdict}, now)
+    return text

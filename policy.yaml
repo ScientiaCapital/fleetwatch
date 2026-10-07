@@ -1,0 +1,21 @@
+# How the agent behaves. Safe defaults: watch only, never change a device.
+autonomy: observe          # observe (v0.1). Later: propose (ask in Slack), auto (routine fixes only)
+dry_run: true              # never call a write tool, whatever autonomy says
+
+heartbeat_seconds: 180     # how often to look at the fleet
+preclass_lead_minutes: 30  # post a Ready / Not ready check this long before each class
+remind_after_minutes: 240  # repeat an open item at most this often
+
+# No new posts in this window, except "Fix first" items. Local time of the machine running the agent.
+quiet_hours:
+  start: "22:00"
+  end: "06:30"
+
+scope:
+  groups: []               # only watch these groups; empty = whole team
+  exclude_devices: []      # device names to ignore
+
+thresholds:
+  cpu_load_pct: 90
+  cpu_temp_c: 80
+  recent_reboot_minutes: 30
