@@ -16,7 +16,8 @@ slack-sdk · SQLite · launchd / systemd / Docker · MkDocs Material (pinned `<2
 policy.yaml              behaviour: heartbeat, quiet hours, scope, thresholds (autonomy forced to observe)
 tool_policy.yaml         the read list; anything else is refused by the guard
 src/fleetwatch/
-  cli.py                 login | digest | run | status | logout, --replay DIR
+  cli.py                 login | digest | run | status | doctor | logout, --replay DIR
+  doctor.py              read-only health checks for a new machine (no sign-in, no tool calls)
   config.py              FLEETWATCH_* settings from env / .env
   epiphan/               auth.py (OAuth, 127.0.0.1 callback), mcp.py (guard + redact), parse.py, replay.py
   agents/                scanner/ (what needs attention), readiness/ (before class), room_state/
