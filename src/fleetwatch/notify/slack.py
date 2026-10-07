@@ -5,6 +5,12 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def slack_escape(text: str) -> str:
+    """Slack's three control characters. Our templates never use <links> or <@mentions>, so escaping the whole
+    message is safe and stops a device named "<!channel>" from pinging everyone. *bold* and _italic_ still work."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 class Notifier:
     def __init__(self, token: str | None, channel: str):
         self.channel = channel
@@ -19,7 +25,7 @@ class Notifier:
             print(f"\n[{self.channel}]\n{text}\n")
             return True
         try:
-            self._client.chat_postMessage(channel=self.channel, text=text, mrkdwn=True)
+            self._client.chat_postMessage(channel=self.channel, text=slack_escape(text), mrkdwn=True)
             return True
         except Exception as e:  # noqa: BLE001  (a failed post must not stop the loop)
             log.warning("Slack post failed: %s", e)
