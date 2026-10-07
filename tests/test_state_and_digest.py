@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fleetwatch.model import Finding, Priority
+from fleetwatch.model import Event, Finding, Priority, Readiness
 from fleetwatch.notify.digest import render_digest
 from fleetwatch.state import State
 from tests.conftest import NOW
@@ -73,7 +73,9 @@ def test_digest_tone_and_shape():
 def test_readiness_posted_once():
     s = State()
     assert not s.readiness_posted("d:e1")
-    s.mark_readiness("d:e1", "Ready", NOW)
+    s.record_readiness(
+        Readiness(event=Event(device_id="d", title="T", start=NOW, id="e1"), device_name="D", verdict="Ready"), NOW
+    )
     assert s.readiness_posted("d:e1")
 
 
