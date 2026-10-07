@@ -1,0 +1,16 @@
+# Categories for GitHub's generated release notes, from PR labels. PR titles are Conventional Commits.
+changelog:
+  exclude:
+    labels: [ignore-for-release]
+    authors: [dependabot]
+  categories:
+    - title: Security
+      labels: [security]
+    - title: New
+      labels: [enhancement, "type/feature"]
+    - title: Fixes
+      labels: [bug, "type/fix"]
+    - title: Docs
+      labels: [documentation]
+    - title: Everything else
+      labels: ["*"]
