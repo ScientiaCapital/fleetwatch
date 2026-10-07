@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - "deploy/**"
+      - "install.sh"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/install-smoke.yml"
@@ -35,3 +36,12 @@ jobs:
       - run: uv sync --frozen
       - run: uv run --frozen fleetwatch --help
       - run: deploy/install.sh --dry-run
+      - name: One-line installer, from this checkout
+        env:
+          FLEETWATCH_REPO: ${{ github.workspace }}
+          REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          # PR checkouts are detached; give the clone a branch to check out (already there on main).
+          git -C "$FLEETWATCH_REPO" branch --force "$REF" HEAD 2>/dev/null || true
+          bash install.sh --dir "$RUNNER_TEMP/fleetwatch" --ref "$REF" --dry-run
+          test "$(stat -c %a "$RUNNER_TEMP/fleetwatch/.env" 2>/dev/null || stat -f %Lp "$RUNNER_TEMP/fleetwatch/.env")" = "600"
