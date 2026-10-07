@@ -29,8 +29,9 @@ deploy/                  launchd plist, systemd unit, install.sh (--dry-run)
 install.sh               curl | bash one-liner
 Dockerfile, compose.yaml hardened image (non-root uid 10001, read-only, no ports)
 docs/                    MkDocs site; next-sprint.md is the current plan
-tests/                   48 tests; fixtures/ is a redacted, renamed fleet sample
+tests/                   pytest suite; fixtures/ is the replay demo (real device list renamed, rest synthetic)
 .github/                 CI, issue forms, PR template, CODEOWNERS, dependabot, release.yml
+LICENSE, NOTICE          Apache-2.0; copyright Epiphan Systems Inc.; NOTICE credits the MIT kit and trademarks
 ```
 
 ## Key Commands
@@ -69,8 +70,10 @@ All optional, read from `.env` (see `.env.example`).
 5. **No real fleet data** in fixtures, tests, docs, issues or commits. History was scrubbed once; keep it clean.
 6. **Main is protected.** Branch, open a PR, let the 15 required checks pass, squash-merge. Conventional Commits
    with scopes; the PR Evidence section shows a command you ran and its output.
-7. **Name:** Fleetwatch (capital F only). Display name "Fleetwatch for Epiphan Edge" until Epiphan adopts it.
-8. Before claiming something works, run the tests and the replay digest and show the output.
+7. **Ownership:** copyright Epiphan Systems Inc. (NOTICE). Keep the trademark line and "not an officially
+   supported Epiphan product" wherever the README or docs describe licensing.
+8. **Name:** Fleetwatch (capital F only). Display name "Fleetwatch for Epiphan Edge" until Epiphan adopts it.
+9. Before claiming something works, run the tests and the replay digest and show the output.
 
 ## Status (2026-10-07)
 
