@@ -1,0 +1,37 @@
+name: install-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/install-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Install dry run (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Tier 1 targets: macOS on Apple Silicon (launchd), Linux aarch64 like a Raspberry Pi 5 (systemd).
+        os: [macos-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - run: uv run --frozen fleetwatch --help
+      - run: deploy/install.sh --dry-run

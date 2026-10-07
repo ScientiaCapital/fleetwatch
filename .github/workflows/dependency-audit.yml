@@ -1,0 +1,39 @@
+name: dependency-audit
+
+on:
+  push:
+    branches: [main]
+    paths: ["pyproject.toml", "uv.lock", ".github/workflows/dependency-audit.yml"]
+  pull_request:
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Audit the locked dependency set
+        run: |
+          uv export --frozen --no-emit-project --format requirements.txt > requirements.lock.txt
+          uvx pip-audit==2.10.1 --disable-pip --require-hashes -r requirements.lock.txt
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
