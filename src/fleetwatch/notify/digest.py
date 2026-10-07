@@ -1,5 +1,5 @@
 """Plain-language messages in the Edge Claude Kit's calm tone. Templates only: no alarm words, no codes,
-priorities in words. An optional LLM polish can rewrite these later; the templates are always the fallback."""
+priorities in words. No AI model is involved."""
 
 from fleetwatch.model import Finding, Priority, Readiness
 

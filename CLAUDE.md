@@ -7,7 +7,7 @@ assistant; this file adds Claude Code specifics and project status.
 
 ## Stack
 
-Python 3.12 · uv · ruff · pytest (+ pytest-asyncio) · `mcp` SDK (streamable HTTP, OAuth) · pydantic-settings ·
+Python 3.12 · uv · ruff · pytest (+ pytest-asyncio) · `mcp` SDK (no AI model in v0.1) (streamable HTTP, OAuth) · pydantic-settings ·
 slack-sdk · SQLite · launchd / systemd / Docker · MkDocs Material (pinned `<2`) on GitHub Pages.
 
 ## Directory Structure
@@ -57,7 +57,6 @@ All optional, read from `.env` (see `.env.example`).
 | `FLEETWATCH_EPIPHAN_TOKEN` | unset | Static bearer token for hosts that can't run OAuth |
 | `FLEETWATCH_OAUTH_CALLBACK_PORT` | `8765` | Login callback on 127.0.0.1 |
 | `FLEETWATCH_STATE_DB`, `FLEETWATCH_TOKEN_FILE` | `~/.fleetwatch/...` | State and token paths |
-| `FLEETWATCH_LLM_POLISH`, `ANTHROPIC_API_KEY` | off | Not used in v0.1 (issue #17) |
 
 ## Rules
 
