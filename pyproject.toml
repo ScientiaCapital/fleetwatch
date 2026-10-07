@@ -51,8 +51,7 @@ dev = [
     "ruff>=0.16.10",
 ]
 docs = [
-    "mkdocs>=1.6.1,<2",
-    "mkdocs-material>=9.7.7,<10",
+    "zensical==0.0.68",
 ]
 
 [tool.pytest.ini_options]
