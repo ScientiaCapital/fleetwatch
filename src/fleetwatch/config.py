@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # A static bearer token, for hosts that can't run the browser sign-in. Normally unset.
     epiphan_token: str | None = None
     oauth_callback_port: int = 8765
+    ask_port: int = 8766  # fleetwatch ask --serve, on 127.0.0.1 only
 
     slack_bot_token: str | None = None
     slack_channel: str = "#av-ops"

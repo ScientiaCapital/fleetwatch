@@ -41,6 +41,7 @@ Use a team made for demos where you can. The digest names rooms and devices, and
 | Watch the digest live | `journalctl --user -u fleetwatch -f` |
 | Show a heartbeat now | `cd ~/fleetwatch && uv run fleetwatch digest` |
 | See open items | `cd ~/fleetwatch && uv run fleetwatch status` |
+| Ask a question | `cd ~/fleetwatch && uv run fleetwatch ask "what needs attention"` |
 
 With a Slack token in `.env`, the digest and the Ready / Not ready checks also show in the Slack app on the phone.
 
@@ -54,3 +55,16 @@ cd ~/fleetwatch && uv run fleetwatch digest --replay tests/fixtures
 ```
 
 See [Replay mode](replay.md) for what the sample contains.
+
+## Let visitors ask
+
+A page with big buttons on the booth screen: *What needs attention?*, *What's offline?*, *Is Courtroom ready?*,
+and a box to type any room. It answers from Fleetwatch's own saved state, so it keeps working when the network
+drops. Spanish questions work too (*¿Está lista Courtroom?*).
+
+```bash
+cd ~/fleetwatch && uv run fleetwatch ask --serve --replay tests/fixtures   # offline demo data
+cd ~/fleetwatch && uv run fleetwatch ask --serve                            # the live fleet, after a heartbeat
+```
+
+Open `http://127.0.0.1:8766/` in the Pi's browser, full screen (`F11`). The page only answers on the Pi itself.
