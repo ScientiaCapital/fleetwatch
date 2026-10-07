@@ -1,0 +1,3033 @@
+{
+  "devices": [
+    {
+      "Id": "1f00000001a",
+      "Name": "Room 312 EC20",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "3.6.44",
+      "Status": "offline",
+      "StateTime": "2026-09-16T20:36Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1789562548",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000009",
+      "Name": "Room 312 Pearl Mini",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.24.5",
+      "Status": "offline",
+      "StateTime": "2026-09-16T12:43Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1789562520",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Content",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1789562520",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "no_storage_detected",
+          "data": null,
+          "label": "storage",
+          "message": "Storage is not ready"
+        }
+      ]
+    },
+    {
+      "Id": "1f00000001e",
+      "Name": "Room 204 Pearl Mini",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.24.6",
+      "Status": "offline",
+      "StateTime": "2026-09-24T20:08Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "recording_status": {
+            "state": "recording",
+            "timestamp": "1790280733",
+            "description": "recording is in progress"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Content",
+          "recording_status": {
+            "state": "recording",
+            "timestamp": "1790280733",
+            "description": "recording is in progress"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "source_no_signal",
+          "data": {
+            "source_name": "HDMI-A"
+          },
+          "label": "source",
+          "message": "Source 'HDMI-A' has no signal"
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000d",
+      "Name": "Room 204 EC20",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "3.6.44",
+      "Status": "offline",
+      "StateTime": "2026-09-24T21:01Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790280783",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000f",
+      "Name": "EC20 Studio Front",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Media Center",
+      "Firmware": "3.6.44",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1789761571",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000001f",
+      "Name": "Library Pearl Mini (East)",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.24.6",
+      "Status": "offline",
+      "StateTime": "2026-09-23T20:56Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "Warnings": [
+            {
+              "id": "channel_no_signal",
+              "data": {
+                "channel_name": "Program"
+              },
+              "label": "nosignal",
+              "message": "Channel 'Program' has no signal"
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181803",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Camera",
+          "Warnings": [
+            {
+              "id": "channel_no_signal",
+              "data": {
+                "channel_name": "Camera"
+              },
+              "label": "nosignal",
+              "message": "Channel 'Camera' has no signal"
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181803",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Content",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181804",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "source_no_signal",
+          "data": {
+            "source_name": "HDMI-A"
+          },
+          "label": "source",
+          "message": "Source 'HDMI-A' has no signal"
+        }
+      ]
+    },
+    {
+      "Id": "1f000000004",
+      "Name": "Courtroom",
+      "Model": "Pearl Nexus",
+      "GroupId": "00000000-0000-4000-8000-000000000007",
+      "GroupName": "Government",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program Mix",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Kiosk 1 - Display 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279339",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Camera 2",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Kiosk 1 - Display 2"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "Warnings": [
+            {
+              "id": "channel_no_signal",
+              "data": {
+                "channel_name": "Camera 2"
+              },
+              "label": "nosignal",
+              "message": "Channel 'Camera 2' has no signal"
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279339",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Content",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Kiosk 1 - Display 3"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279339",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "source_no_signal",
+          "data": {
+            "source_name": "SDI"
+          },
+          "label": "source",
+          "message": "Source 'SDI' has no signal"
+        }
+      ]
+    },
+    {
+      "Id": "1f000000005",
+      "Name": "Podcast Studio",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000001",
+      "GroupName": "Studios",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Camera 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790349800",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Camera 2",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279345",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Camera 3",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279345",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000e",
+      "Name": "Council Chamber",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000007",
+      "GroupName": "Government",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Wide Cam",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Civic Plus"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969945",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Mayor Cam",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "YouTube Channel A"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969946",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "PTZ Cam 1",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969947",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "PTZ Cam 2",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969947",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "5",
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969949",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "6",
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790969949",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "disk_space_error",
+          "data": {
+            "free": 1342627840,
+            "state": "ready",
+            "total": 510406524928
+          },
+          "label": "storage",
+          "message": "There is not enough free storage space"
+        }
+      ]
+    },
+    {
+      "Id": "1f000000002",
+      "Name": "Student Studio 103",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000005",
+      "GroupName": "Higher Ed",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279331",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279331",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Mixed Feed",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279331",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000001b",
+      "Name": "UX Lab 2",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000002",
+      "GroupName": "Enterprise",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Test Station",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181812",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000012",
+      "Name": "UX Lab 1",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000002",
+      "GroupName": "Enterprise",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "101-Room",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Youtube"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Facebook"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "mpegts-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 3"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181794",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000017",
+      "Name": "Broadcast Studio",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000001",
+      "GroupName": "Studios",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Main Camera",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Host Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Panelist Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "Zoom Guest",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "5",
+          "name": "Media Playback",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "6",
+          "name": "Program",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000010",
+      "Name": "Executive Studio",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000002",
+      "GroupName": "Enterprise",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Studio Camera",
+          "Publishers": [
+            {
+              "id": "3",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT Push"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181783",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000006",
+      "Name": "Small Stage",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000004",
+      "GroupName": "Live Event",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Panel Discussion T",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279323",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000001",
+      "Name": "Breakout Room 2",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000004",
+      "GroupName": "Live Event",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Interactive Area",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279326",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000015",
+      "Name": "Hall A Auditorium",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000005",
+      "GroupName": "Higher Ed",
+      "Firmware": "4.24.5",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Stage Cam",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "YouTube"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790883990",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Presenter Cam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790879711",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790879711",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "Program",
+          "Publishers": [
+            {
+              "id": "1",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 2"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 3"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790879711",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000019",
+      "Name": "Science Room 120b",
+      "Model": "Pearl Nexus",
+      "GroupId": "00000000-0000-4000-8000-000000000005",
+      "GroupName": "Higher Ed",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "PTZ A",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Youtube"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Facebook"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Vimeo"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 4"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 5"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279340",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Content",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279340",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000016",
+      "Name": "Main Stage",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000004",
+      "GroupName": "Live Event",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Stage Cam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Host Cam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Zoom Cam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "Dolly Cam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "5",
+          "name": "Program",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "disk_space_error",
+          "data": {
+            "free": 1386000384,
+            "state": "ready",
+            "total": 510406524928
+          },
+          "label": "storage",
+          "message": "There is not enough free storage space"
+        }
+      ]
+    },
+    {
+      "Id": "1f000000013",
+      "Name": "Breakout Room 1",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000004",
+      "GroupName": "Live Event",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Streamer Sessions",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279328",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000007",
+      "Name": "Studio Pearl Mini",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Media Center",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790973914",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Camera",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790973916",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000003",
+      "Name": "Media Briefing Room",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000007",
+      "GroupName": "Government",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Main Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279323",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000014",
+      "Name": "Library EC20 (East)",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "3.6.44",
+      "Status": "offline",
+      "StateTime": "2026-09-23T20:57Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790181267",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000011",
+      "Name": "Room 110 Venue",
+      "Model": "Venue",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.25.0",
+      "Status": "offline",
+      "StateTime": "2026-09-24T00:28Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790260895",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Channel 2",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790260896",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000001d",
+      "Name": "Library Pearl Mini (E)",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.24.6",
+      "Status": "offline",
+      "StateTime": "2026-09-23T20:38Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Camera",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790192212",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Presentation",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790192212",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Custom Layout",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790192213",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000001c",
+      "Name": "Room 110 EC20",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "3.6.44",
+      "Status": "offline",
+      "StateTime": "2026-09-24T20:52Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790254473",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000a",
+      "Name": "Studio Pearl-2",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Media Center",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "Publishers": [
+            {
+              "id": "1",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Wistia"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "YouTube"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "VLC SRT"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "LinkedIn"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790784013",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Zcam",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790784014",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "EC20",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790784014",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "Guest Laptop",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790784015",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "5",
+          "name": "Lectern Laptop",
+          "Warnings": [
+            {
+              "id": "channel_no_signal",
+              "data": {
+                "channel_name": "Lectern Laptop"
+              },
+              "label": "nosignal",
+              "message": "Channel 'Lectern Laptop' has no signal"
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790784015",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "source_no_signal",
+          "data": {
+            "source_name": "HDMI-B - Lectern Laptop"
+          },
+          "label": "source",
+          "message": "Source 'HDMI-B - Lectern Laptop' has no signal"
+        }
+      ]
+    },
+    {
+      "Id": "1f000000018",
+      "Name": "EC20 Studio Control Room",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Media Center",
+      "Firmware": "3.6.44",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1787229928",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000b",
+      "Name": "EC20 Studio Ceiling",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Media Center",
+      "Firmware": "3.6.44",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1787169607",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000008",
+      "Name": "Room 110 Pearl Mini",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.24.5",
+      "Status": "offline",
+      "StateTime": "2026-09-24T18:43Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790269185",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Content",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790265271",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000c",
+      "Name": "Event Hall Venue",
+      "Model": "Venue",
+      "GroupId": "00000000-0000-4000-8000-000000000006",
+      "GroupName": "North Campus",
+      "Firmware": "4.25.0",
+      "Status": "offline",
+      "StateTime": "2026-09-02T14:58Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Warnings": [
+            {
+              "id": "channel_no_signal",
+              "data": {
+                "channel_name": "Channel 1"
+              },
+              "label": "nosignal",
+              "message": "Channel 'Channel 1' has no signal"
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1788360275",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Channel 2",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1788360275",
+            "description": "recording is not started"
+          }
+        }
+      ],
+      "Warnings": [
+        {
+          "id": "source_no_signal",
+          "data": {
+            "source_name": "HDMI"
+          },
+          "label": "source",
+          "message": "Source 'HDMI' has no signal"
+        }
+      ]
+    }
+  ]
+}
