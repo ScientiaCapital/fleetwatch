@@ -58,7 +58,9 @@ case "$(uname -s)" in
     fi
     if $dry_run; then echo "Dry run OK: $unit_dir/fleetwatch.service"; exit 0; fi
     systemctl --user daemon-reload
-    systemctl --user enable --now fleetwatch.service
+    systemctl --user enable fleetwatch.service
+    # restart, not start: after an update the running unit must pick up the new code.
+    systemctl --user restart fleetwatch.service
     loginctl enable-linger "$USER" 2>/dev/null || echo "note: run 'sudo loginctl enable-linger $USER' so it starts at boot without a login."
     echo "Installed. Logs: journalctl --user -u fleetwatch -f   Stop: systemctl --user stop fleetwatch"
     ;;
