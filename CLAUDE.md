@@ -75,5 +75,5 @@ All optional, read from `.env` (see `.env.example`).
 ## Status (2026-10-07)
 
 - Sprint 1 (repo) done: public repo, protected main, CI, security files, Docker, installer, docs site, README.
-- Sprint 2 plan: [docs/next-sprint.md](docs/next-sprint.md), milestone "Sprint 2" on GitHub (issues #12 to #23).
+- Sprint 2 plan: [docs/next-sprint.md](docs/next-sprint.md), milestone "Sprint 2" on GitHub. Done: #16, #17, #22, offline demo.
 - Must land in Sprint 2: move docs off MkDocs before 2.0 (#12). Blocked on the maintainer: first live run (#13).
