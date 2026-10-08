@@ -380,3 +380,87 @@ def test_row_edited_into_bad_json_is_refused_not_raised():
     aid = s.db.execute("SELECT max(id) FROM approvals").fetchone()[0]
     assert s.consume(aid) is None
     assert s.outcome(aid) == "error"
+
+
+# --- the reason is bound -----------------------------------------------------------------------------------
+def test_reason_is_part_of_the_bound_message():
+    assert sign(_record(reason="Room needs a recording"), KEY) != sign(_record(reason="Something else"), KEY)
+
+
+def test_edited_reason_is_deny_only_and_not_consumable():
+    s = State()
+    pid = _propose(s)
+    s.db.execute("UPDATE proposals SET reason='Approved by the room owner' WHERE id=?", (pid,))
+    s.db.commit()
+    ((_, record, _reason),) = s.pending_proposals()
+    assert record is None, "the card must not offer Approve for a reason nobody approved"
+
+
+def test_unedited_reason_still_verifies():
+    s = State()
+    _propose(s)
+    ((_, record, reason),) = s.pending_proposals()
+    assert record is not None and reason == "Room needs a recording" and record.reason == reason
+
+
+# --- the audit log is a hash chain ---------------------------------------------------------------------------
+def _audit_ids(s):
+    return [r[0] for r in s.db.execute("SELECT id FROM audit ORDER BY id")]
+
+
+def test_a_fresh_audit_log_verifies():
+    s = State()
+    assert s.verify_audit() is None  # empty
+    aid = s.approve(_propose(s), "session-a")
+    s.consume(aid)
+    assert s.verify_audit() is None
+
+
+def test_editing_an_audit_row_is_found():
+    s = State()
+    _propose(s)
+    s.approve(1, "session-a")
+    _first, second, *_ = _audit_ids(s)
+    s.db.execute("UPDATE audit SET detail='{}' WHERE id=?", (second,))
+    s.db.commit()
+    assert s.verify_audit() == second
+
+
+def test_deleting_an_audit_row_is_found():
+    s = State()
+    for i in range(4):
+        s.audit("note", {"n": i})
+    ids = _audit_ids(s)
+    s.db.execute("DELETE FROM audit WHERE id=?", (ids[1],))
+    s.db.commit()
+    assert s.verify_audit() == ids[2], "the row after the gap no longer follows the row before it"
+
+
+def test_a_row_inserted_without_a_hash_is_found():
+    s = State()
+    s.audit("note", {"n": 1})
+    s.db.execute("INSERT INTO audit (at, kind, detail) VALUES ('2026-10-01T00:00:00+00:00','note','{}')")
+    s.db.commit()
+    assert s.verify_audit() == _audit_ids(s)[-1]
+
+
+def test_old_rows_stay_valid_and_the_chain_starts_at_the_first_new_row(tmp_path):
+    path = tmp_path / "state.db"
+    old = sqlite3.connect(path)
+    old.executescript(
+        """
+        CREATE TABLE audit (id INTEGER PRIMARY KEY, at TEXT, kind TEXT, detail TEXT);
+        INSERT INTO audit (at, kind, detail) VALUES ('2026-10-01T00:00:00+00:00', 'heartbeat', '{}');
+        INSERT INTO audit (at, kind, detail) VALUES ('2026-10-01T00:05:00+00:00', 'heartbeat', '{}');
+        """
+    )
+    old.commit()
+    old.close()
+    s = State(path)
+    assert s.verify_audit() is None
+    s.audit("note", {"n": 1})
+    s.audit("note", {"n": 2})
+    assert s.verify_audit() is None
+    s.db.execute("UPDATE audit SET kind='x' WHERE id=3")
+    s.db.commit()
+    assert s.verify_audit() == 3

@@ -1,5 +1,6 @@
 """The agent can only ever call read tools. The guard lives in the client, before anything reaches the network."""
 
+import ast
 import json
 from pathlib import Path
 
@@ -68,15 +69,81 @@ SRC = ROOT / "src" / "fleetwatch"
 CALLERS = {SRC / "epiphan" / "mcp.py", SRC / "epiphan" / "executor.py"}
 
 
-def test_call_tool_is_used_only_by_the_two_client_classes():
-    """A new `call_tool` anywhere else would be a path to Epiphan that skips both guard() and the executor's checks."""
-    found = sorted(
-        str(path.relative_to(ROOT))
+RAW_NAMES = {"call_tool", "_client"}
+
+
+def _folded(node: ast.AST) -> str | None:
+    """The string a constant expression builds ("a", "a" + "b", f"ab", "".join(["a", "b"])), else None."""
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _folded(node.left), _folded(node.right)
+        return None if left is None or right is None else left + right
+    if isinstance(node, ast.JoinedStr):
+        parts = [_folded(v) for v in node.values]
+        return None if None in parts else "".join(parts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "join"
+        and len(node.args) == 1
+        and isinstance(node.args[0], (ast.List, ast.Tuple))
+    ):
+        sep, parts = _folded(node.func.value), [_folded(e) for e in node.args[0].elts]
+        return None if sep is None or None in parts else sep.join(parts)
+    return None
+
+
+def raw_session_uses(source: str) -> list[int]:
+    """Line numbers where code names the raw session: `.call_tool`, `._client`, or a string that builds one of those
+    names (getattr(x, "call" + "_tool"), a dict key, and so on)."""
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        named = isinstance(node, ast.Attribute) and node.attr in RAW_NAMES
+        built = isinstance(node, (ast.Constant, ast.BinOp, ast.JoinedStr, ast.Call)) and _folded(node) in RAW_NAMES
+        if named or built:
+            lines.append(node.lineno)
+    return sorted(set(lines))
+
+
+def test_only_the_client_and_the_executor_touch_the_raw_session():
+    """A `call_tool` or `_client` anywhere else would be a path to Epiphan that skips both guard() and the
+    executor's checks. Nothing but mcp.py defines them and executor.py uses `raw_session()`."""
+    found = {
+        str(path.relative_to(ROOT)): raw_session_uses(path.read_text(encoding="utf-8"))
         for path in SRC.rglob("*.py")
-        if path not in CALLERS and "call_tool" in path.read_text(encoding="utf-8")
-    )
-    assert found == [], f"call_tool referenced outside mcp.py and executor.py: {found}"
-    assert all("call_tool" in p.read_text(encoding="utf-8") for p in CALLERS)
+        if path not in CALLERS
+    }
+    found = {k: v for k, v in found.items() if v}
+    assert found == {}, f"raw session named outside mcp.py and executor.py: {found}"
+    assert raw_session_uses((SRC / "epiphan" / "mcp.py").read_text(encoding="utf-8")), "the check still sees mcp.py"
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "client.call_tool('x', {})",
+        "reader._client",
+        "getattr(client, 'call_tool')",
+        "getattr(client, 'call_' + 'tool')",
+        "getattr(client, 'ca' 'll_tool')",
+        "getattr(client, f'call_tool')",
+        "getattr(client, ''.join(['_cli', 'ent']))",
+        "getattr(client, '_' + 'cli' + 'ent')",
+    ],
+)
+def test_the_raw_session_check_catches_the_obvious_ways_round_it(snippet):
+    assert raw_session_uses(snippet) == [1]
+
+
+def test_the_raw_session_check_ignores_unrelated_code():
+    assert raw_session_uses("self._web.chat_postMessage(x)\ngetattr(x, 'name')\n'call' + 'me'") == []
+
+
+def test_client_names_its_raw_session_method_and_executor_uses_it():
+    assert hasattr(EpiphanClient, "raw_session")
+    executor = (SRC / "epiphan" / "executor.py").read_text(encoding="utf-8")
+    assert "raw_session()" in executor and "reader._client" not in executor
 
 
 class _RecordingSDK:

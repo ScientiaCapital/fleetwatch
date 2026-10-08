@@ -19,7 +19,7 @@ def test_slack_posts_are_escaped_and_the_console_is_not(capsys):
             sent.update(kw)
 
     n = SlackNotifier("xoxb-test", "#av-ops")
-    n._client = FakeClient()
+    n._web = FakeClient()
     assert n.post("*Nightly sweep* · Offline (1): <!here> Lobby")
     assert sent["text"] == "*Nightly sweep* · Offline (1): &lt;!here&gt; Lobby"
     assert sent.get("link_names") in (None, False, 0)

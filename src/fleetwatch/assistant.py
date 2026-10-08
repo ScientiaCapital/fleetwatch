@@ -392,7 +392,7 @@ class _Turn:
         # and this same fingerprint, so both must come from the same place. Never what the model read earlier.
         try:
             async with self.sandbox() as sandbox:
-                fleet = await snapshot(sandbox, self.now or datetime.now(UTC))
+                fleet = await snapshot(sandbox, self.now or datetime.now(UTC), strict=True)
         except Exception as e:  # noqa: BLE001  (FailedRead, no session, or a read failed)
             log.warning("assistant: fresh sandbox read for a proposal failed (%s)", redact(type(e).__name__))
             raise ProposalRefused(

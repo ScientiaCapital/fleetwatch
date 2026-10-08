@@ -18,11 +18,11 @@ class SlackNotifier:
         from slack_sdk import WebClient
 
         self.channel = channel
-        self._client = WebClient(token=token)
+        self._web = WebClient(token=token)
 
     def post(self, text: str) -> bool:
         try:
-            self._client.chat_postMessage(channel=self.channel, text=slack_escape(text), mrkdwn=True)
+            self._web.chat_postMessage(channel=self.channel, text=slack_escape(text), mrkdwn=True)
             return True
         except Exception as e:  # noqa: BLE001  (a failed post must not stop the loop)
             log.warning("Slack post failed: %s", redact(str(e)))

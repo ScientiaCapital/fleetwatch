@@ -63,6 +63,7 @@ _TEXT_CAP = 500
 _ADDED_COLUMNS = {
     "findings": ("impact TEXT", "fix TEXT"),
     "readiness": ("device_id TEXT", "device_name TEXT", "title TEXT", "start TEXT", "notes TEXT"),
+    "audit": ("prev_hash TEXT", "hash TEXT"),  # the chain starts at the first row written with a hash
     "approvals": ("started_at INTEGER",),  # set once, when the write executor takes a consumed approval
 }
 
@@ -315,6 +316,7 @@ class State:
         the same tool and targets denied three times within an hour (paused for an hour after the third denial).
         Callers have already checked the tool against the propose policy and resolved targets to device IDs."""
         unique = tuple(sorted(set(targets)))
+        stored_reason = _clean_text(reason)
         target_key = json.dumps(list(unique))
         try:
             if not isinstance(tool, str) or not tool:
@@ -365,16 +367,16 @@ class State:
                         canonical(fp).decode("utf-8"),
                         schema_version,
                         slot,
-                        _clean_text(reason),
+                        stored_reason,
                     ),
                 )
                 pid = int(cur.lastrowid)
-                record = BoundRecord(pid, tool, args, unique, fp, schema_version, slot)
+                record = BoundRecord(pid, tool, args, unique, fp, schema_version, slot, stored_reason)
                 self.db.execute("UPDATE proposals SET mac=? WHERE id=?", (sign(record), pid))
         except ProposalRefused as e:
             self.audit("proposal_refused", {"tool": str(tool), "targets": list(unique), "why": e.reason})
             raise
-        self.audit("proposal", {**_audit_record(record), "reason": _clean_text(reason)})
+        self.audit("proposal", {**_audit_record(record), "reason": stored_reason})
         return pid
 
     def _record_from_row(self, row: sqlite3.Row) -> BoundRecord:
@@ -386,6 +388,7 @@ class State:
             fingerprint=parse_canonical(row["fingerprint"]),
             schema_version=int(row["schema_version"]),
             slot=row["slot"],
+            reason=row["reason"] or "",
         )
 
     def _checked_record(self, row: sqlite3.Row) -> BoundRecord | None:
@@ -566,11 +569,44 @@ class State:
 
     # --- audit --------------------------------------------------------------------------------------
     def audit(self, kind: str, detail: dict, now: datetime | None = None) -> None:
-        self.db.execute(
-            "INSERT INTO audit (at, kind, detail) VALUES (?,?,?)",
-            (_iso(now or datetime.now(UTC)), kind, json.dumps(detail, default=str)),
-        )
-        self.db.commit()
+        """Append one row. Each row stores a hash over its own content and the previous row's hash, so an edited,
+        removed or inserted row shows up in verify_audit(). The hash is unkeyed: it finds accidents and edits that
+        don't also rewrite every later row, not an attacker who can write the whole file."""
+        at, text = _iso(now or datetime.now(UTC)), json.dumps(detail, default=str)
+        own = self.db.in_transaction  # already inside a write transaction: join it
+        if not own:
+            self.db.execute("BEGIN IMMEDIATE")  # read the last hash and append under one lock
+        try:
+            last = self.db.execute("SELECT id, hash FROM audit ORDER BY id DESC LIMIT 1").fetchone()
+            prev = (last["hash"] or "") if last else ""
+            cur = self.db.execute(
+                "INSERT INTO audit (at, kind, detail, prev_hash) VALUES (?,?,?,?)", (at, kind, text, prev)
+            )
+            self.db.execute(
+                "UPDATE audit SET hash=? WHERE id=?", (_audit_hash(prev, cur.lastrowid, at, kind, text), cur.lastrowid)
+            )
+        except BaseException:
+            if not own:
+                self.db.rollback()
+            raise
+        if not own:
+            self.db.commit()
+
+    def verify_audit(self) -> int | None:
+        """The ID of the first audit row that doesn't fit the chain, or None when it holds. Rows from before the
+        chain existed have no hash and are skipped; once a row has one, every later row must have one that follows."""
+        prev: str | None = None  # None until the first hashed row
+        for row in self.db.execute("SELECT id, at, kind, detail, prev_hash, hash FROM audit ORDER BY id"):
+            if prev is None and row["hash"] is None:
+                continue
+            link = "" if prev is None else prev
+            if (row["prev_hash"] or "") != link:
+                return int(row["id"])
+            expect = _audit_hash(link, row["id"], row["at"], row["kind"], row["detail"])
+            if row["hash"] != expect:
+                return int(row["id"])
+            prev = row["hash"]
+        return None
 
     def recent_audit(self, kind: str, limit: int = 10) -> list[tuple[datetime, dict]]:
         rows = self.db.execute(
@@ -656,6 +692,10 @@ def _signed(record: BoundRecord, mac: str | None) -> bool:
         return verify(record, mac or "")
     except (ValueError, TypeError, AttributeError):
         return False
+
+
+def _audit_hash(prev: str, row_id: int, at: str, kind: str, detail: str) -> str:
+    return hashlib.sha256(json.dumps([prev, row_id, at, kind, detail], ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def _session_tag(page_session: str) -> str:

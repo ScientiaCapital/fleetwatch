@@ -340,7 +340,8 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
             settings.epiphan_mcp_url, tools, storage=store, callback_port=settings.oauth_callback_port
         )
         async with client:
-            return await snapshot(client, datetime.now(UTC))
+            # Strict: a failed recorder or event read must fail the card (Deny only), not read as "Not recording".
+            return await snapshot(client, datetime.now(UTC), strict=True)
 
     ask_fn = _approve_ask(settings, state, policy, key, None)
     return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn)

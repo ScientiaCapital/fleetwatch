@@ -325,3 +325,18 @@ def test_propose_mode_with_only_a_team_id_passes_with_a_note(tmp_path):
     s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_team_id="team-sandbox")
     c = by_name(run(s))["Write fence"]
     assert c.status == OK and "team ID" in c.detail
+
+
+def test_audit_log_check_is_ok_when_the_chain_holds_and_names_only_the_row_when_it_breaks(tmp_path):
+    from fleetwatch.state import State
+
+    s = settings(tmp_path)
+    assert by_name(run(s))["Audit log"].status == OK  # no database yet
+    state = State(s.state_db)
+    state.audit("note", {"secret": "do-not-print"})
+    state.audit("note", {"n": 2})
+    assert by_name(run(s))["Audit log"].status == OK
+    state.db.execute("UPDATE audit SET detail='{\"x\":1}' WHERE id=1")
+    state.db.commit()
+    c = by_name(run(s))["Audit log"]
+    assert c.status == FAIL and "row 1" in c.detail and "do-not-print" not in c.detail

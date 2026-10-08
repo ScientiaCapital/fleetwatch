@@ -3,8 +3,10 @@
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 from fleetwatch.epiphan.replay import ReplayClient
-from fleetwatch.heartbeat import tick
+from fleetwatch.heartbeat import FailedRead, snapshot, tick
 from fleetwatch.policy import Policy, load_tool_policy
 from fleetwatch.state import State
 from tests.conftest import NOW
@@ -108,3 +110,37 @@ async def test_calm_then_a_room_goes_offline_posts_now_not_ready(tmp_path):
     assert text and "Fix first" in text and "Main Stage Pearl Nano is offline" in text
     readiness = [p for p in out.posts if " at " in p.splitlines()[0] and p.startswith("*")]
     assert [p.splitlines()[0].rsplit(": ", 1)[1] for p in readiness] == ["*Ready*", "*Now not ready* (was Ready)"]
+
+
+class _Failing(ReplayClient):
+    """The replay sample, except one named read fails."""
+
+    def __init__(self, fail: str):
+        super().__init__(ROOT / "tests/fixtures", load_tool_policy(ROOT / "tool_policy.yaml"), now=NOW)
+        self.fail = fail
+
+    async def call(self, tool, arguments=None):
+        if tool == self.fail:
+            raise RuntimeError("the read failed")
+        return await super().call(tool, arguments)
+
+
+@pytest.mark.parametrize("tool", ["get_recorder_status_for_devices", "get_current_or_next_cms_events_for_devices"])
+async def test_snapshot_forgives_a_failed_read_by_default(tool):
+    fleet = await snapshot(_Failing(tool), NOW)
+    assert fleet.devices, "the heartbeat keeps working from what it could read"
+
+
+@pytest.mark.parametrize(
+    "tool",
+    ["get_recorder_status_for_devices", "get_system_status_for_devices", "get_current_or_next_cms_events_for_devices"],
+)
+async def test_strict_snapshot_raises_on_any_failed_read(tool):
+    with pytest.raises(FailedRead):
+        await snapshot(_Failing(tool), NOW, strict=True)
+
+
+async def test_strict_snapshot_matches_the_default_when_every_read_works():
+    plain = await snapshot(replay_client(), NOW)
+    strict = await snapshot(replay_client(), NOW, strict=True)
+    assert strict == plain

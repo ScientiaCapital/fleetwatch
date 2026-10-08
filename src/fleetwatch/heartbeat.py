@@ -29,8 +29,12 @@ class FailedRead(RuntimeError):
     """The device list couldn't be read. Never treat it as an empty fleet: that would mark everything fixed."""
 
 
-async def snapshot(client: EpiphanClient, now: datetime) -> Fleet:
-    """Read the fleet. Raises FailedRead when the device list is text, or a shape we don't know."""
+async def snapshot(client: EpiphanClient, now: datetime, *, strict: bool = False) -> Fleet:
+    """Read the fleet. Raises FailedRead when the device list is text, or a shape we don't know.
+
+    By default a failed recorder, system or event read is logged and skipped, so one flaky read doesn't lose the
+    heartbeat. With `strict=True` any of them raises FailedRead instead: use it where a card or a check would
+    otherwise show "Not recording" or "no event" from a read that never happened."""
     raw = await client.call("get_devices_in_my_team")
     if device_items(raw) is None:
         kind = "text instead of JSON" if isinstance(raw, str) else "a shape Fleetwatch doesn't know"
@@ -45,11 +49,15 @@ async def snapshot(client: EpiphanClient, now: datetime) -> Fleet:
             try:
                 apply(fleet, await client.call(tool, {"device_ids": online}))
             except Exception as e:  # noqa: BLE001  (one failed read shouldn't lose the heartbeat)
+                if strict:
+                    raise FailedRead(f"{tool} failed: {redact(str(e))}") from None
                 log.warning("%s failed: %s", tool, redact(str(e)))
     try:
         until = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
         apply_events(fleet, await client.call("get_current_or_next_cms_events_for_devices", {"until": until}))
     except Exception as e:  # noqa: BLE001
+        if strict:
+            raise FailedRead(f"the event read failed: {redact(str(e))}") from None
         log.warning("event lookup failed: %s", redact(str(e)))
     return fleet
 

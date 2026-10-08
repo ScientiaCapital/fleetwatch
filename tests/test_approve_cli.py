@@ -218,3 +218,26 @@ def test_chat_without_a_key_or_with_no_ai_uses_the_keyword_answer_and_says_so(tm
     answer = page.ask_fn("what needs attention")
     assert "assistant is off" in answer and "quick answer" in answer
     assert len(page.state.pending_proposals()) == 1  # only the replay sample: the keyword answer can't propose
+
+
+def test_the_live_pages_sandbox_read_is_strict(tmp_path, monkeypatch):
+    """A failed recorder read must fail the page's read (a Deny-only card), not show 'Not recording'."""
+    from fleetwatch.epiphan.replay import ReplayClient
+    from fleetwatch.heartbeat import FailedRead
+    from fleetwatch.policy import load_tools
+
+    class FlakyRecorder(ReplayClient):
+        def __init__(self, *_a, **_k):
+            super().__init__(FIXTURES, load_tools())
+
+        async def call(self, tool, arguments=None):
+            if tool == "get_recorder_status_for_devices":
+                raise RuntimeError("the recorder read failed")
+            return await super().call(tool, arguments)
+
+    monkeypatch.setattr(cli, "EpiphanClient", FlakyRecorder)
+    s = _settings(tmp_path, "propose", write_device_ids="0a1b2c3d")
+    _sign_in_sandbox(s)
+    page = cli._approve_page(s, None)
+    with pytest.raises(FailedRead):
+        asyncio.run(page.read_fleet())

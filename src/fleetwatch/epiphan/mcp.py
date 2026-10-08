@@ -103,6 +103,13 @@ class EpiphanClient:
             await self._client.__aexit__(*exc)
             self._client = None
 
+    def raw_session(self) -> Any:
+        """The open, unguarded MCP session. Only the v0.2 write executor may call this, for the one approved write;
+        call() is the only way anything else reaches a tool, and it refuses every write. Raises if not open."""
+        if self._client is None:
+            raise RuntimeError("use `async with EpiphanClient(...)`")
+        return self._client
+
     async def _force_refresh(self) -> bool:
         """After an in-band 401: mark the token expired so the next request refreshes it first."""
         mark = getattr(self._provider, "mark_expired", None)

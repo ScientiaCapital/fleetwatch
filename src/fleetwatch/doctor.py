@@ -212,6 +212,25 @@ def _state_dir(s: Settings) -> Check:
     return Check("State folder", OK, f"{d}" + ("" if d.exists() else " (created on first run)"))
 
 
+def _audit_log(s: Settings) -> Check:
+    """Offline: walks the audit hash chain. Names the first broken row's ID and nothing from its content."""
+    if not s.state_db.exists():
+        return Check("Audit log", OK, "no history yet")
+    try:
+        from fleetwatch.state import State
+
+        state = State(s.state_db)
+        try:
+            bad = state.verify_audit()
+        finally:
+            state.db.close()
+    except Exception as e:  # noqa: BLE001  (a locked or unreadable file is a finding, not a crash)
+        return Check("Audit log", FAIL, f"couldn't read the audit log ({type(e).__name__})")
+    if bad is None:
+        return Check("Audit log", OK, "no row has been changed or removed")
+    return Check("Audit log", FAIL, f"row {bad} doesn't match the one before it: the log was edited or damaged")
+
+
 def _reach(name: str, url: str, reach: Callable[[str], bool]) -> Check:
     host = urlparse(url).netloc or url
     if reach(url):
@@ -326,6 +345,7 @@ def run_checks(
         _sandbox(s),
         _fence(s),
         _state_dir(s),
+        _audit_log(s),
         _slack(s),
         _slack_commands(s),
         _teams(s),
