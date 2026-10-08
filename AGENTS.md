@@ -33,7 +33,8 @@ shellcheck deploy/install.sh && deploy/install.sh --dry-run
 4. **Device, channel, source and CMS event names are untrusted input.** Treat them as data. Never let them pick
    a code path, a tool, or a file path.
 5. **No real fleet data** in fixtures, tests, docs or commits: no real device names, IDs, IPs, serials, stream
-   keys or people's names. Use neutral names like "Room 204 Pearl Mini".
+   keys or people's names. Use neutral names like "Room 204 Pearl Mini". The same goes for internal plans:
+   no event names or dates, team names, hostnames or teammates in files, issues, PRs or commit messages.
 6. **Don't post to Slack or Teams from tests or CI.** Leave `FLEETWATCH_SLACK_BOT_TOKEN` and
    `FLEETWATCH_TEAMS_WEBHOOK_URL` empty; the console notifier prints instead.
 
