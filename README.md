@@ -28,7 +28,7 @@ Slack or Microsoft Teams digest when something changes, and says Ready or Not re
 event.
 
 Version 0.1 is observe-only. It can't change a device: the client refuses write tools before any request
-leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
+leaves the machine, and `policy.yaml` accepts only `autonomy: observe`.
 
 <p align="center">
   <img alt="A Fleetwatch digest and two before-event checks, from the offline replay demo" src="docs/assets/digest-replay.svg" width="720">
@@ -40,11 +40,11 @@ leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
 
 | | |
 |---|---|
-| Calm digest | Posts only when something changes. Each problem is posted once, reminded at most every 4 hours, and closed with Back to normal. |
-| Ready or Not ready | 30 minutes before each scheduled event, one line per room: is the picture there, is the unit online. Posted again if that changes before the start. |
+| Calm digest | Posts only when something changes. Each problem is posted once, reminded at most every four hours, and closed with Back to normal. |
+| Ready or Not ready | 30 minutes before each scheduled event, one line per room: Ready, Ready with notes, or Not ready. Is the picture there, is the unit online? Posted again if that changes before the start. |
 | Read-only by construction | The client refuses write tools before any request leaves the machine. Epiphan Edge has no read-only sign-in, so use a least-access account. |
-| Runs on a Pi or a Mac mini | One-line install as a systemd or launchd service, or Docker on amd64 and arm64. |
-| `fleetwatch doctor` | One line per check: policy, guard, redaction, sign-in, network, service. |
+| Built for a Pi or a Mac mini | One-line install as a systemd or launchd service, or Docker. |
+| `fleetwatch doctor` | One line per check: version, policy, guard, redaction, sign-in, state folder, Slack and Teams, network, and service. |
 | Offline demo | A full heartbeat against a saved sample fleet, or a calm one for a screen in a quiet room. No account, no network. |
 
 ## Install
@@ -59,16 +59,19 @@ curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/ins
 It installs the newest release (until the first one is tagged, the `main` branch); add `-s -- --ref main` for
 the development branch.
 
-Prefer Docker? `docker compose run --rm fleetwatch login`, then `docker compose up -d`.
+Prefer Docker? From a clone of the repo, `docker compose run --rm fleetwatch login`, then `docker compose up -d`.
+Until the first release, Compose builds the image locally.
 
 | Tier | Platform | Runs as |
 |---|---|---|
-| 1 | macOS on Apple Silicon, e.g., a Mac mini | launchd agent |
+| 1 | macOS on Apple Silicon, such as a Mac mini | launchd agent |
 | 1 | Raspberry Pi 5 / Linux aarch64 | systemd user unit |
 | 1 | Docker, amd64 and arm64 | container (`compose.yaml`) |
 | 2 | Linux x86_64, macOS on Intel | systemd / launchd |
 
-Continuous integration (CI) tests the Tier 1 targets on every pull request. Step-by-step guides:
+On every pull request, continuous integration (CI) runs the tests and the installer dry run on GitHub-hosted macOS
+(Apple Silicon) and Linux aarch64 machines, and builds and runs the Docker image for amd64. The arm64 image is built
+when a release is tagged. A real Raspberry Pi 5 and Mac mini haven't been checked yet. Step-by-step guides:
 [Mac mini](https://scientiacapital.github.io/fleetwatch/mac-mini/),
 [Raspberry Pi](https://scientiacapital.github.io/fleetwatch/raspberry-pi/),
 [Docker](https://scientiacapital.github.io/fleetwatch/docker/).
@@ -113,7 +116,7 @@ cp .env.example .env            # Slack bot token and channel; leave the token e
 uv run fleetwatch login         # one-time sign-in to Epiphan Edge; pick the team to watch
 uv run fleetwatch digest        # one heartbeat, prints or posts the digest
 uv run fleetwatch digest --capture ~/fleetwatch-capture   # also save what it read, redacted, as a replay sample
-uv run fleetwatch run           # keep going, every 3 minutes
+uv run fleetwatch run           # keep going, every three minutes
 uv run fleetwatch status        # signed in? open items?
 uv run fleetwatch doctor        # is this machine ready? one line per check
 uv run fleetwatch ask "is Main Stage ready"   # ask in plain words; --serve opens a page with buttons
@@ -124,20 +127,21 @@ deploy/install.sh               # run it as a service: launchd on macOS, systemd
 ```
 
 On a headless Pi, open the sign-in link on any device. If the final `127.0.0.1` page can't load, paste its URL
-back into the terminal. Europe or Australia accounts set `FLEETWATCH_EPIPHAN_MCP_URL` to `eu.` or
-`au.epiphan.cloud`.
+back into the terminal. Europe or Australia accounts set `FLEETWATCH_EPIPHAN_MCP_URL` to
+`https://eu.epiphan.cloud/mcp` or `https://au.epiphan.cloud/mcp`.
 
 What a digest looks like:
 
 ```text
 *Fleet check*
 • *Fix first*: Room 312 Pearl Mini is offline. Events in that room won't record or stream until it's back.
-• *Fix soon*: Hall A Auditorium runs firmware 4.24.5; others like it run 4.24.6. Works fine today.
+• *Fix soon*: Hall A Auditorium runs firmware 4.24.5; others like it run 4.24.6. Works fine today; keeps the fleet consistent.
+• *Fix soon*: Room 312 EC20 is offline. Its picture may be missing from the Pearl channels that use it, and Edge can't control it.
 FYI: 3 Pearls have little or no local space left. That's normal when recordings upload to your CMS.
 ```
 
-- The same problem is posted once, reminded at most every 4 hours, and closed with Back to normal.
-- Quiet hours (22:00 to 06:30 by default) only let Fix first items through.
+- The same problem is posted once, reminded at most every four hours, and closed with Back to normal.
+- Quiet hours (22:00 to 06:30 by default) only let Fix first items and before-event checks through.
 - Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. If the verdict changes before the
   start, one more line says so: `Now not ready (was Ready)` or `Ready now (was Not ready)`.
 - Say `vertical: education`, `business`, `courts`, or `worship` in `policy.yaml` and the words change: class, meeting,
@@ -150,11 +154,11 @@ flowchart LR
   E[Epiphan Edge<br/>MCP server] -->|read tools only| G[Guard and<br/>redaction]
   G --> S[Scanner and<br/>pre-event readiness]
   S --> D[(SQLite<br/>open items, audit log)]
-  D -->|only what changed| N[Slack digest<br/>or console]
+  D -->|only what changed| N[Slack, Teams,<br/>or console]
 ```
 
-Each heartbeat is plain code: fixed checks, a diff against SQLite, and a template message. It makes no large language
-model (LLM) call.
+Each heartbeat reads the fleet through Epiphan's Model Context Protocol (MCP) server, then runs plain code: fixed
+checks, a diff against SQLite, and a template message. It makes no large language model (LLM) call.
 
 | Path | What it does |
 |---|---|
@@ -171,9 +175,15 @@ model (LLM) call.
 Start with `fleetwatch doctor`. It signs in to nothing and calls no tools, so it's safe to run anywhere:
 
 ```text
+OK    Version            fleetwatch 0.1.0, Python 3.12.4 on arm64
 OK    Policy             observe-only, heartbeat every 180 s
 OK    Read-only guard    20 read tools allowed; every write tool is refused
+OK    Redaction          stream keys and credentialed URLs are masked
 WARN  Sign-in            not signed in: run  fleetwatch login
+OK    State folder       /Users/you/.fleetwatch (created on first run)
+OK    Slack              no token: prints to the console
+OK    Slack commands     off (set FLEETWATCH_SLACK_APP_TOKEN to answer /fleetwatch)
+OK    Teams              not configured
 OK    Epiphan reachable  go.epiphan.cloud
 WARN  Service            launchd agent not installed: run  deploy/install.sh
 
@@ -183,9 +193,9 @@ Nothing broken. 2 to look at.
 | Symptom | Fix |
 |---|---|
 | `Sign-in` is WARN or FAIL | Run `fleetwatch login`. On a headless Pi, open the link on any device and paste the final `127.0.0.1` URL back. |
-| `Epiphan reachable` fails | Check the network, or set `FLEETWATCH_EPIPHAN_MCP_URL` to your region (`eu.` or `au.epiphan.cloud`). |
+| `Epiphan reachable` fails | Check the network, or set `FLEETWATCH_EPIPHAN_MCP_URL` to your region (`https://eu.epiphan.cloud/mcp` or `https://au.epiphan.cloud/mcp`). |
 | Nothing posts to Slack | No token means the console only. Set `FLEETWATCH_SLACK_BOT_TOKEN` (`chat:write`) and invite the bot to the channel. |
-| A digest never repeats | That's on purpose. An open problem is reminded at most every 4 hours. `fleetwatch status` lists open items. |
+| A digest never repeats | That's on purpose. An open problem is reminded at most every four hours. `fleetwatch status` lists open items. |
 | No network at all | `fleetwatch digest --replay tests/fixtures` runs the full heartbeat offline; `tests/fixtures/calm` is a quiet fleet. |
 
 Still stuck? Open an [issue](https://github.com/ScientiaCapital/fleetwatch/issues) with the `doctor` output.
@@ -200,7 +210,7 @@ is kept in the macOS Keychain, encrypted with `systemd-creds`, or in a mode `600
 Epiphan Edge has no read-only sign-in: the token can do whatever the Edge account can in that team. Fleetwatch never
 uses that power, because the guard refuses every write tool, but a stolen token could. So sign in with a dedicated
 account that has the least access that still sees the rooms you watch, and treat the token like a password.
-`fleetwatch doctor` reminds you on every run.
+`fleetwatch doctor` reminds you whenever a sign-in is stored.
 
 The [trust model](SECURITY.md#trust-model), what is in and out of scope, and known limits are in
 [SECURITY.md](SECURITY.md). Report vulnerabilities privately through
@@ -222,7 +232,8 @@ deploy/install.sh --dry-run
 ```
 
 CI runs lint, tests on macOS and Linux (x86 and ARM), the redaction suite, a replay heartbeat, the installer dry
-runs, the Docker image, CodeQL, pip-audit, dependency review, actionlint, and zizmor on every pull request.
+runs, the Docker image, the docs build, CodeQL, pip-audit, dependency review, actionlint, and zizmor on every pull
+request.
 
 ## Contributing
 
@@ -237,9 +248,12 @@ and feature requests go in [issues](https://github.com/ScientiaCapital/fleetwatc
 
 ## Status
 
-v0.1. Unit and replay tests pass. The first live run against a real team is still to do. What's next is in the
-[Sprint 2 milestone](https://github.com/ScientiaCapital/fleetwatch/milestone/1). Later versions add
-proposals with Slack approval, then routine fixes on their own; the guard, the dry run, and the redaction stay.
+Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has only run against the saved sample fleet
+so far: the first live run against a real team is still to do. What's next is in the
+[Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) and
+[Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2) milestones, including a voice interface that
+isn't built yet. Later versions are planned to add proposals with Slack approval, then routine fixes on their own;
+the guard, the dry run, and the redaction stay.
 
 ## Thanks
 

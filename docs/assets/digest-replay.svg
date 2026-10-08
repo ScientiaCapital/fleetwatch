@@ -5,15 +5,15 @@
   <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14">
   <text x="28" y="70" fill="#f0f6fc" font-weight="700">#av-ops · Fleet check</text>
 <text x="28" y="96" fill="#ff7b72" font-weight="400">• Fix first: No picture on Camera 2 in Courtroom.</text>
-<text x="46" y="122" fill="#9198a1" font-weight="400">The next class on that channel records a blank screen.</text>
+<text x="46" y="122" fill="#9198a1" font-weight="400">The next event on that channel records a blank screen.</text>
 <text x="28" y="148" fill="#ff7b72" font-weight="400">• Fix first: Room 312 Pearl Mini is offline.</text>
 <text x="46" y="174" fill="#9198a1" font-weight="400">Events in that room won&#x27;t record or stream until it&#x27;s back.</text>
 <text x="28" y="200" fill="#e3b341" font-weight="400">• Fix soon: Hall A Auditorium runs firmware 4.24.5; others run 4.24.6.</text>
 <text x="28" y="226" fill="#e3b341" font-weight="400">• Fix soon: Main Stage is running warm (84°C).</text>
 <text x="46" y="252" fill="#9198a1" font-weight="400">… 13 more items in the full replay digest</text>
 <text x="28" y="278" fill="#9198a1" font-weight="400">FYI: 3 Pearls have little or no local space left.</text>
-<text x="28" y="330" fill="#f0f6fc" font-weight="700">#av-ops · Before class</text>
-<text x="28" y="356" fill="#ff7b72" font-weight="400">Courtroom · LAW 210 at 4:26 PM: Not ready — No picture on Camera 2</text>
+<text x="28" y="330" fill="#f0f6fc" font-weight="700">#av-ops · Before the event</text>
+<text x="28" y="356" fill="#ff7b72" font-weight="400">Courtroom · LAW 210 at 4:26 PM: Not ready · No picture on Camera 2</text>
 <text x="28" y="382" fill="#56d364" font-weight="400">Science Room 120b · BIO 101 at 4:21 PM: Ready</text>
   </g>
 </svg>
