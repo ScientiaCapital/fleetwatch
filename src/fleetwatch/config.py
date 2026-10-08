@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 HOME = Path.home() / ".fleetwatch"
@@ -18,6 +19,8 @@ class Settings(BaseSettings):
 
     slack_bot_token: str | None = None
     slack_channel: str = "#av-ops"
+    # Power Automate Workflows webhook for a Teams channel. A secret: the URL alone lets anyone post.
+    teams_webhook_url: SecretStr | None = None
 
     policy_file: Path = Path("policy.yaml")
     tool_policy_file: Path = Path("tool_policy.yaml")

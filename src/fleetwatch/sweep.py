@@ -11,7 +11,7 @@ from fleetwatch.agents.scanner.rules import _version, firmware_family, in_scope,
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.heartbeat import snapshot
 from fleetwatch.model import Fleet, SweepResult
-from fleetwatch.notify.slack import Notifier
+from fleetwatch.notify import Notifier
 from fleetwatch.policy import Policy
 from fleetwatch.state import State
 

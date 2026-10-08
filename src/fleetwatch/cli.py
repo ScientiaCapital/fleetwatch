@@ -12,7 +12,7 @@ from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
 from fleetwatch.epiphan.token_store import make_token_store
 from fleetwatch.heartbeat import tick
-from fleetwatch.notify.slack import Notifier
+from fleetwatch.notify import from_settings
 from fleetwatch.policy import load_policy, load_tool_policy
 from fleetwatch.state import State
 
@@ -33,7 +33,7 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None):
             interactive=interactive,
         )
         state = State(settings.state_db)
-    return client, state, Notifier(settings.slack_bot_token, settings.slack_channel)
+    return client, state, from_settings(settings)
 
 
 async def _login(settings: Settings) -> None:
