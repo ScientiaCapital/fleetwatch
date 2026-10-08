@@ -38,6 +38,9 @@ class Policy:
     exclude_devices: tuple[str, ...] = ()
     thresholds: Thresholds = field(default_factory=Thresholds)
     sweep_at: time | None = None  # nightly sweep, local time; None turns it off
+    # Who may use /fleetwatch in Slack. Both empty means nobody.
+    slack_allowed_user_ids: tuple[str, ...] = ()
+    slack_allowed_usergroup: str | None = None
 
     @property
     def event_word(self) -> str:
@@ -72,6 +75,14 @@ def _hhmm(value: str | None) -> time | None:
     return time(int(hours), int(minutes))
 
 
+def _ids(value, key: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(f"slack.{key} must be a list of Slack IDs, like [U012ABCDEF]")  # noqa: TRY004  (same as other policy errors)
+    return tuple(str(v).strip() for v in value if str(v).strip())
+
+
 def load_policy(path: Path) -> Policy:
     raw = yaml.safe_load(path.read_text()) if path.exists() else {}
     raw = raw or {}
@@ -82,6 +93,7 @@ def load_policy(path: Path) -> Policy:
         raise ValueError(f"vertical must be one of {', '.join(VERTICALS)}, not {vertical!r}")
     quiet = raw.get("quiet_hours") or {}
     scope = raw.get("scope") or {}
+    slack = raw.get("slack") or {}
     return Policy(
         autonomy="observe",
         dry_run=True,  # v0.1 never writes, whatever the file says
@@ -95,6 +107,8 @@ def load_policy(path: Path) -> Policy:
         exclude_devices=tuple(scope.get("exclude_devices") or ()),
         thresholds=Thresholds(**(raw.get("thresholds") or {})),
         sweep_at=_hhmm(raw.get("sweep_at", "03:00")),
+        slack_allowed_user_ids=_ids(slack.get("allowed_user_ids"), "allowed_user_ids"),
+        slack_allowed_usergroup=str(slack.get("allowed_usergroup") or "").strip() or None,
     )
 
 

@@ -19,6 +19,7 @@ def settings(tmp_path: Path, **kw) -> Settings:
         "token_store": "file",  # never the real keychain from a test
         "slack_bot_token": None,
         "teams_webhook_url": None,
+        "slack_app_token": None,
         "epiphan_token": None,
     }
     base.update(kw)
@@ -153,3 +154,34 @@ def test_report_summary(tmp_path, capsys):
     assert capsys.readouterr().out.rstrip().endswith("All good.")
     print_report(run(settings(tmp_path), reach=False))
     assert "Nothing broken. 1 to look at." in capsys.readouterr().out
+
+
+def test_slack_commands_off_without_an_app_token(tmp_path):
+    c = by_name(run(settings(tmp_path)))["Slack commands"]
+    assert c.status == OK and "off" in c.detail
+
+
+def test_slack_commands_need_an_xapp_token(tmp_path):
+    checks = run(settings(tmp_path, slack_app_token="xoxb-wrong-kind-of-token"))
+    c = by_name(checks)["Slack commands"]
+    assert c.status == FAIL and "xapp-" in c.detail and "wrong-kind" not in c.detail
+    assert exit_code(checks) == 1
+
+
+def test_slack_commands_with_nobody_allowed_is_a_warning(tmp_path):
+    c = by_name(run(settings(tmp_path, slack_app_token="xapp-1-test")))["Slack commands"]
+    assert c.status == WARN and "allowed_user_ids" in c.detail
+
+
+def test_slack_commands_ready(tmp_path):
+    p = tmp_path / "policy.yaml"
+    p.write_text("slack:\n  allowed_user_ids: [U0TEST1]\n")
+    c = by_name(run(settings(tmp_path, policy_file=p, slack_app_token="xapp-1-test")))["Slack commands"]
+    assert c.status == OK and "1 user" in c.detail and "xapp-1-test" not in c.detail
+
+
+def test_slack_usergroup_needs_the_bot_token(tmp_path):
+    p = tmp_path / "policy.yaml"
+    p.write_text("slack:\n  allowed_usergroup: S0GROUP\n")
+    c = by_name(run(settings(tmp_path, policy_file=p, slack_app_token="xapp-1-test")))["Slack commands"]
+    assert c.status == WARN and "FLEETWATCH_SLACK_BOT_TOKEN" in c.detail

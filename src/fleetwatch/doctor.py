@@ -137,6 +137,26 @@ def _teams(s: Settings) -> Check:
     return Check("Teams", OK, "configured")
 
 
+def _slack_commands(s: Settings) -> Check:
+    """/fleetwatch over Socket Mode. Offline: checks the token's shape (never prints it) and the allowlist."""
+    name = "Slack commands"
+    if not s.slack_app_token:
+        return Check(name, OK, "off (set FLEETWATCH_SLACK_APP_TOKEN to answer /fleetwatch)")
+    if not s.slack_app_token.startswith("xapp-"):
+        return Check(name, FAIL, "FLEETWATCH_SLACK_APP_TOKEN must be an app-level token starting xapp-")
+    try:
+        p = load_policy(s.policy_file)
+    except Exception:  # noqa: BLE001  (the Policy row already reports it)
+        return Check(name, WARN, "can't read the allowlist until policy.yaml loads")
+    if p.slack_allowed_usergroup and not s.slack_bot_token:
+        return Check(name, WARN, "slack.allowed_usergroup needs FLEETWATCH_SLACK_BOT_TOKEN (usergroups:read)")
+    if not p.slack_allowed_user_ids and not p.slack_allowed_usergroup:
+        return Check(name, WARN, "nobody is allowed yet: add slack.allowed_user_ids in policy.yaml")
+    n = len(p.slack_allowed_user_ids)
+    who = [f"{n} user{'s' if n != 1 else ''}"] + (["a user group"] if p.slack_allowed_usergroup else [])
+    return Check(name, OK, f"on, answers {' and '.join(who)}")
+
+
 def can_reach(url: str) -> bool:
     """Any HTTP answer counts: we only want DNS, TLS and a route. Nothing is sent but a HEAD request."""
     try:
@@ -179,7 +199,17 @@ def run_checks(
     service: Callable[[], tuple[str, str]] = service_status,
 ) -> list[Check]:
     logging.getLogger("httpx").setLevel(logging.WARNING)  # keep the report to one line per check
-    checks = [_version(), _policy(s), _guard(s), _redaction(), _sign_in(s), _state_dir(s), _slack(s), _teams(s)]
+    checks = [
+        _version(),
+        _policy(s),
+        _guard(s),
+        _redaction(),
+        _sign_in(s),
+        _state_dir(s),
+        _slack(s),
+        _slack_commands(s),
+        _teams(s),
+    ]
     checks.append(_reach("Epiphan reachable", s.epiphan_mcp_url, reach))
     if s.slack_bot_token:
         checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))

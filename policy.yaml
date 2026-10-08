@@ -20,6 +20,12 @@ scope:
   groups: []               # only watch these groups; empty = whole team
   exclude_devices: []      # device names to ignore
 
+# Who may ask Fleetwatch in Slack with /fleetwatch check <room> (needs FLEETWATCH_SLACK_APP_TOKEN).
+# Empty means nobody. Replies are only shown to the person who asked. See docs/slack-commands.md.
+# slack:
+#   allowed_user_ids: [U012ABCDEF]   # Slack member IDs (profile > ... > Copy member ID)
+#   allowed_usergroup: S012ABCDEF    # a user group ID; needs the bot token with usergroups:read
+
 thresholds:
   cpu_load_pct: 90
   cpu_temp_c: 80
