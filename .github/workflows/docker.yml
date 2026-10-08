@@ -122,5 +122,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          # A tag with a hyphen (v0.2.0-rc1) is a pre-release: mark it so, as the installer and `latest` skip it.
+          pre=()
+          case "$TAG" in *-*) pre=(--prerelease) ;; esac
           gh release create "$TAG" --verify-tag --generate-notes --title "Fleetwatch ${TAG#v}" \
-            --notes-file .github/release-notes-header.md
+            --notes-file .github/release-notes-header.md "${pre[@]}"
