@@ -11,6 +11,12 @@
 - Quiet hours (22:00 to 06:30 by default) only let Fix first items through.
 - Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. A room is Not ready when it's offline
   or a channel it records has no picture. Low storage never makes a room Not ready.
+- If the verdict changes before the event starts, Fleetwatch posts once more for each change, with the reasons:
+  `Ballroom B · Opening keynote at 9:00 AM: Now not ready (was Ready)`, or after a fix,
+  `Ballroom B · Opening keynote at 9:00 AM: Ready now (was Not ready)`. The same verdict is never posted twice,
+  even when the reasons change. Nothing is posted after the event starts.
+- Readiness lines, first and changed, also post in quiet hours: an early event has people in the room who need to
+  know.
 - Once a day (`sweep_at`, 03:00 by default): a Nightly sweep line with who is offline, who is behind on firmware,
   and what changed since the last sweep. It opens no new items, and in quiet hours it waits for the morning.
   `fleetwatch history` shows the days side by side.

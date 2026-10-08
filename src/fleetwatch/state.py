@@ -155,6 +155,12 @@ class State:
     def readiness_posted(self, event_key: str) -> bool:
         return self.db.execute("SELECT 1 FROM readiness WHERE event_key=?", (event_key,)).fetchone() is not None
 
+    def readiness_verdict(self, event_key: str) -> str | None:
+        """The verdict last posted for this event occurrence, or None if nothing was posted yet.
+        `record_readiness` overwrites the row, so this is always the newest one."""
+        row = self.db.execute("SELECT verdict FROM readiness WHERE event_key=?", (event_key,)).fetchone()
+        return None if row is None else row["verdict"]
+
     def record_readiness(self, r: Readiness, now: datetime) -> None:
         self.db.execute(
             "INSERT OR REPLACE INTO readiness (event_key, posted_at, verdict, device_id, device_name, title, start,"

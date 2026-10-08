@@ -33,7 +33,7 @@ de que salga cualquier solicitud, y `policy.yaml` queda fijado en `autonomy: obs
 | | |
 |---|---|
 | Resumen tranquilo | Publica solo cuando algo cambia. Cada problema se publica una vez, se recuerda como máximo cada 4 horas y se cierra con Back to normal. |
-| Ready o Not ready | 30 minutos antes de cada evento, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? |
+| Ready o Not ready | 30 minutos antes de cada evento, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? Si cambia antes de que empiece, se vuelve a publicar. |
 | Solo lectura por diseño | El cliente rechaza las herramientas de escritura antes de que salga cualquier solicitud. |
 | Funciona en una Pi o una Mac mini | Instalación en una línea como servicio systemd o launchd, o Docker en amd64 y arm64. |
 | `fleetwatch doctor` | Una línea por revisión: política, protección, ocultación de secretos, inicio de sesión, red, servicio. |

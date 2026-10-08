@@ -1,6 +1,7 @@
 """Plain-language messages in the Edge Claude Kit's calm tone. Templates only: no alarm words, no codes,
 priorities in words. No AI model is involved."""
 
+from fleetwatch.agents.readiness.rules import NOT_READY, NOTES, READY
 from fleetwatch.model import Finding, Priority, Readiness
 from fleetwatch.notes import format_note
 from fleetwatch.state import Note
@@ -55,7 +56,12 @@ def render_digest(
     return "\n".join(lines) if lines else None
 
 
-def render_readiness(r: Readiness) -> str:
+_NOW_VERDICT = {NOT_READY: "Now not ready", READY: "Ready now", NOTES: "Ready now, with notes"}
+
+
+def render_readiness(r: Readiness, was: str | None = None) -> str:
+    """The check before an event. `was` is the verdict posted earlier for the same event, when this is a change."""
     when = r.event.start.astimezone().strftime("%-I:%M %p")
-    head = f"*{r.device_name}* · {r.event.title} at {when}: *{r.verdict}*"
+    head = f"*{r.device_name}* · {r.event.title} at {when}: "
+    head += f"*{r.verdict}*" if was is None else f"*{_NOW_VERDICT.get(r.verdict, r.verdict)}* (was {was})"
     return head if not r.notes else head + "\n" + "\n".join(f"• {n}" for n in r.notes)

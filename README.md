@@ -41,7 +41,7 @@ leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
 | | |
 |---|---|
 | Calm digest | Posts only when something changes. Each problem is posted once, reminded at most every 4 hours, and closed with Back to normal. |
-| Ready or Not ready | 30 minutes before each scheduled event, one line per room: is the picture there, is the unit online. |
+| Ready or Not ready | 30 minutes before each scheduled event, one line per room: is the picture there, is the unit online. Posted again if that changes before the start. |
 | Read-only by construction | The client refuses write tools before any request leaves the machine. Epiphan Edge has no read-only sign-in, so use a least-access account. |
 | Runs on a Pi or a Mac mini | One-line install as a systemd or launchd service, or Docker on amd64 and arm64. |
 | `fleetwatch doctor` | One line per check: policy, guard, redaction, sign-in, network, service. |
@@ -138,7 +138,8 @@ FYI: 3 Pearls have little or no local space left. That's normal when recordings 
 
 - The same problem is posted once, reminded at most every 4 hours, and closed with Back to normal.
 - Quiet hours (22:00 to 06:30 by default) only let Fix first items through.
-- Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`.
+- Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. If the verdict changes before the
+  start, one more line says so: `Now not ready (was Ready)` or `Ready now (was Not ready)`.
 - Say `vertical: education`, `business`, `courts`, or `worship` in `policy.yaml` and the words change: class, meeting,
   hearing, service.
 

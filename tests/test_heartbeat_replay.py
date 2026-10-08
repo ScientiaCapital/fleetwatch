@@ -84,3 +84,27 @@ async def test_calm_sample_is_all_clear_with_one_ready_check():
         assert word not in text
     readiness = [p for p in out.posts if " at " in p.splitlines()[0] and p.startswith("*")]
     assert len(readiness) == 1 and readiness[0].splitlines()[0].endswith("*Ready*")
+
+
+async def test_calm_then_a_room_goes_offline_posts_now_not_ready(tmp_path):
+    """Two heartbeats: the calm sample, then a copy where the Pearl with the next event is unplugged. The room
+    said Ready, so it now says Now not ready, once."""
+    import json
+    import shutil
+
+    down = tmp_path / "down"
+    shutil.copytree(ROOT / "tests/fixtures/calm", down)
+    devices = json.loads((down / "get_devices_in_my_team.json").read_text())
+    next(d for d in devices["devices"] if d["Id"] == "1f000000013")["Status"] = "offline"
+    (down / "get_devices_in_my_team.json").write_text(json.dumps(devices))
+
+    tools, policy = load_tool_policy(ROOT / "tool_policy.yaml"), Policy(quiet_start=None, quiet_end=None)
+    state, out = State(), Capture()
+    async with ReplayClient(ROOT / "tests/fixtures/calm", tools, now=NOW) as client:
+        await tick(client, state, policy, out, first_run=True, now=NOW)
+    async with ReplayClient(down, tools, now=NOW) as client:
+        text = await tick(client, state, policy, out, now=NOW + timedelta(minutes=3))
+        await tick(client, state, policy, out, now=NOW + timedelta(minutes=6))
+    assert text and "Fix first" in text and "Main Stage Pearl Nano is offline" in text
+    readiness = [p for p in out.posts if " at " in p.splitlines()[0] and p.startswith("*")]
+    assert [p.splitlines()[0].rsplit(": ", 1)[1] for p in readiness] == ["*Ready*", "*Now not ready* (was Ready)"]
