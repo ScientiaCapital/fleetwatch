@@ -47,8 +47,12 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     ai_model: str = "claude-haiku-5-5"
     # Read by the write executor (src/fleetwatch/epiphan/executor.py). Set: a change runs only when the sandbox
-    # sign-in reports this team ID; if Epiphan reports none, the change is refused. Empty: no team check.
+    # sign-in reports this team ID; if Epiphan reports none, the change is refused.
     write_team_id: str = ""
+    # The other half of the write fence: sandbox device IDs, comma-separated. The executor refuses a change to any
+    # device not listed. It doesn't depend on Epiphan reporting a team ID. With neither this nor write_team_id set,
+    # every change is refused.
+    write_device_ids: str = ""
     # The sandbox sign-in's own slot, separate from token_file (`fleetwatch login --sandbox`). Only the write
     # executor loads it; the heartbeat never does.
     sandbox_token_file: Path = HOME / "epiphan-sandbox-oauth.json"

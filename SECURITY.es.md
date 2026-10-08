@@ -89,7 +89,9 @@ Límites conocidos:
   Fleetwatch, no la credencial. Si alguien controla el proceso o sus archivos, tiene un token que puede escribir.
 - Si Epiphan devuelve un ID de equipo, y si cada herramienta proponible acepta los argumentos de `tool_policy.yaml`,
   sigue sin confirmarse hasta la primera ejecución real. Hoy la verificación del equipo de pruebas es la lista de
-  dispositivos.
+  dispositivos y la lista de permitidos `FLEETWATCH_WRITE_DEVICE_IDS`. Sin esa lista y sin `FLEETWATCH_WRITE_TEAM_ID`,
+  ningún cambio se ejecuta. `login --sandbox` se rechaza, y el inicio de sesión se olvida, si el equipo de pruebas
+  ve un dispositivo que el inicio de sesión normal ya vigila.
 - El modelo puede escribir un motivo o una respuesta engañosos. Lee la tarjeta, no el motivo.
 
 ## Más detalles

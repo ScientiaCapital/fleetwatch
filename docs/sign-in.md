@@ -66,8 +66,12 @@ use it with the team you watch.
   file from `FLEETWATCH_TOKEN_FILE`. `FLEETWATCH_EPIPHAN_TOKEN` is never used for it.
 - Only the write executor loads it. The heartbeat, `digest`, `ask` and Slack commands keep using the normal sign-in.
 - Before an approved change runs, Fleetwatch reads the sandbox team's device list with this sign-in and refuses
-  the change if any target isn't on it. If `FLEETWATCH_WRITE_TEAM_ID` is set, it also refuses when Epiphan reports
-  a different team, or no team ID at all.
+  the change if any target isn't on it. It also refuses any target that isn't in `FLEETWATCH_WRITE_DEVICE_IDS`
+  (the sandbox devices you list, comma-separated). If `FLEETWATCH_WRITE_TEAM_ID` is set, it also refuses when
+  Epiphan reports a different team, or no team ID at all. With neither set, every change is refused, so a sign-in
+  that lands on the wrong team can't write to it.
+- `fleetwatch login --sandbox` forgets the sign-in and stops if the sandbox can see a device the normal sign-in
+  already watches, because that means both reach the same team.
 - With no sandbox sign-in, no change can run. `fleetwatch doctor` shows "Sandbox sign-in: none, so no change can
   run".
 - `uv run fleetwatch logout --sandbox` signs out of the sandbox only. The normal sign-in stays.

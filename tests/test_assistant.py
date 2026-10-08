@@ -19,6 +19,7 @@ import pytest
 from fleetwatch import assistant
 from fleetwatch.ask import answer as keyword_answer
 from fleetwatch.epiphan.replay import ReplayClient
+from fleetwatch.fence import Fence
 from fleetwatch.heartbeat import snapshot, tick
 from fleetwatch.policy import Policy, load_tool_policy, load_tools
 from fleetwatch.proposals import state_fingerprint
@@ -192,11 +193,13 @@ _DEFAULT = object()
 
 async def run(
     question, fake, state, tools, *, policy=PROPOSE, reader=None, fleet=None, api_key="sk-ant-test", sandbox=_DEFAULT,
-    **kw,
+    fence=_DEFAULT, **kw,
 ):  # fmt: skip
     reader = reader or Recording(FIXTURES, tools)
     if sandbox is _DEFAULT:
         sandbox = Sandbox(FIXTURES, tools)
+    if fence is _DEFAULT:
+        fence = Fence(team_id="test-sandbox")  # a fence that allows any device the sandbox reaches
     async with reader:
         return await assistant.answer(
             question,
@@ -207,6 +210,7 @@ async def run(
             api_key=api_key,
             model="claude-haiku-5-5",
             sandbox=sandbox,
+            fence=fence,
             fleet=fleet,
             client=fake,
             now=NOW,
@@ -351,6 +355,33 @@ async def test_end_to_end_a_valid_batch_recording_start_on_a_fixture_channel_mak
     (result,) = tool_results(fake.messages.calls[1])
     assert not result.get("is_error")
     assert "waiting for a person" in result["content"]
+
+
+async def test_no_fence_refuses_every_proposal(known, tools):
+    state, fleet = known
+    fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("Couldn't.")))
+    await run("start recording in Courtroom", fake, state, tools, fleet=fleet, fence=Fence())
+    assert proposal_rows(state) == []
+    (result,) = tool_results(fake.messages.calls[1])
+    assert result["is_error"] and "FLEETWATCH_WRITE_DEVICE_IDS" in result["content"]
+
+
+async def test_a_device_off_the_allowlist_is_not_proposed(known, tools):
+    state, fleet = known
+    fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("Couldn't.")))
+    fence = Fence(device_ids=frozenset({"0a1b2c3d"}))  # COURTROOM is on the sandbox team but not on the allowlist
+    await run("start recording in Courtroom", fake, state, tools, fleet=fleet, fence=fence)
+    assert proposal_rows(state) == []
+    (result,) = tool_results(fake.messages.calls[1])
+    assert result["is_error"] and "allowlist" in result["content"]
+
+
+async def test_a_device_on_the_allowlist_is_proposed(known, tools):
+    state, fleet = known
+    fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("Proposed.")))
+    fence = Fence(device_ids=frozenset({COURTROOM}))
+    await run("start recording in Courtroom", fake, state, tools, fleet=fleet, fence=fence)
+    assert len(proposal_rows(state)) == 1
 
 
 async def test_proposals_read_the_sandbox_team_not_the_normal_sign_in(known, tools):

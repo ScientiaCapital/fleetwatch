@@ -143,6 +143,7 @@ def _settings(tmp_path: Path, **kw) -> Settings:
         "sandbox_token_file": tmp_path / "epiphan-sandbox-oauth.json",
         "epiphan_token": None,
         "write_team_id": "",
+        "write_device_ids": f"{ROOM},{OTHER}",  # the fence: v0.2 refuses every change without a team ID or an allowlist
         "epiphan_mcp_url": "https://example.invalid/mcp",
     }
     base.update(kw)
@@ -413,6 +414,44 @@ async def test_a_record_that_was_never_consumed_is_refused(edge, sandbox, tools)
     record = state.bound_record(pid)  # what a card shows; never something to run
     out = await _executor(sandbox, state, tools).execute(record)
     assert out.status == "refused" and edge.calls == []
+
+
+async def test_no_fence_at_all_is_refused_before_any_read(edge, tmp_path, tools):
+    s = _settings(tmp_path, write_device_ids="", write_team_id="")
+    _sign_in_sandbox(s)
+    state = State()
+    record, aid = _approved(state)
+    out = await _executor(s, state, tools).execute(record)
+    assert out.status == "refused" and "FLEETWATCH_WRITE_DEVICE_IDS" in out.detail
+    assert edge.calls == []
+    assert state.outcome(aid) == "error"
+
+
+async def test_a_target_on_the_team_but_off_the_allowlist_is_refused(edge, tmp_path, tools):
+    s = _settings(tmp_path, write_device_ids=OTHER)
+    _sign_in_sandbox(s)
+    state = State()
+    record, _ = _approved(state)  # ROOM is on the team's device list, but not on the allowlist
+    out = await _executor(s, state, tools).execute(record)
+    assert out.status == "refused" and "allowlist" in out.detail
+    assert edge.writes == []
+
+
+async def test_a_team_id_alone_is_a_fence(edge, tmp_path, tools):
+    s = _settings(tmp_path, write_device_ids="", write_team_id="team-sandbox")
+    _sign_in_sandbox(s)
+    edge.team_id = "team-sandbox"
+    state = State()
+    record, _ = _approved(state)
+    assert (await _executor(s, state, tools).execute(record)).status == "ok"
+
+
+async def test_the_allowlist_ignores_case_spaces_and_blank_entries(edge, tmp_path, tools):
+    s = _settings(tmp_path, write_device_ids=f" , {ROOM.upper()} ,, ")
+    _sign_in_sandbox(s)
+    state = State()
+    record, _ = _approved(state)
+    assert (await _executor(s, state, tools).execute(record)).status == "ok"
 
 
 async def test_a_team_id_mismatch_is_refused(edge, tmp_path, tools):

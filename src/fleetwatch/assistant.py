@@ -28,6 +28,7 @@ import anthropic
 
 from fleetwatch import ask
 from fleetwatch.epiphan.executor import master_id
+from fleetwatch.fence import Fence
 from fleetwatch.heartbeat import snapshot
 from fleetwatch.model import Fleet
 from fleetwatch.policy import FieldSpec, Policy, ToolPolicy, check_arguments
@@ -330,6 +331,7 @@ class _Turn:
     now: datetime | None
     sandbox: Callable[[], Any] | None = None  # opens a client on the sandbox sign-in; None: there isn't one
     slot: str = SLOT  # what a proposal is bound to; the replay page passes "replay", which no real executor runs
+    fence: Fence | None = None  # which devices a change may touch; none set means nothing can be proposed
     called: list[str] = field(default_factory=list)
     proposals: list[int] = field(default_factory=list)
     model_calls: int = 0
@@ -379,6 +381,11 @@ class _Turn:
         except ValueError as e:
             raise ProposalRefused(f"the arguments don't fit: {e}.") from None
         args = dict(raw["arguments"])  # checked: only the schema's fields, each the right type and shape
+        if self.fence is None or not self.fence.is_set:
+            raise ProposalRefused(
+                "no sandbox fence is set, so changes can't be proposed (FLEETWATCH_WRITE_DEVICE_IDS lists the "
+                "sandbox devices)."
+            )
         if self.sandbox is None:
             raise ProposalRefused("No sandbox sign-in, so changes can't be proposed (fleetwatch login --sandbox).")
         # Fresh, every time, through the sandbox sign-in: the executor re-checks against that team's device list
@@ -394,6 +401,9 @@ class _Turn:
         targets = resolve_targets(fleet, rule.schema.target, args)
         if targets is None:
             raise ProposalRefused("a target isn't on the sandbox team's device list (or that channel isn't on it).")
+        off = [t for t in targets if not self.fence.allows(t)]
+        if off:
+            raise ProposalRefused(f"a target isn't on the sandbox allowlist (FLEETWATCH_WRITE_DEVICE_IDS): {off[0]}.")
         fingerprint = state_fingerprint(fleet, targets)  # the executor's own function: same keys, same format
         reason = (reason if isinstance(reason, str) else "")[:MAX_REASON]
         return self.state.add_proposal(tool, args, targets, fingerprint, rule.schema.version, self.slot, reason)
@@ -498,6 +508,7 @@ async def answer(
     sandbox: Callable[[], Any] | None = None,
     fleet: Fleet | None = None,
     slot: str = SLOT,
+    fence: Fence | None = None,
     client: Any = None,
     now: datetime | None = None,
     max_turns: int = MAX_TURNS,
@@ -512,7 +523,7 @@ async def answer(
     if not api_key:
         return fallback(question, state, policy, fleet, now, "no_key")
     client = client if client is not None else make_client(api_key, timeout_s)
-    turn = _Turn(state, policy, tools, reader, now, sandbox, slot)
+    turn = _Turn(state, policy, tools, reader, now, sandbox, slot, fence)
     totals = dict.fromkeys(("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens"), 0)
     try:
         text = await asyncio.wait_for(

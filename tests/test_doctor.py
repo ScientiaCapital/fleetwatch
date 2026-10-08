@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 
 from fleetwatch.config import Settings
@@ -296,3 +297,31 @@ def test_assistant_on_names_the_model_and_the_data_and_masks_the_key(tmp_path):
     assert c.detail.startswith("on, model claude-haiku-5-5, sends redacted fleet data to the Anthropic API")
     assert key not in c.detail and "abcdefghij" not in c.detail
     assert "…WXYZ" in c.detail
+
+
+def _propose_policy(tmp_path: Path) -> Path:
+    f = tmp_path / "policy.yaml"
+    f.write_text(re.sub(r"(?m)^autonomy:.*$", "autonomy: propose", (ROOT / "policy.yaml").read_text()))
+    return f
+
+
+def test_write_fence_is_not_needed_in_observe_mode(tmp_path):
+    c = by_name(run(settings(tmp_path)))["Write fence"]
+    assert c.status == INFO and "observe" in c.detail
+
+
+def test_propose_mode_without_a_fence_fails(tmp_path):
+    c = by_name(run(settings(tmp_path, policy_file=_propose_policy(tmp_path))))["Write fence"]
+    assert c.status == FAIL and "FLEETWATCH_WRITE_DEVICE_IDS" in c.detail
+
+
+def test_propose_mode_with_an_allowlist_passes_and_counts_the_devices(tmp_path):
+    s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_device_ids="0a1b2c3d, 0e0f1a2b")
+    c = by_name(run(s))["Write fence"]
+    assert c.status == OK and "2 sandbox device" in c.detail
+
+
+def test_propose_mode_with_only_a_team_id_passes_with_a_note(tmp_path):
+    s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_team_id="team-sandbox")
+    c = by_name(run(s))["Write fence"]
+    assert c.status == OK and "team ID" in c.detail

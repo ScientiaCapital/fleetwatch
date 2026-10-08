@@ -15,10 +15,11 @@ one write tool per consumed approval.
 3. Opens one MCP session with the sandbox sign-in, from its own token slot. The normal sign-in is never loaded: no
    static token, no normal token file. With no sandbox sign-in, nothing runs.
 4. Reads through an `EpiphanClient` on that session, so every read goes through the same `guard()` and `redact()`
-   as the heartbeat: the sandbox team's device list (every target device, a channel's master included, must be on it), each target's recording state and
-   next event (they must match the approved fingerprint), and the team ID when FLEETWATCH_WRITE_TEAM_ID is set. A
-   disruptive change is refused while a target room is recording or inside the readiness window. Any failed read
-   refuses the change.
+   as the heartbeat: the sandbox team's device list (every target device, a channel's master included, must be on
+   it), each target's recording state and next event (they must match the approved fingerprint), and the team ID
+   when FLEETWATCH_WRITE_TEAM_ID is set. With neither that nor FLEETWATCH_WRITE_DEVICE_IDS set, nothing runs, and a
+   target not on that allowlist is refused. A disruptive change is refused while a target room is recording or
+   inside the readiness window. Any failed read refuses the change.
 5. Calls the write tool once, with the canonical arguments. No retry, ever. A 401, a timeout or any transport error
    is outcome `unknown`, which is final: the change may or may not have happened.
 6. Records the outcome (ok, error or unknown) and audits every step, redacted. A refusal is recorded as error with
@@ -30,7 +31,6 @@ Device, channel and event names are untrusted: only IDs are compared, and no nam
 import asyncio
 import json
 import logging
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -42,6 +42,7 @@ from fleetwatch.config import Settings
 from fleetwatch.epiphan.mcp import _UNAUTHORIZED, EpiphanClient
 from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, device_items, parse_devices
 from fleetwatch.epiphan.token_store import SANDBOX_SERVICE, TokenStore, TokenStoreError, make_token_store
+from fleetwatch.fence import Fence, master_id
 from fleetwatch.model import Fleet, RoomState
 from fleetwatch.policy import Policy, ToolPolicy, check_arguments, load_policy, load_tools
 from fleetwatch.proposals import BoundRecord, NotCanonical, parse_canonical, state_fingerprint
@@ -53,7 +54,6 @@ log = logging.getLogger(__name__)
 SANDBOX_SLOT = "sandbox"
 _TEAM_KEYS = ("team_id", "teamId", "TeamId", "TeamID")
 _MESSAGE_CAP = 300
-_CHANNEL_ID = re.compile(r"([0-9a-f]{8,32})-[1-9][0-9]{0,2}")
 
 
 class Refused(Exception):
@@ -119,6 +119,7 @@ class WriteExecutor:
         self._url = settings.epiphan_mcp_url
         self._port = settings.oauth_callback_port
         self._team_id = settings.write_team_id.strip()
+        self._fence = Fence.from_settings(settings)
         self._state = state
         self._policy = policy if policy is not None else load_policy(settings.policy_file)
         self._tools = tools if tools is not None else load_tools(settings.tool_policy_file)
@@ -212,6 +213,11 @@ class WriteExecutor:
 
     async def _reads(self, reader: EpiphanClient, record: BoundRecord, args: dict[str, Any]) -> None:
         """Fresh reads through the guarded client. Raises Refused on any failed read or failed check."""
+        if not self._fence.is_set:
+            raise Refused(
+                "no sandbox fence is set: add the sandbox devices to FLEETWATCH_WRITE_DEVICE_IDS "
+                "(or set FLEETWATCH_WRITE_TEAM_ID), so a change can't reach a team that isn't the sandbox"
+            )
         now = datetime.now(UTC)
         try:
             raw = await reader.call("get_devices_in_my_team")
@@ -224,6 +230,10 @@ class WriteExecutor:
         missing = [t for t in record.targets if t not in fleet.devices]
         if missing:
             raise Refused(f"not on the sandbox team's device list: {', '.join(missing)}")
+        if self._fence.device_ids:
+            off = [t for t in record.targets if not self._fence.allows(t)]
+            if off:
+                raise Refused(f"not on the sandbox allowlist (FLEETWATCH_WRITE_DEVICE_IDS): {', '.join(off)}")
 
         online = [t for t in record.targets if fleet.devices[t].online]
         if online:
@@ -353,10 +363,3 @@ def _read_result(result: Any) -> Outcome:
         return Outcome("ok", "Epiphan reported no errors")
     errors = {str(k): _clip(v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)) for k, v in data.items()}
     return Outcome("error", f"Epiphan reported errors on {len(errors)} device(s)", errors)
-
-
-def master_id(target: str) -> str:
-    """The device a target ID is on. A channel ID is the master device ID plus "-N" (as batch_recording takes);
-    a master ID has no "-", so stripping is unambiguous. The value has already passed the schema's ID pattern."""
-    m = _CHANNEL_ID.fullmatch(target)
-    return m.group(1) if m else target
