@@ -29,6 +29,11 @@ jobs:
           persist-credentials: false
       - name: hadolint
         run: docker run --rm -i hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d < Dockerfile
+      # arm64 emulation, so pull requests build the Pi image too (not only release tags).
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          image: tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build for this runner
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -46,6 +51,20 @@ jobs:
           # The health check is wired in, and reports unhealthy before any heartbeat has run.
           docker inspect --format '{{json .Config.Healthcheck.Test}}' fleetwatch:ci | grep -q 'status'
           if docker run --rm fleetwatch:ci status --check; then echo "expected unhealthy with no heartbeat"; exit 1; fi
+      - name: Build for arm64 (Raspberry Pi), emulated
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          tags: fleetwatch:ci-arm64
+      - name: Replay heartbeat inside the arm64 image
+        run: |
+          set -o pipefail
+          test "$(docker run --rm --platform linux/arm64 --entrypoint uname fleetwatch:ci-arm64 -m)" = "aarch64"
+          docker run --rm --platform linux/arm64 --read-only --tmpfs /tmp --cap-drop ALL \
+            --security-opt no-new-privileges:true fleetwatch:ci-arm64 digest --replay tests/fixtures | tee digest-arm64.txt
+          grep -q "Fleet check" digest-arm64.txt
 
       - name: Image name and tags
         if: startsWith(github.ref, 'refs/tags/v')
@@ -53,10 +72,13 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
+          # latest=auto: only a final vX.Y.Z moves latest; a pre-release like v0.2.0-rc1 gets only
+          # its own 0.2.0-rc1 tag (semver skips {{major}}.{{minor}} for pre-releases), matching install.sh.
+          flavor: |
+            latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
       - name: Log in to GHCR
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0

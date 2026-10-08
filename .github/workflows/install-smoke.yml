@@ -47,6 +47,7 @@ jobs:
           FLEETWATCH_REPO: ${{ github.workspace }}
         run: |
           # Three tags on this commit: the newest vX.Y.Z must win, and a pre-release must not.
+          set -o pipefail
           git -C "$FLEETWATCH_REPO" tag v0.0.0 HEAD
           git -C "$FLEETWATCH_REPO" tag v0.0.1 HEAD
           git -C "$FLEETWATCH_REPO" tag v0.0.1-rc1 HEAD
