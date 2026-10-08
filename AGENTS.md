@@ -9,7 +9,7 @@ Fleetwatch for Epiphan Edge: an always-on, read-only watcher for an Epiphan Edge
 EC20 cameras. Each heartbeat reads the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm
 Slack or Teams digest only when something changed. Before each scheduled event it posts Ready or Not ready.
 
-Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout | ask | sweep | history | note | notes`.
+Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout | ask | approve | sweep | history | note | notes`.
 
 ## Commands
 
@@ -58,6 +58,10 @@ tests/install_update.sh                           # install.sh updates: main, ta
 | `policy.yaml` | Heartbeat, quiet hours, scope, thresholds |
 | `tool_policy.yaml` | Which Epiphan tools may be called (read list only) |
 | `src/fleetwatch/epiphan/` | OAuth sign-in, read-only MCP client with the guard, parsers, replay client |
+| `src/fleetwatch/assistant.py` | v0.2: Claude reads through the guarded client and can only propose a change |
+| `src/fleetwatch/approve_page.py` | v0.2: the local page where a person approves one proposal at a time |
+| `src/fleetwatch/epiphan/executor.py`, `fence.py` | v0.2: the only write path (one approved change, once) and the fence that limits it to sandbox devices |
+| `src/fleetwatch/epiphan/anonymize.py` | Turns a capture into a shareable replay set (never commit a real capture) |
 | `src/fleetwatch/agents/` | Scanner (what needs attention), readiness (before an event), room state |
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
 | `src/fleetwatch/state.py` | SQLite: open items, what was posted when, audit log |
