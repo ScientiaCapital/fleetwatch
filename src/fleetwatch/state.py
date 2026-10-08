@@ -337,8 +337,9 @@ class State:
                 pending = self.db.execute("SELECT COUNT(*) FROM proposals WHERE status='pending'").fetchone()[0]
                 if pending >= MAX_PENDING:
                     raise ProposalRefused("There are already three changes waiting. Approve or deny one first.")
+                # A person's denial isn't the model's budget; expired and unreviewed proposals still count.
                 recent = self.db.execute(
-                    "SELECT COUNT(*) FROM proposals WHERE created_at > ?", (now - 3600,)
+                    "SELECT COUNT(*) FROM proposals WHERE created_at > ? AND status != 'denied'", (now - 3600,)
                 ).fetchone()[0]
                 if recent >= per_hour:
                     raise ProposalRefused(f"That's {recent} proposals in the last hour, the most allowed.")
@@ -442,6 +443,22 @@ class State:
             {"proposal_id": proposal_id, "approval_id": aid, "session": session, "approvals_this_session": count},
         )
         return aid
+
+    def queue_status(self) -> tuple[int, int, int, int]:
+        """(pending now, counted in the last hour, the pending limit, the hourly limit): the same numbers and
+        constants add_proposal enforces, so a page or `doctor` can say why a proposal was refused."""
+        now = self._db_now()
+        pending = self.db.execute("SELECT COUNT(*) FROM proposals WHERE status='pending'").fetchone()[0]
+        hour = self.db.execute(
+            "SELECT COUNT(*) FROM proposals WHERE created_at > ? AND status != 'denied'", (now - 3600,)
+        ).fetchone()[0]
+        return int(pending), int(hour), MAX_PENDING, PROPOSALS_PER_HOUR
+
+    def deny_all(self, page_session: str | None = None) -> int:
+        """A person denied everything waiting. Each proposal is denied by its own pending-only UPDATE, so it is
+        counted and audited like a single denial. There is no approve-all: approval stays one proposal at a time."""
+        ids = [int(r[0]) for r in self.db.execute("SELECT id FROM proposals WHERE status='pending' ORDER BY id")]
+        return sum(1 for pid in ids if self.deny(pid, page_session))
 
     def deny(self, proposal_id: int, page_session: str | None = None) -> bool:
         """A person denied this pending proposal. False if it wasn't pending."""

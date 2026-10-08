@@ -76,7 +76,9 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 5. The executor re-reads each target through the read tools, right then. It fails closed if a read fails, if the state fingerprint
    changed, if a `stream_id` isn't on the sandbox team's stream destination list, if an `event_id` isn't the one the
    target device reports, or if a disruptive change now hits a room that's recording or inside the readiness window.
-6. The executor calls the write tool once. There's no retry, not even after a 401. "Consumed but outcome unknown" is a final
+6. The executor calls the write tool once, straight after the last read: the reads that don't change by the minute come first,
+   and nothing else runs in the gap. The checks are best effort at one instant; a person can press record between the last read
+   and the write. There's no retry, not even after a 401. "Consumed but outcome unknown" is a final
    state that the operator sees.
 7. Every step goes to the audit table: proposal, approval, denial, expiry, refusal, and result.
 
@@ -104,8 +106,10 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 
 - It has its own port, separate from `ask --serve`. It's never the wall-screen page.
 - It listens on 127.0.0.1 only.
-- A secret made when the process starts is printed to the console, never put in a URL. The page asks for it once per browser
-  session.
+- A secret made when the process starts, never put in a URL. In a terminal it prints once; otherwise (launchd, systemd) it goes to a
+  0600 file in the state folder and only the path prints, and the file is deleted at a clean stop and at the next start. The page
+  asks for it once per browser session. Wrong entries slow the form per client address (three free tries, then a wait that
+  doubles up to a minute, never extended by entries made during it), with a much higher ceiling across all addresses.
 - Every POST needs a token bound to the proposal ID, plus a same-origin `Origin` or `Sec-Fetch-Site` header. There are no GET
   side effects, and the existing Host header check stays.
 - Approve is never the default or focused button. The model never sets labels, colors, or focus. The only countdown is the expiry.
@@ -114,7 +118,9 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 ## Limits against approval fatigue
 
 - At most three pending proposals, and one card on screen at a time.
-- A cap on proposals per hour.
+- A cap on proposals per hour. A proposal a person denied doesn't count toward it; expired and unreviewed ones do.
+- When the queue or the hourly cap is full, the page and `doctor` say so. "Deny all pending" denies everything waiting. There is
+  no approve-all; one request approves at most one proposal.
 - After three denials of the same tool and target, the assistant stops proposing it for an hour.
 - The audit log counts approvals per session, so a rubber-stamping pattern shows.
 

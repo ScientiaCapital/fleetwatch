@@ -151,8 +151,13 @@ What stops a change from running without that approval:
 The approval page:
 
 - It listens on `127.0.0.1` only, on its own port, and checks the Host header.
-- A page secret, printed once to the console and never put in a URL, gates it. Five wrong tries lock the form for a
-  minute.
+- A page secret, never put in a URL, gates it. In a terminal it prints once. Under launchd or systemd, where the
+  console is a log, it goes to a file only you can read (mode 0600) in the state folder, and only the path prints. The
+  file is deleted when the page stops cleanly and replaced at the next start.
+- Wrong secrets slow the form down instead of locking it: three free tries, then a wait that doubles up to a minute,
+  counted per client address, plus a much higher limit across all addresses. Entries made during a wait aren't
+  checked and don't lengthen it, so a guesser can't keep you out. The page and `fleetwatch doctor` say when the
+  proposal queue is full, and "Deny all pending" denies everything waiting. There is no approve-all.
 - Every POST needs a token bound to the proposal and a same-origin header. Nothing changes on a GET.
 - Approve is never the focused button, and the assistant can't set labels, colors or focus.
 
@@ -167,6 +172,12 @@ Known limits:
   process or its files, they hold a token that can write.
 - Whether Epiphan returns a team ID, and whether each proposable tool takes the arguments in `tool_policy.yaml`, stay
   unconfirmed until the first live run. Today the sandbox check is the device list.
+- Every local process reaches the page from the same address, 127.0.0.1, so the per-address wait can't tell you from a
+  program that is guessing. It limits guessing; it doesn't stop a local program from slowing your sign-in. The wait
+  never passes a minute, and restarting the page makes a new secret and clears it.
+- The checks before a change run, then the write is sent. They are best effort at one instant: a person can press
+  record between the last read and the write. Fleetwatch keeps that gap to the length of one call and does no other
+  work in it, but can't close it.
 - The model can write a misleading reason or answer. Read the card, not the reason.
 
 ## In scope

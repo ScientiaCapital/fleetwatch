@@ -534,7 +534,7 @@ def main() -> None:
             p.error("approve needs --serve, e.g. fleetwatch approve --serve (add --replay tests/fixtures for a demo)")
         from fleetwatch.approve_page import serve as serve_approve
 
-        serve_approve(_approve_page(settings, args.replay, args.no_ai))
+        serve_approve(_approve_page(settings, args.replay, args.no_ai), settings.state_db.parent)
     elif args.command == "sweep":
         asyncio.run(_sweep(settings, args.replay))
     elif args.command == "history":

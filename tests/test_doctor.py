@@ -352,3 +352,44 @@ def test_audit_log_check_is_ok_when_the_chain_holds_and_names_only_the_row_when_
     state.db.commit()
     c = by_name(run(s))["Audit log"]
     assert c.status == FAIL and "row 1" in c.detail and "do-not-print" not in c.detail
+
+
+def _fill_queue(tmp_path: Path, pending: int, expired: int = 0) -> None:
+    from fleetwatch.state import State
+
+    s = State(tmp_path / "state.db")
+    for i in range(pending + expired):
+        target = f"dev-{i}"
+        fp = {target: {"online": True, "recording": False, "next_event_start": None}}
+        s.add_proposal("batch_reboot", {"device_ids": [target]}, [target], fp, 1, "sandbox", per_hour=99)
+        if i >= pending:
+            s.db.execute("UPDATE proposals SET status='expired' WHERE id=(SELECT MAX(id) FROM proposals)")
+            s.db.commit()
+
+
+def test_proposal_queue_is_info_with_counts_when_there_is_room(tmp_path):
+    signed_in(tmp_path)
+    _fill_queue(tmp_path, pending=1)
+    c = by_name(run(settings(tmp_path)))["Proposal queue"]
+    assert c.status == INFO and "1 of 3 waiting" in c.detail and "1 of 10 in the last hour" in c.detail
+
+
+def test_proposal_queue_is_info_with_no_history(tmp_path):
+    signed_in(tmp_path)
+    c = by_name(run(settings(tmp_path)))["Proposal queue"]
+    assert c.status == INFO and "0 of 3 waiting" in c.detail
+    assert not (tmp_path / "state.db").exists(), "doctor doesn't create the state file"
+
+
+def test_proposal_queue_warns_when_pending_is_full(tmp_path):
+    signed_in(tmp_path)
+    _fill_queue(tmp_path, pending=3)
+    c = by_name(run(settings(tmp_path)))["Proposal queue"]
+    assert c.status == WARN and "full" in c.detail and "approve or deny" in c.detail
+
+
+def test_proposal_queue_warns_when_the_hourly_cap_is_reached(tmp_path):
+    signed_in(tmp_path)
+    _fill_queue(tmp_path, pending=0, expired=10)
+    c = by_name(run(settings(tmp_path)))["Proposal queue"]
+    assert c.status == WARN and "full" in c.detail and "10 of 10 in the last hour" in c.detail

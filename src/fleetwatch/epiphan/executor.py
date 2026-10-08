@@ -226,6 +226,8 @@ class WriteExecutor:
             return self._refused(approval_id, record, f"couldn't open the sandbox session: {_clip(e)}")
         try:
             try:
+                # Logged before the checks, not between them and the write: nothing slow sits in that gap.
+                self._state.audit("execution_started", {"proposal_id": record.proposal_id, "tool": record.tool})
                 await self._reads(reader, record, args)
             except Refused as e:
                 return self._refused(approval_id, record, e.reason)
@@ -265,6 +267,9 @@ class WriteExecutor:
             if off:
                 raise Refused(f"not on the sandbox allowlist (FLEETWATCH_WRITE_DEVICE_IDS): {', '.join(off)}")
 
+        # Order matters: everything that doesn't change by the minute is read first, and the two reads that do (what the
+        # recorders are doing, and each room's next event) come last, so the write follows them as closely as it can.
+        await self._check_stream(reader, args)
         online = [t for t in record.targets if fleet.devices[t].online]
         if online:
             status = await self._read(reader, "get_recorder_status_for_devices", {"device_ids": online})
@@ -274,20 +279,23 @@ class WriteExecutor:
 
         if state_fingerprint(fleet, record.targets) != record.fingerprint:
             raise Refused("a target's state changed since approval (online, recording or next event)")
-        await self._check_ids(reader, fleet, args)
+        self._check_event(fleet, args)
         if self._tools.is_disruptive(record.tool, args):
             self._check_rooms(fleet, record, args, now)
 
-    async def _check_ids(self, reader: EpiphanClient, fleet: Fleet, args: dict[str, Any]) -> None:
-        """A stream must be on the sandbox team's destination list, and an event must be the one the target device
-        reports (from the events read above). Only IDs are compared; names never pick anything."""
-        stream_id, event_id = args.get("stream_id"), args.get("event_id")
+    async def _check_stream(self, reader: EpiphanClient, args: dict[str, Any]) -> None:
+        """A stream must be on the sandbox team's destination list. Only IDs are compared; names never pick anything."""
+        stream_id = args.get("stream_id")
         if stream_id is not None:
             endpoints = parse_stream_endpoints(await self._read(reader, "get_stream_endpoints", {}))
             if endpoints is None:
                 raise Refused("the sandbox team's stream destinations couldn't be read")
             if stream_id not in endpoints:
                 raise Refused(f"the stream {stream_id} isn't on the sandbox team's list of stream destinations")
+
+    def _check_event(self, fleet: Fleet, args: dict[str, Any]) -> None:
+        """An event must be the one the target device reports (from the events read, which is the last read)."""
+        event_id = args.get("event_id")
         if event_id is not None:
             event = fleet.events.get(str(args.get("device_id")))
             if event is None or not event.id or event.id != event_id:
@@ -328,7 +336,6 @@ class WriteExecutor:
 
     async def _write(self, session: Any, record: BoundRecord, args: dict[str, Any]) -> Outcome:
         """Call the write tool exactly once. No retry: whatever goes wrong after the call starts is `unknown`."""
-        self._state.audit("execution_started", {"proposal_id": record.proposal_id, "tool": record.tool})
         try:
             async with asyncio.timeout(self._timeout):
                 result = await session.call_tool(record.tool, args)

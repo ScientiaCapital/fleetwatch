@@ -4,9 +4,10 @@ See docs/design/approved-writes.md, "The approval page", "Flow" steps 3-7 and "L
 Standard library only, like ask_page.py, but with its own handler and its own port, and never the wall-screen page.
 
 - Listens on 127.0.0.1 only and answers only requests addressed to 127.0.0.1 or localhost on its port.
-- A launch secret is made at start and printed to the console once. It's never put in a URL or a log. The first
+- A launch secret is made at start. On a terminal it's printed once; otherwise it goes to a 0600 file in the state
+  folder (path printed, file deleted at a clean stop and at the next start). It's never put in a URL or a log. The first
   visit asks for it; the right secret sets an HttpOnly, SameSite=Strict session cookie that holds a random session
-  ID, not the secret. Five wrong entries lock the form for a minute.
+  ID, not the secret. Wrong entries slow the form per client address (a growing wait, at most a minute).
 - Every POST needs that session, a token bound to the session and the proposal (an HMAC with a per-process key),
   and `Sec-Fetch-Site: same-origin` or a same-origin `Origin`. GET never changes anything.
 - Every fact on a card is built by code from the stored proposal and a fresh read: the tool in plain words, each
@@ -25,8 +26,12 @@ import hashlib
 import hmac
 import html
 import json
+import os
 import re
 import secrets
+import signal
+import sys
+import tempfile
 import time
 import unicodedata
 from collections.abc import Awaitable, Callable
@@ -34,6 +39,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs
 
@@ -47,12 +53,21 @@ from fleetwatch.state import State
 MAX_BODY = 4096
 MAX_QUESTION = 500
 FATIGUE_AFTER = 5  # approvals in one page session before the page says so
-WRONG_TRIES = 5
+# Wrong secrets slow the form down; they never lock it for good. Each client address gets FREE_TRIES wrong entries,
+# then a wait that doubles (2, 4, 8 ... seconds) up to LOCKOUT_SECONDS. Entries made during a wait aren't checked and
+# don't lengthen it, so a guesser can't keep the operator out. On loopback every local process shares 127.0.0.1, so a
+# global ceiling (GLOBAL_WRONG wrong entries from anywhere within GLOBAL_WINDOW seconds) adds one more wait of
+# LOCKOUT_SECONDS. Restarting the page makes a new secret and clears both.
+FREE_TRIES = 3
 LOCKOUT_SECONDS = 60
+GLOBAL_WRONG = 50
+GLOBAL_WINDOW = 600
+MAX_CLIENTS = 200
 REASON_CAP = 500
 NAME_CAP = 120
 MAX_SESSIONS = 20
 COOKIE = "fleetwatch_approve"
+SECRET_FILE = "approve-page-secret"
 REPLAY_SLOT = "replay"  # replay proposals are bound to this slot; the real executor runs only "sandbox"
 
 # What "shown in full" allows. Anything past these limits, or text a person can't see as written, isn't shown.
@@ -153,11 +168,11 @@ TEXT: dict[str, dict[str, str]] = {
     "en": {
         "title": "Approve changes",
         "sub": "One change at a time. Nothing runs until you approve it, and Deny is always safe.",
-        "secret_intro": "Type the page secret. It was printed in the console where you started this page.",
+        "secret_intro": "Type the page secret. It was shown where you started this page: in the console, or in the file the console names.",
         "secret_label": "Page secret",
         "secret_button": "Open",
         "secret_wrong": "That secret isn't right.",
-        "locked": "Too many wrong entries. Wait a minute, then try again.",
+        "locked": "Too many wrong entries. Wait a moment, then try again.",
         "nothing": "Nothing is waiting for approval.",
         "more": "{n} more waiting after this one.",
         "tool": "Tool",
@@ -209,6 +224,10 @@ TEXT: dict[str, dict[str, str]] = {
         "not_waiting": "This change isn't waiting for approval.",
         "cant_approve": "This change can't be approved: {why}",
         "denied": "Denied. Nothing ran.",
+        "deny_all": "Deny all pending",
+        "denied_all": "Denied {n} changes. Nothing ran.",
+        "queue_full_pending": "Proposal queue full: {n} waiting. The assistant can't propose more until you approve or deny one.",
+        "queue_full_hour": "Proposal queue full: {n} in the last hour. The assistant can't propose more until the hour passes.",
         "ok": "Done. {detail}",
         "error": "Epiphan reported a problem. {detail}",
         "unknown": "This change may or may not have run. {detail} Check the unit before you try anything again.",
@@ -225,11 +244,11 @@ TEXT: dict[str, dict[str, str]] = {
     "es": {
         "title": "Aprobar cambios",
         "sub": "Un cambio a la vez. Nada se ejecuta hasta que lo apruebes, y Rechazar siempre es seguro.",
-        "secret_intro": "Escribe el secreto de la página. Se mostró en la consola donde iniciaste esta página.",
+        "secret_intro": "Escribe el secreto de la página. Se mostró donde iniciaste esta página: en la consola o en el archivo que indica la consola.",
         "secret_label": "Secreto de la página",
         "secret_button": "Abrir",
         "secret_wrong": "Ese secreto no es correcto.",
-        "locked": "Demasiados intentos incorrectos. Espera un minuto y vuelve a intentarlo.",
+        "locked": "Demasiados intentos incorrectos. Espera un momento y vuelve a intentarlo.",
         "nothing": "No hay nada en espera de aprobación.",
         "more": "{n} más en espera después de este.",
         "tool": "Herramienta",
@@ -287,6 +306,10 @@ TEXT: dict[str, dict[str, str]] = {
         "not_waiting": "Este cambio no está en espera de aprobación.",
         "cant_approve": "Este cambio no se puede aprobar: {why}",
         "denied": "Rechazado. No se ejecutó nada.",
+        "deny_all": "Rechazar todo lo pendiente",
+        "denied_all": "Se rechazaron {n} cambios. No se ejecutó nada.",
+        "queue_full_pending": "Cola de propuestas llena: {n} en espera. El asistente no puede proponer más hasta que apruebes o rechaces una.",
+        "queue_full_hour": "Cola de propuestas llena: {n} en la última hora. El asistente no puede proponer más hasta que pase la hora.",
         "ok": "Listo. {detail}",
         "error": "Epiphan informó un problema. {detail}",
         "unknown": "Es posible que este cambio se haya ejecutado o no. {detail} Revisa el equipo antes de volver a "
@@ -481,8 +504,9 @@ class ApprovePage:
         self._key = secrets.token_bytes(32)  # signs per-proposal tokens; never leaves this process
         self._clock = clock
         self._sessions: dict[str, int] = {}  # session ID -> approvals in that session
-        self._wrong = 0
-        self._locked_until = 0.0
+        self._wrong: dict[str, tuple[int, float]] = {}  # client address -> (wrong entries, no checks until)
+        self._recent_wrong: list[float] = []  # when the last wrong entries came, from any address
+        self._global_until = 0.0
         self.state.expire_all_pending()  # a card from before this process can't be approved here
 
     # --- sessions, secret and tokens ----------------------------------------------------------------
@@ -496,18 +520,25 @@ class ApprovePage:
     def has_session(self, sid: str | None) -> bool:
         return bool(sid) and sid in self._sessions
 
-    def login(self, given: str) -> tuple[int, str | None]:
-        """303 and a new session ID for the right secret; 403 for a wrong one; 429 while locked out."""
+    def login(self, given: str, client: str = "127.0.0.1") -> tuple[int, str | None]:
+        """303 and a new session ID for the right secret; 403 for a wrong one; 429 during a wait, when the entry
+        isn't checked at all. `client` is the socket peer, never a header."""
         now = self._clock()
-        if now < self._locked_until:
+        count, until = self._wrong.get(client, (0, 0.0))
+        if now < until or now < self._global_until:
             return 429, None
         if hmac.compare_digest(given.encode("utf-8"), self.secret.encode("utf-8")):
-            self._wrong = 0
+            self._wrong.pop(client, None)
             return 303, self.new_session()
-        self._wrong += 1
-        if self._wrong >= WRONG_TRIES:
-            self._wrong = 0
-            self._locked_until = now + LOCKOUT_SECONDS
+        count += 1
+        wait = min(2 ** (count - FREE_TRIES), LOCKOUT_SECONDS) if count > FREE_TRIES else 0
+        while len(self._wrong) >= MAX_CLIENTS and client not in self._wrong:
+            self._wrong.pop(next(iter(self._wrong)))
+        self._wrong[client] = (count, now + wait)
+        self._recent_wrong = [t for t in self._recent_wrong if now - t < GLOBAL_WINDOW] + [now]
+        if len(self._recent_wrong) >= GLOBAL_WRONG:
+            self._recent_wrong = []
+            self._global_until = now + LOCKOUT_SECONDS
         return 403, None
 
     def token(self, purpose: str, sid: str, pid: int) -> str:
@@ -634,6 +665,13 @@ class ApprovePage:
         fatigue = ""
         if sid and self._sessions.get(sid, 0) >= FATIGUE_AFTER:
             fatigue = f'<p class="note">{_e(t["fatigue"].format(n=self._sessions[sid]))}</p>'
+        full = ""
+        if sid:
+            pending, hour, max_pending, max_hour = self.state.queue_status()
+            if pending >= max_pending:
+                full = f'<p class="warn">{_e(t["queue_full_pending"].format(n=pending))}</p>'
+            elif hour >= max_hour:
+                full = f'<p class="warn">{_e(t["queue_full_hour"].format(n=hour))}</p>'
         chat = ""
         if sid and self.ask_fn is not None:  # the chat box hook; hidden when no assistant is passed in
             reply = (
@@ -652,7 +690,7 @@ class ApprovePage:
             f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{_e(t['title'])}</title><style>{_STYLE}</style></head><body><main>"
-            f'<h1>{_e(t["title"])}</h1><p class="sub">{_e(t["sub"])}</p>{fatigue}{inner}{chat}'
+            f'<h1>{_e(t["title"])}</h1><p class="sub">{_e(t["sub"])}</p>{fatigue}{full}{inner}{chat}'
             f"<footer>{_e(t['footer'])}</footer></main></body></html>"
         )
 
@@ -691,9 +729,16 @@ class ApprovePage:
                 f'<input type="hidden" name="token" value="{self.token("card", sid, pid)}">'
                 f'<button class="approve" type="submit">{_e(t["approve"])}</button></form>'
             )
+        deny_all = ""
+        if len(pending) > 1:  # never an approve-all: approval is one proposal per request
+            deny_all = (
+                '<form method="post" action="/deny_all">'
+                f'<input type="hidden" name="token" value="{self.token("deny_all", sid, 0)}">'
+                f'<button class="deny" type="submit">{_e(t["deny_all"])}</button></form>'
+            )
         inner = (
             f'{more}<section class="card">{card.body}'
-            f'<div class="actions">{self._deny_form(sid, pid, lang)}{approve}</div></section>'
+            f'<div class="actions">{self._deny_form(sid, pid, lang)}{approve}</div></section>{deny_all}'
         )
         return self._page(lang, inner, sid, answer)
 
@@ -745,6 +790,10 @@ class ApprovePage:
             except Exception:  # noqa: BLE001 - the chat box never breaks the approval page
                 answer = t["ask_failed"]
             return 200, self.render_card_page(sid, lang, answer)
+        if path == "/deny_all":
+            if not self._token_ok("deny_all", sid, 0, token):
+                return 403, "Forbidden"
+            return 200, self._message(sid, lang, t["denied_all"].format(n=self.state.deny_all(sid)))
         if path not in ("/approve", "/confirm", "/deny"):
             return 404, "Not found"
         raw = (form.get("proposal") or [""])[0]
@@ -913,7 +962,7 @@ def make_handler(page: ApprovePage):
                 return
             lang = _language(self.headers.get("Accept-Language"))
             if self.path == "/login":
-                code, sid = page.login((form.get("secret") or [""])[0])
+                code, sid = page.login((form.get("secret") or [""])[0], self.client_address[0])
                 if code == 303 and sid:
                     cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Strict; Path=/"
                     self._send(303, "", extra={"Location": "/", "Set-Cookie": cookie})
@@ -934,13 +983,42 @@ def make_handler(page: ApprovePage):
     return Handler
 
 
-def serve(page: ApprovePage) -> None:
+def _write_secret_file(directory: Path, secret: str) -> Path:
+    """Put the secret where only this user can read it: a new file, never opened if it exists (O_EXCL), mode 0600 from
+    the first byte. A file left by an earlier run is removed first."""
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = directory / SECRET_FILE
+    path.unlink(missing_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(secret + "\n")
+    return path
+
+
+def serve(page: ApprovePage, state_dir: Path | None = None) -> None:
+    """Run the page. On a terminal the secret is printed once. Under launchd or systemd stdout is a log or journal, so
+    the secret goes to a 0600 file in `state_dir` instead, and only the path is printed. The file is removed at a
+    clean stop and at the next start."""
     httpd = HTTPServer(("127.0.0.1", page.port), make_handler(page))
     print(f"Approve changes (v0.2): http://127.0.0.1:{page.port}/  (Ctrl+C to stop)")
-    print(f"Page secret, shown only here and only once. Type it on the page: {page.secret}")
+    secret_file: Path | None = None
+    if sys.stdout.isatty():
+        print(f"Page secret, shown only here and only once. Type it on the page: {page.secret}")
+    else:
+        secret_file = _write_secret_file(state_dir or Path(tempfile.mkdtemp(prefix="fleetwatch-")), page.secret)
+        print(f"Page secret: read it from {secret_file} (only you can read it; it is deleted when this stops)")
+    previous = None
+    try:  # a service manager stops us with SIGTERM: take the clean-shutdown path
+        previous = signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
+    except ValueError:  # not the main thread
+        pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         httpd.server_close()
+        if secret_file is not None:
+            secret_file.unlink(missing_ok=True)
+        if previous is not None:
+            signal.signal(signal.SIGTERM, previous)
