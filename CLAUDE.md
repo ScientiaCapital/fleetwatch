@@ -27,10 +27,12 @@ uv run --group docs zensical serve      # docs at localhost:8000
 ## Now
 
 Fleetwatch has made one live, read-only run against a real Edge team (the normal sign-in; it found two Epiphan shape
-quirks, now handled). The 24-hour soak hasn't happened. The v0.2 assistant, approval page and write executor are
+quirks, now handled), and the 24-hour soak started on 2026-10-08: the launchd agent runs `fleetwatch run` on the
+maintainer's Mac, read-only, console notifier only. The v0.2 assistant, approval page and write executor are
 merged but tested only against fakes and mocks: no sandbox sign-in, no write and no model API call has been made.
-No release is tagged, so the installer installs `main` and Docker builds locally.
+No release is tagged, so the installer installs `main` and Docker builds locally. v0.1.0 is tagged after the soak.
 
-Open: #13 first live run (soak, logout output, `iss`), #14 release v0.1.0, #15 installer on a real Pi 5 and Mac mini,
-#25 voice (not built), #82 local model. Sprint 3: #59 and #62 (sign-in security). The sprint plan and event notes are kept on the
-maintainer's machine, not in this public repo; `planning/` is gitignored.
+Open: #13 first live run (soak result, logout output, `iss`), #14 release v0.1.0, #15 installer on a real Pi 5 and
+Mac mini, #25 voice (not built), #82 local model. Sprint 3: #59 and #62 (sign-in security) and #119 to #124 (what a
+read-only review found before the soak: refresh and restart behaviour). The sprint plan and event notes are kept on
+the maintainer's machine, not in this public repo; `planning/` is gitignored.
