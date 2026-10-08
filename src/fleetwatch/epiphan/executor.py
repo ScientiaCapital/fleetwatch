@@ -38,7 +38,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fleetwatch.agents.room_state.rules import room_state
 from fleetwatch.config import Settings
 from fleetwatch.epiphan.mcp import _UNAUTHORIZED, EpiphanClient
 from fleetwatch.epiphan.parse import (
@@ -50,7 +49,7 @@ from fleetwatch.epiphan.parse import (
 )
 from fleetwatch.epiphan.token_store import SANDBOX_SERVICE, TokenStore, TokenStoreError, make_token_store
 from fleetwatch.fence import Fence, master_id
-from fleetwatch.model import Fleet, RoomState
+from fleetwatch.model import Device, Event, Fleet
 from fleetwatch.policy import Policy, ToolPolicy, check_arguments, load_policy, load_tools
 from fleetwatch.proposals import BoundRecord, NotCanonical, parse_canonical, state_fingerprint
 from fleetwatch.redact import redact
@@ -61,6 +60,30 @@ log = logging.getLogger(__name__)
 SANDBOX_SLOT = "sandbox"
 _TEAM_KEYS = ("team_id", "teamId", "TeamId", "TeamID")
 _MESSAGE_CAP = 300
+
+
+@dataclass(frozen=True)
+class RoomBlock:
+    """Why a disruptive change can't touch a room right now. `kind` is recording, live (an event is on now) or
+    soon (one starts within the window, `minutes` from now, rounded up)."""
+
+    kind: str
+    minutes: int = 0
+
+
+def room_block(
+    device: Device, event: Event | None, now: datetime, lead: timedelta, stops_recording: bool = False
+) -> RoomBlock | None:
+    """The one rule for a disruptive change: refused while the room is recording, or an event is on now or starts
+    within `lead`. A change that ends a recording (`stops_recording`, from the tool's policy rule) isn't refused for
+    the recording itself, only for the event. Pure; the executor refuses on it and the approval card warns with it."""
+    if device.recording and not stops_recording:
+        return RoomBlock("recording")
+    if event is None or event.start > now + lead or (event.end is not None and now >= event.end):
+        return None
+    if event.start <= now:
+        return RoomBlock("live")
+    return RoomBlock("soon", max(1, -int((now - event.start).total_seconds() // 60)))
 
 
 class Refused(Exception):
@@ -252,8 +275,8 @@ class WriteExecutor:
         if state_fingerprint(fleet, record.targets) != record.fingerprint:
             raise Refused("a target's state changed since approval (online, recording or next event)")
         await self._check_ids(reader, fleet, args)
-        if self._tools.is_disruptive(record.tool):
-            self._check_rooms(fleet, record, now)
+        if self._tools.is_disruptive(record.tool, args):
+            self._check_rooms(fleet, record, args, now)
 
     async def _check_ids(self, reader: EpiphanClient, fleet: Fleet, args: dict[str, Any]) -> None:
         """A stream must be on the sandbox team's destination list, and an event must be the one the target device
@@ -291,19 +314,17 @@ class WriteExecutor:
         if any(t != self._team_id for t in found):
             raise Refused("the sandbox sign-in reaches a different team than FLEETWATCH_WRITE_TEAM_ID")
 
-    def _check_rooms(self, fleet: Fleet, record: BoundRecord, now: datetime) -> None:
-        lead = timedelta(minutes=self._policy.lead_minutes)
+    def _check_rooms(self, fleet: Fleet, record: BoundRecord, args: dict[str, Any], now: datetime) -> None:
+        minutes = self._tools.lead_minutes(record.tool, self._policy.lead_minutes)
+        lead = timedelta(minutes=minutes)
+        stops = self._tools.stops_recording(record.tool, args)
         for target in record.targets:
-            device, event = fleet.devices[target], fleet.events.get(target)
-            if device.recording:
+            block = room_block(fleet.devices[target], fleet.events.get(target), now, lead, stops)
+            if block is None:
+                continue
+            if block.kind == "recording":
                 raise Refused(f"{target} is recording, and {record.tool} would interrupt it")
-            mode = room_state(device, event, now, lead)
-            in_window = event is not None and event.start <= now + lead and (event.end is None or now < event.end)
-            if mode in (RoomState.LIVE, RoomState.PRE_CLASS) or in_window:
-                raise Refused(
-                    f"{target} has a {self._policy.event_word} that is on now or starts within "
-                    f"{self._policy.lead_minutes} minutes"
-                )
+            raise Refused(f"{target} has a {self._policy.event_word} that is on now or starts within {minutes} minutes")
 
     async def _write(self, session: Any, record: BoundRecord, args: dict[str, Any]) -> Outcome:
         """Call the write tool exactly once. No retry: whatever goes wrong after the call starts is `unknown`."""

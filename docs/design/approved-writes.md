@@ -47,7 +47,8 @@ recording, stopping a stream, or updating firmware. A person approves each chang
    run anything. The model never sees a write tool directly.
 2. `propose` policy. A new section in `tool_policy.yaml` lists each tool that may be proposed, with its argument schema, the
    maximum number of targets, and whether it's disruptive. A write tool that isn't listed can't be proposed. A tool that hasn't
-   been reviewed counts as disruptive.
+   been reviewed counts as disruptive. A rule can also say which actions are disruptive (`disruptive_when: {action: [stop]}`;
+   a missing or unknown value counts as disruptive) and carry its own `lead_minutes` window.
 3. Proposal store. New SQLite tables in `state.py`: `proposals` and `approvals`.
 4. Approval page. A separate local page, on its own port, that shows one proposal card at a time with Approve and Deny.
 5. Write executor. A new class, separate from `EpiphanClient`, that takes only a consumed, validated approval. `EpiphanClient.call()`
@@ -122,8 +123,16 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 These are refused while a target room is recording or inside the readiness window, even with approval:
 - `batch_reboot`, `batch_firmware_update`, and `apply_team_preset`
 - `stop_stream_endpoint`, `delete_cms_event`, and `delete_stream_endpoint`
-- for review, treated as disruptive until reviewed: `batch_recording` (stop), `switch_device_to_cms`, `update_cms_event`, and
-  `cms_event_action`
+- `batch_recording`, for the `stop` action only. A `start` only adds a recording, so it can run before an event. The rule is
+  `disruptive_when: {action: [stop]}` in the tool's `propose` entry; any other or missing action counts as disruptive.
+- for review, treated as disruptive until reviewed: `switch_device_to_cms`, `update_cms_event`, and `cms_event_action`
+
+The window is the policy's `lead_minutes` unless the tool's `propose` entry sets its own: `batch_firmware_update` uses 120
+minutes, because an update can still be running when the event starts. The approval card shows when the executor would
+refuse for the room's state (recording, or an event on now or inside the window), using the same rule. The one
+exception: a call the tool's `stops_recording` rule names (`batch_recording` stop) isn't refused for the recording it
+ends, so a person can stop a manual recording. An event on now or inside the window still blocks it. It's information,
+not a gate: the executor still checks at run time.
 
 ## Prompt injection
 

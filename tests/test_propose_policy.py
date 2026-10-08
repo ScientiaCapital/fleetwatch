@@ -67,8 +67,9 @@ def test_shipped_schemas_are_reviewed_and_a_pending_one_would_not_be_proposable(
 
 def test_unreviewed_tools_are_on_the_disruptive_list():
     tp = load_tools()
-    for tool in ("batch_recording", "switch_device_to_cms", "update_cms_event", "cms_event_action"):
+    for tool in ("switch_device_to_cms", "update_cms_event", "cms_event_action"):
         assert tool in tp.disruptive
+    assert "batch_recording" not in tp.disruptive, "its propose entry says which actions are disruptive"
 
 
 def test_disruptive_list_only_names_write_tools():

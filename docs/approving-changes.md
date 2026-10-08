@@ -33,7 +33,14 @@ After five wrong tries the form locks for a minute. The browser then keeps a ran
 - The assistant's reason, in a box marked "Written by the assistant, not checked".
 
 Cards come oldest first, one at a time. Deny comes first and has the focus. Approve is never focused. Disruptive
-actions, such as a reboot or a firmware update, ask for one more confirmation that names the room.
+actions, such as a reboot, a firmware update or stopping a recording, ask for one more confirmation that names the
+room. Starting a recording isn't disruptive, so it doesn't.
+
+When the room is recording, or has an event on now or starting soon, a disruptive card says so in plain words, for
+example "Room 204 has an event that starts in 12 minutes, so this change would be blocked." That's information: Fleetwatch
+checks again the moment you approve, and refuses then if the room is still busy. Stopping a recording is the one
+exception to the recording rule: a room that is recording can be stopped, unless an event is on now or starts soon. A firmware update looks further ahead
+(120 minutes) than other changes, because the update can still be running when the event starts.
 
 ## When only Deny is offered
 

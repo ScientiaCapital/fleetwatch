@@ -90,8 +90,11 @@ def test_the_six_shipped_tools_all_have_reviewed_schemas(tp):
 def test_disruptive_flags_are_kept(tp):
     assert not tp.is_disruptive("start_stream_endpoint")
     assert not tp.is_disruptive("confirm_cms_event_on_device")
-    for tool in ("batch_recording", "stop_stream_endpoint", "batch_reboot", "batch_firmware_update"):
+    for tool in ("stop_stream_endpoint", "batch_reboot", "batch_firmware_update"):
         assert tp.is_disruptive(tool)
+    assert tp.is_disruptive("batch_recording", {"action": "stop"})
+    assert not tp.is_disruptive("batch_recording", {"action": "start"})
+    assert tp.is_disruptive("batch_recording"), "no arguments to look at: disruptive"
 
 
 @pytest.mark.parametrize("tool", TOOLS)

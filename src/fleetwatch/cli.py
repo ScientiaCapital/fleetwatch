@@ -308,7 +308,15 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
 
         state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
         ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client, replay_now)
-        page = ApprovePage(state, read_replay, RecordingExecutor(state), tools, settings.approve_port, ask_fn=ask_fn)
+        page = ApprovePage(
+            state,
+            read_replay,
+            RecordingExecutor(state),
+            tools,
+            settings.approve_port,
+            ask_fn=ask_fn,
+            policy=load_policy(settings.policy_file),
+        )
         seed_replay_sample(state, tools, asyncio.run(read_replay()))
         return page
 
@@ -349,7 +357,7 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
             return await read_for_approval(client, datetime.now(UTC), strict=True)
 
     ask_fn = _approve_ask(settings, state, policy, key, None)
-    return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn)
+    return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn, policy=policy)
 
 
 async def _maybe_sweep(client, state: State, policy, notifier) -> None:
