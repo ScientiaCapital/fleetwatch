@@ -124,6 +124,21 @@ def _history(settings: Settings, days: int) -> None:
     print(render_history(State(settings.state_db), since=now - timedelta(days=days), now=now))
 
 
+def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Settings) -> None:
+    from fleetwatch.notes import add_note, default_author, list_notes
+
+    state = State(settings.state_db)  # local notes only; never signs in or calls Epiphan
+    if args.command == "notes":
+        print(list_notes(state, room=" ".join(args.question) or None, search=args.search))
+        return
+    if len(args.question) < 2:
+        p.error('note needs a room and the text, e.g. fleetwatch note "Room 204 Pearl Mini" "Bulb replaced"')
+    room, text = args.question[0], " ".join(args.question[1:])
+    code, msg = add_note(state, room, text, args.author or default_author(), datetime.now(UTC))
+    print(msg)
+    raise SystemExit(code)
+
+
 async def _run(settings: Settings) -> None:
     client, state, notifier = _build(settings, interactive=False)
     policy = load_policy(settings.policy_file)
@@ -157,7 +172,8 @@ def main() -> None:
         description="Fleetwatch for Epiphan Edge: an always-on, read-only watcher for your Pearl and EC20 fleet.",
     )
     p.add_argument(
-        "command", choices=["login", "digest", "run", "status", "doctor", "logout", "ask", "sweep", "history"]
+        "command",
+        choices=["login", "digest", "run", "status", "doctor", "logout", "ask", "sweep", "history", "note", "notes"],
     )
     p.add_argument("question", nargs="*", help='ask: your question, e.g. fleetwatch ask "is Main Stage ready"')
     p.add_argument("--version", action="version", version=f"fleetwatch {_package_version()}")
@@ -172,6 +188,8 @@ def main() -> None:
     )
     p.add_argument("--serve", action="store_true", help="ask: open a local page with buttons on 127.0.0.1")
     p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
+    p.add_argument("--author", help="note: who left it (default: your login name)")
+    p.add_argument("--search", metavar="TEXT", help="notes: only notes containing TEXT")
     args = p.parse_intermixed_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
@@ -192,6 +210,8 @@ def main() -> None:
         asyncio.run(_sweep(settings, args.replay))
     elif args.command == "history":
         _history(settings, args.days)
+    elif args.command in ("note", "notes"):
+        _notes(p, args, settings)
     elif args.command == "run":
         asyncio.run(_run(settings))
     elif args.command == "doctor":

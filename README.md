@@ -90,6 +90,8 @@ uv run fleetwatch status        # signed in? open items?
 uv run fleetwatch doctor        # is this machine ready? one line per check
 uv run fleetwatch ask "is Main Stage ready"   # ask in plain words; --serve opens a page with buttons
 uv run fleetwatch history       # one line per day: fleet size, online, posts, nightly sweep
+uv run fleetwatch note "Room 204 Pearl Mini" "Bulb replaced"   # a note shown under that room's items
+uv run fleetwatch notes --search bulb                           # list notes: all, one room, or by text
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 

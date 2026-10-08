@@ -71,7 +71,8 @@ async def tick(
     if quiet:  # only Fix first gets through at night; the rest waits (never sent, so it posts later)
         new = [f for f in new if f.priority is Priority.FIX_FIRST]
         reminders, resolved = [], []
-    text = render_digest(new, reminders, resolved, first_run=first_run and not quiet)
+    notes = state.notes_by_device({f.device_id for f in new + reminders})
+    text = render_digest(new, reminders, resolved, first_run=first_run and not quiet, notes=notes)
     if text and notifier.post(text):
         state.mark_sent(new + reminders, now)
         state.audit(
