@@ -112,10 +112,12 @@ def _dt(s: str | None) -> datetime | None:
 
 
 class State:
-    def __init__(self, path: Path | str = ":memory:"):
+    def __init__(self, path: Path | str = ":memory:", *, check_same_thread: bool = True):
+        """`check_same_thread=False` is for the approval page, whose one-request-at-a-time server may answer on
+        another thread than the one that opened the file. Calls still never overlap."""
         if path != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path))
+        self.db = sqlite3.connect(str(path), check_same_thread=check_same_thread)
         self.db.row_factory = sqlite3.Row
         # `ask --serve`, `status` and the heartbeat may open the same file at once: wait for a lock, don't fail.
         self.db.execute("PRAGMA busy_timeout=5000")
@@ -400,6 +402,12 @@ class State:
         consume(), never this."""
         row = self.db.execute("SELECT * FROM proposals WHERE id=?", (proposal_id,)).fetchone()
         return None if row is None else self._record_from_row(row)
+
+    def pending_proposals(self) -> list[tuple[int, BoundRecord | None, str]]:
+        """Every pending proposal, oldest first, as (ID, record, the model's reason). The record is None when the
+        row no longer parses or its keyed hash doesn't match; the approval page then offers only Deny."""
+        rows = self.db.execute("SELECT * FROM proposals WHERE status='pending' ORDER BY created_at, id").fetchall()
+        return [(int(r["id"]), self._checked_record(r), r["reason"] or "") for r in rows]
 
     def approve(self, proposal_id: int, page_session: str) -> int:
         """A person approved this pending proposal. Returns a single-use approval ID that expires five minutes

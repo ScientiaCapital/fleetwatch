@@ -221,6 +221,56 @@ async def _live_assistant(settings: Settings, key: str, question: str, state: St
         return assistant.fallback(question, state, policy, None, None, "no_fleet").text
 
 
+def _approve_page(settings: Settings, replay: str | None):
+    """Build the v0.2 approval page. Replay: fake reads from DIR and a RecordingExecutor; the real executor is never
+    imported or built. Otherwise it refuses to start unless policy.yaml says autonomy: propose and a sandbox
+    sign-in exists."""
+    from fleetwatch.approve_page import ApprovePage, RecordingExecutor, seed_replay_sample
+    from fleetwatch.heartbeat import snapshot
+
+    tools = load_tools(settings.tool_policy_file)
+    if replay:
+        client = ReplayClient(Path(replay), tools)
+
+        async def read_replay():
+            async with client:
+                return await snapshot(client, datetime.now(UTC))
+
+        state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
+        page = ApprovePage(state, read_replay, RecordingExecutor(state), tools, settings.approve_port)
+        seed_replay_sample(state, tools, asyncio.run(read_replay()))
+        return page
+
+    policy = load_policy(settings.policy_file)
+    if not policy.proposes:
+        print("The approval page didn't start: policy.yaml says autonomy: observe. Set autonomy: propose to use it.")
+        raise SystemExit(2)
+    from fleetwatch.epiphan.executor import WriteExecutor, sandbox_store
+
+    store = sandbox_store(settings)
+    try:
+        signed_in = store.has_tokens() and not store.is_dead()
+    except Exception:  # noqa: BLE001 - an unreadable slot counts as no sign-in
+        signed_in = False
+    if not signed_in:
+        print(
+            "The approval page didn't start: there's no sandbox sign-in, so no change could run. "
+            "Sign in to the sandbox team first: fleetwatch login --sandbox"
+        )
+        raise SystemExit(2)
+    state = State(settings.state_db, check_same_thread=False)
+    executor = WriteExecutor(settings, state, policy=policy, tools=tools)
+
+    async def read_sandbox():
+        client = EpiphanClient(
+            settings.epiphan_mcp_url, tools, storage=store, callback_port=settings.oauth_callback_port
+        )
+        async with client:
+            return await snapshot(client, datetime.now(UTC))
+
+    return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port)
+
+
 async def _maybe_sweep(client, state: State, policy, notifier) -> None:
     from fleetwatch.sweep import due, post_pending, run_sweep
 
@@ -309,7 +359,20 @@ def main() -> None:
     )
     p.add_argument(
         "command",
-        choices=["login", "digest", "run", "status", "doctor", "logout", "ask", "sweep", "history", "note", "notes"],
+        choices=[
+            "login",
+            "digest",
+            "run",
+            "status",
+            "doctor",
+            "logout",
+            "ask",
+            "sweep",
+            "history",
+            "note",
+            "notes",
+            "approve",
+        ],
     )
     p.add_argument("question", nargs="*", help='ask: your question, e.g. fleetwatch ask "is Main Stage ready"')
     p.add_argument("--version", action="version", version=f"fleetwatch {_package_version()}")
@@ -320,14 +383,14 @@ def main() -> None:
     p.add_argument(
         "--replay",
         metavar="DIR",
-        help="digest, ask, sweep: use saved tool results from DIR instead of Epiphan (no sign-in)",
+        help="digest, ask, sweep, approve: use saved tool results from DIR instead of Epiphan (no sign-in)",
     )
     p.add_argument(
         "--capture",
         metavar="DIR",
         help="digest: also save every tool result, redacted, to DIR as replay files (keep DIR outside the repo)",
     )
-    p.add_argument("--serve", action="store_true", help="ask: open a local page with buttons on 127.0.0.1")
+    p.add_argument("--serve", action="store_true", help="ask, approve: open a local page on 127.0.0.1")
     p.add_argument(
         "--no-ai", action="store_true", help="ask: keyword answers only, even with FLEETWATCH_ANTHROPIC_API_KEY set"
     )
@@ -354,6 +417,12 @@ def main() -> None:
         if not args.question and not args.serve:
             p.error('ask needs a question, e.g. fleetwatch ask "what needs attention", or --serve for the page')
         asyncio.run(_ask(settings, " ".join(args.question), args.replay, args.serve, args.no_ai))
+    elif args.command == "approve":
+        if not args.serve:
+            p.error("approve needs --serve, e.g. fleetwatch approve --serve (add --replay tests/fixtures for a demo)")
+        from fleetwatch.approve_page import serve as serve_approve
+
+        serve_approve(_approve_page(settings, args.replay))
     elif args.command == "sweep":
         asyncio.run(_sweep(settings, args.replay))
     elif args.command == "history":

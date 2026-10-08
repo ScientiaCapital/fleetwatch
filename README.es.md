@@ -207,7 +207,8 @@ en [SECURITY.md](SECURITY.md) (en inglés). Reporta vulnerabilidades en privado 
 En desarrollo para v0.2. Si configuras `FLEETWATCH_ANTHROPIC_API_KEY`, `fleetwatch ask` usa Claude Haiku 5.5 para
 responder en palabras simples, en inglés o en español. Lee la flota con la misma protección de solo lectura. No
 puede cambiar nada: cuando `policy.yaml` dice `autonomy: propose`, lo más que puede hacer es guardar un cambio
-propuesto para que una persona lo apruebe, y la página de aprobación todavía no existe. Cuando está activo, tu
+propuesto para que una persona lo apruebe en una página local (`fleetwatch approve --serve`, ver
+[Approving changes](docs/approving-changes.md), en inglés). Cuando está activo, tu
 pregunta y los datos de la flota, con los secretos ocultos y con los nombres de equipos, canales y eventos, se envían
 a la API de Anthropic. Para apagarlo, deja vacía `FLEETWATCH_ANTHROPIC_API_KEY`, o usa `ask --no-ai` para una sola
 pregunta. Si no se puede llegar a la API, `ask` da la respuesta por palabras clave y lo dice. Hasta ahora solo se ha
