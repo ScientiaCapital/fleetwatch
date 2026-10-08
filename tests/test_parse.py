@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
 from tests.conftest import NOW
@@ -55,6 +55,17 @@ def test_system_status_shapes(fleet):
     s = fleet.system[dev.id]
     assert s.cpu_load_pct == 95 and s.cpu_temp_c == 61.5
     assert s.up_since is not None and (NOW - s.up_since).total_seconds() == 600
+
+
+def test_system_status_in_a_status_list_as_a_live_read_returns_it(fleet, caplog):
+    dev = next(d for d in fleet.devices.values() if d.online)
+    since = (NOW - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    raw = {"status": [{"device_id": dev.id, "cpu_load_pct": 12, "cpu_temp_c": 48, "uptime_since": since}]}
+    apply_system_status(fleet, raw)
+    s = fleet.system[dev.id]
+    assert s.cpu_load_pct == 12 and s.cpu_temp_c == 48
+    assert s.up_since is not None and abs((NOW - s.up_since).total_seconds() - 7200) < 2
+    assert "doesn't know" not in caplog.text
 
 
 def test_events_shapes(fleet):

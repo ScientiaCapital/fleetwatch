@@ -154,8 +154,8 @@ def _when(value: Any) -> datetime | None:
 
 
 def apply_system_status(fleet: Fleet, raw: Any) -> None:
-    """`get_system_status_for_devices` → CPU load, temperature, uptime start."""
-    items = raw.get("devices", raw) if isinstance(raw, dict) else raw
+    """`get_system_status_for_devices` → CPU load, temperature, uptime start. A live read returns a `status` list."""
+    items = raw.get("devices", raw.get("status", raw)) if isinstance(raw, dict) else raw
     tool = "get_system_status_for_devices"
     if not isinstance(items, (dict, list)):
         if items:
