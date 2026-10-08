@@ -181,8 +181,8 @@ def _post(page, path, sid, pid, purpose):
 
 
 def test_replay_chat_proposal_becomes_a_card_and_one_approval_records_one_write(tmp_path, no_real_executor):
-    """A mocked model proposes a change through the chat box; it appears as a card; Approve (then the confirm step a
-    disruptive change needs) records exactly one write; approving the same proposal again is refused."""
+    """A mocked model proposes a change through the chat box; it appears as a card; Approve (a start isn't
+    disruptive, so there's no confirm step) records exactly one write; approving the same proposal again is refused."""
     from tests.test_assistant import COURTROOM, COURTROOM_CH1, FakeAnthropic, propose, reply, text, tool_use
 
     fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("I proposed it.")))
@@ -201,9 +201,7 @@ def test_replay_chat_proposal_becomes_a_card_and_one_approval_records_one_write(
     card = page.render_card_page(sid, "en")
     assert COURTROOM in card and 'action="/approve"' in card
 
-    code, confirm = _post(page, "/approve", sid, pid, "card")
-    assert code == 200 and 'action="/confirm"' in confirm and page.executor.calls == []
-    code, done = _post(page, "/confirm", sid, pid, "confirm")
+    code, done = _post(page, "/approve", sid, pid, "card")  # a start isn't disruptive: no confirm step
     assert code == 200 and "Nothing was sent" in done
     assert page.executor.calls == [("batch_recording", canonical({"action": "start", "device_ids": [COURTROOM_CH1]}))]
 

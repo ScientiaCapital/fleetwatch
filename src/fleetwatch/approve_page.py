@@ -31,15 +31,15 @@ import time
 import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Protocol
 from urllib.parse import parse_qs
 
-from fleetwatch.epiphan.executor import Outcome
+from fleetwatch.epiphan.executor import Outcome, room_block
 from fleetwatch.model import Fleet
-from fleetwatch.policy import ToolPolicy, check_arguments
+from fleetwatch.policy import Policy, ToolPolicy, check_arguments
 from fleetwatch.proposals import BoundRecord, NotCanonical, ProposalRefused, parse_canonical, state_fingerprint
 from fleetwatch.redact import redact
 from fleetwatch.state import State
@@ -189,6 +189,10 @@ TEXT: dict[str, dict[str, str]] = {
         "what": "What happens",
         "undo": "How to undo it",
         "disruptive": "This change is disruptive. After Approve, you confirm it once more.",
+        "blocked_recording": "{room} is recording, so this change would be blocked.",
+        "blocked_live": "{room} has an event on now, so this change would be blocked.",
+        "blocked_soon": "{room} has an event that starts in {n} minutes, so this change would be blocked.",
+        "blocked_soon_one": "{room} has an event that starts in 1 minute, so this change would be blocked.",
         "reason": "Written by the assistant, not checked",
         "deny": "Deny",
         "approve": "Approve",
@@ -259,6 +263,10 @@ TEXT: dict[str, dict[str, str]] = {
         "what": "Qué pasa",
         "undo": "Cómo deshacerlo",
         "disruptive": "Este cambio interrumpe el servicio. Después de Aprobar, lo confirmas una vez más.",
+        "blocked_recording": "{room} está grabando, así que este cambio se bloquearía.",
+        "blocked_live": "{room} tiene un evento en curso, así que este cambio se bloquearía.",
+        "blocked_soon": "{room} tiene un evento que empieza en {n} minutos, así que este cambio se bloquearía.",
+        "blocked_soon_one": "{room} tiene un evento que empieza en 1 minuto, así que este cambio se bloquearía.",
         "reason": "Escrito por el asistente, sin verificar",
         "deny": "Rechazar",
         "approve": "Aprobar",
@@ -463,7 +471,9 @@ class ApprovePage:
         ask_fn: Callable[[str], str] | None = None,
         secret: str | None = None,
         clock: Callable[[], float] = time.monotonic,
+        policy: Policy | None = None,
     ):
+        self.lead_minutes = (policy or Policy()).lead_minutes  # the readiness window, unless a tool has its own
         self.state, self.read_fleet, self.executor, self.tools, self.port = state, read_fleet, executor, tools, port
         # Chat box hook: a later PR passes the v0.2 assistant (src/fleetwatch/assistant.py) in as `ask_fn`.
         self.ask_fn = ask_fn
@@ -541,7 +551,7 @@ class ApprovePage:
                 check_arguments(record.tool, rule, args)
             except ValueError:
                 why = t["not_rules"]
-        disruptive = self.tools.is_disruptive(record.tool)
+        disruptive = self.tools.is_disruptive(record.tool, args)
 
         fleet = self._fresh_fleet()
         rows, rooms = [], []
@@ -588,10 +598,29 @@ class ApprovePage:
             + (f"<h3>{_e(t['named'])}</h3><table>{named_rows}</table>" if named_rows else "")
             + f"<h3>{_e(t['what'])}</h3><p>{_e(what)}</p><h3>{_e(t['undo'])}</h3><p>{_e(undo)}</p>"
             + (f'<p class="note">{_e(t["disruptive"])}</p>' if disruptive else "")
+            + (self._blocked_notes(fleet, record, args, disruptive, t) if fleet else "")
             + (f'<p class="warn">{_e(why)}</p>' if why else "")
             + f'<section class="reason"><h3>{_e(t["reason"])}</h3><pre>{_e(clean_reason)}</pre></section>'
         )
         return Card(pid, body, not why, why, disruptive, name, ", ".join(rooms))
+
+    def _blocked_notes(
+        self, fleet: Fleet, record: BoundRecord, args: dict[str, Any], disruptive: bool, t: dict[str, str]
+    ) -> str:
+        """Information, not a gate: where the executor would refuse this change because of the room's state."""
+        if not disruptive:
+            return ""
+        lead = timedelta(minutes=self.tools.lead_minutes(record.tool, self.lead_minutes))
+        now, notes, stops = datetime.now(UTC), [], self.tools.stops_recording(record.tool, args)
+        for target in record.targets:
+            device = fleet.devices.get(target)
+            block = room_block(device, fleet.events.get(target), now, lead, stops) if device else None
+            if device is None or block is None:
+                continue
+            room = _visible(_cap(device.name, NAME_CAP))
+            key = "blocked_soon_one" if block.kind == "soon" and block.minutes == 1 else f"blocked_{block.kind}"
+            notes.append(f'<p class="warn">{_e(t[key].format(room=room, n=block.minutes))}</p>')
+        return "".join(notes)
 
     def _card_for(self, pid: int, lang: str) -> Card | None:
         for p, record, reason in self._pending():

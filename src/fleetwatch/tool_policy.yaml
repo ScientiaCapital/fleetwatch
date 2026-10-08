@@ -46,7 +46,8 @@ write:
   - batch_firmware_update
 
 # Writes that take a room offline or interrupt a class. Never on a live room or before an event.
-# The last four aren't reviewed yet, so they count as disruptive until they are (docs/design/approved-writes.md).
+# The last three aren't reviewed yet, so they count as disruptive until they are (docs/design/approved-writes.md).
+# batch_recording isn't here: only its stop is disruptive, which its propose entry says per action.
 disruptive:
   - batch_reboot
   - batch_firmware_update
@@ -54,7 +55,6 @@ disruptive:
   - stop_stream_endpoint
   - delete_cms_event
   - delete_stream_endpoint
-  - batch_recording
   - switch_device_to_cms
   - update_cms_event
   - cms_event_action
@@ -66,6 +66,13 @@ disruptive:
 # Each entry has:
 #   max_targets  how many devices one proposal may touch (1 or more)
 #   disruptive   true or false; left out means true. A tool on the disruptive list above can't say false.
+#   disruptive_when  optional, with disruptive: true. One enum field of the schema and the values of it that are
+#                disruptive, as in {action: [stop]}. Any other known value is calm. A missing or unknown value, or a
+#                tool left without this key, counts as disruptive. Not allowed on a tool on the disruptive list.
+#   stops_recording  optional. The same shape: the action that ends a recording. Every other disruptive change is
+#                refused while the room is recording; this one is refused only for an event on now or inside the window.
+#   lead_minutes optional. How long before an event a disruptive call is refused; left out means policy.yaml's
+#                lead_minutes. For a tool that can still be running when the event starts, such as a firmware update.
 #   schema       the arguments, or pending-live-run. A pending tool loads but can't be proposed.
 #
 # A reviewed schema looks like this. version starts at 1; raise it whenever that schema's fields change, because
@@ -97,17 +104,20 @@ disruptive:
 # can't show in full); create_/update_/delete_cms_event, cms_event_action, delete_stream_endpoint,
 # apply_team_preset and switch_device_to_cms (not reviewed yet).
 #
-# FLEETWATCH_TOOL_POLICY_FILE may remove entries, lower max_targets, turn disruptive on, or set a schema back to
-# pending. It can't add an entry, raise max_targets, turn disruptive off, or change a schema. A narrowing file
+# FLEETWATCH_TOOL_POLICY_FILE may remove entries, lower max_targets, turn disruptive on, widen disruptive_when, raise
+# lead_minutes, or set a schema back to pending. It can't add an entry, raise max_targets, turn disruptive off, make a
+# disruptive action calm, add stops_recording, shorten lead_minutes, or change a schema. A narrowing file
 # with no propose section proposes nothing.
 propose:
   batch_recording:
     max_targets: 1
-    # Stopping a recording ends a class's capture. The format has one disruptive flag per tool, not one per action,
-    # so the whole tool counts as disruptive (it's on the disruptive list too), start included. pause and resume
-    # are left out: not every device supports them, and the card can't tell in advance whether this one does.
+    # Stopping a recording ends a class's capture, so stop is disruptive. Starting one only adds a recording, so
+    # it can run while an event is about to start. pause and resume are left out: not every device supports them,
+    # and the card can't tell in advance whether this one does.
     # Errors come back as a map of device ID to error; no entry means that device worked.
     disruptive: true
+    disruptive_when: {action: [stop]}
+    stops_recording: {action: [stop]}  # a stop isn't refused for the recording it ends, only for an event
     schema:
       version: 1
       target: device_ids
@@ -162,6 +172,7 @@ propose:
   batch_firmware_update:
     max_targets: 1
     disruptive: true  # the device reboots as part of the update and is offline for a few minutes
+    lead_minutes: 120  # an update can still be running well past the usual window
     schema:
       version: 1
       target: device_ids

@@ -703,3 +703,102 @@ def test_recording_executor_records_and_never_writes():
     assert rec.calls == [("batch_reboot", canonical({"device_ids": [ROOM]}))]
     assert asyncio.run(rec.execute(record)).status == "refused"  # claimed once only
     assert len(rec.calls) == 1
+
+
+# --- the card says when the executor would refuse (#100) -----------------------------------------------------------
+def _soon(minutes: float):
+    from datetime import timedelta
+
+    from fleetwatch.model import Event
+
+    return Event(ROOM, "Weekly review", datetime.now(UTC) + timedelta(minutes=minutes))
+
+
+def _get(harness, language=None):
+    cookie = _login(harness)
+    headers = {"Host": f"127.0.0.1:{harness.port}", "Cookie": cookie}
+    if language:
+        headers["Accept-Language"] = language
+    c = http.client.HTTPConnection("127.0.0.1", harness.port, timeout=5)
+    c.request("GET", "/", headers=headers)
+    return c.getresponse().read().decode()
+
+
+REC_STOP = {"action": "stop", "device_ids": [f"{ROOM}-1"]}
+REC_START = {"action": "start", "device_ids": [f"{ROOM}-1"]}
+
+
+def test_card_warns_when_a_stop_would_be_blocked_by_an_event_starting_soon(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(12.5)
+    harness.add("batch_recording", REC_STOP)
+    body = _get(harness)
+    assert "starts in 13 minutes" in body and "would be blocked" in body
+    assert 'action="/approve"' in body, "information, not a new gate: it can still be approved"
+
+
+def test_card_does_not_warn_for_a_start_before_an_event(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(12)
+    harness.add("batch_recording", REC_START)
+    body = _get(harness)
+    assert "would be blocked" not in body and "disruptive" not in body
+    assert 'action="/approve"' in body
+
+
+def test_card_warns_when_the_room_is_recording(harness):
+    harness.fleet_box[0].devices[ROOM].channels["1"].recording = True
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    body = _get(harness)
+    assert "is recording, so this change would be blocked" in body
+
+
+def test_card_warns_when_an_event_is_on_now(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(-5)
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    assert "has an event on now, so this change would be blocked" in _get(harness)
+
+
+def test_card_uses_the_default_window_for_a_reboot(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(60)
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    assert "would be blocked" not in _get(harness), "60 minutes is outside the usual 30"
+
+
+def test_card_uses_the_firmware_update_window(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(60)
+    harness.add("batch_firmware_update", {"device_ids": [ROOM]})
+    assert "would be blocked" in _get(harness), "firmware's window is 120"
+
+
+def test_card_does_not_warn_when_the_room_is_free(harness):
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    assert "would be blocked" not in _get(harness)
+
+
+def test_card_warning_in_spanish(harness):
+    harness.fleet_box[0].events[ROOM] = _soon(12.5)
+    harness.add("batch_recording", REC_STOP)
+    body = _get(harness, "es-MX")
+    assert "empieza en 13 minutos" in body and "se bloquearía" in body
+
+
+def test_card_warning_escapes_the_room_name(harness):
+    harness.fleet_box[0].devices[ROOM].name = "<b>Room</b> & co"
+    harness.fleet_box[0].events[ROOM] = _soon(12)
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    body = _get(harness)
+    assert "would be blocked" in body and "<b>Room</b>" not in body and "&lt;b&gt;Room&lt;/b&gt;" in body
+
+
+def test_card_does_not_warn_for_stopping_a_manual_recording(harness):
+    harness.fleet_box[0].devices[ROOM].channels["1"].recording = True
+    harness.add("batch_recording", REC_STOP)
+    body = _get(harness)
+    assert "would be blocked" not in body and 'action="/approve"' in body
+
+
+def test_card_warns_for_stopping_a_recording_while_an_event_is_on(harness):
+    harness.fleet_box[0].devices[ROOM].channels["1"].recording = True
+    harness.fleet_box[0].events[ROOM] = _soon(-5)
+    harness.add("batch_recording", REC_STOP)
+    body = _get(harness)
+    assert "has an event on now, so this change would be blocked" in body and "is recording" not in body

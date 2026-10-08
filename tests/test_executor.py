@@ -397,6 +397,45 @@ async def test_an_event_on_the_target_device_runs(edge, sandbox, tools):
     assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
 
 
+def _event_in(edge, minutes: int) -> str:
+    start = (datetime.now(UTC) + timedelta(minutes=minutes)).replace(microsecond=0)
+    edge.event = {"id": "e1", "title": "Weekly review", "start": start.isoformat(), "end": None}
+    return start.isoformat()
+
+
+async def test_a_recording_start_before_an_event_runs(edge, sandbox, tools):
+    fp = _fp(next_event_start=_event_in(edge, 10))
+    state = State()
+    args = {"action": "start", "device_ids": [f"{ROOM}-1"]}
+    record, _ = _approved(state, tool="batch_recording", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "ok", out.detail
+    assert edge.writes == [("batch_recording", args)]
+
+
+async def test_a_recording_stop_before_an_event_is_refused(edge, sandbox, tools):
+    fp = _fp(next_event_start=_event_in(edge, 10))
+    state = State()
+    args = {"action": "stop", "device_ids": [f"{ROOM}-1"]}
+    record, _ = _approved(state, tool="batch_recording", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "starts within" in out.detail
+    assert edge.writes == []
+
+
+async def test_a_firmware_update_uses_its_longer_window(edge, sandbox, tools):
+    fp = _fp(next_event_start=_event_in(edge, 60))  # outside the usual 30 minutes, inside the firmware 120
+    state = State()
+    args = {"device_ids": [ROOM]}
+    record, _ = _approved(state, tool="batch_firmware_update", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "120 minutes" in out.detail
+    assert edge.writes == []
+    # The same event doesn't stop a reboot, which has no window of its own.
+    record, _ = _approved(state, tool="batch_reboot", fp=fp)
+    assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
+
+
 async def test_a_failed_read_fails_closed(edge, sandbox, tools):
     edge.fail_reads = {"get_recorder_status_for_devices"}
     state = State()
@@ -595,3 +634,77 @@ async def test_an_unexpected_failure_never_raises_with_a_secret(edge, sandbox, t
     assert out.status == "refused" and "hunter2" not in out.detail
     assert edge.writes == []
     assert "hunter2" not in json.dumps(state.recent_audit("execution_refused"), default=str)
+
+
+# --- room_block: the one rule the executor refuses on and the approval card warns with ---------------------------
+def _room(*, recording=False, online=True):
+    from fleetwatch.model import Channel, Device
+
+    channel = Channel("1", "Lecture", recording=recording)
+    return Device(ROOM, "Room 204 Pearl Mini", "Pearl Mini", online=online, channels={"1": channel})
+
+
+def _ev(now, start_min, end_min=None):
+    from fleetwatch.model import Event
+
+    end = None if end_min is None else now + timedelta(minutes=end_min)
+    return Event(ROOM, "Weekly review", now + timedelta(minutes=start_min), end)
+
+
+def test_room_block_says_why_in_one_place():
+    from fleetwatch.epiphan.executor import RoomBlock, room_block
+
+    now, lead = datetime.now(UTC), timedelta(minutes=30)
+    assert room_block(_room(), None, now, lead) is None
+    assert room_block(_room(), _ev(now, 5 * 60), now, lead) is None
+    assert room_block(_room(recording=True), None, now, lead) == RoomBlock("recording")
+    assert room_block(_room(), _ev(now, 12, 60), now, lead) == RoomBlock("soon", 12)
+    assert room_block(_room(), _ev(now, 11.5), now, lead) == RoomBlock("soon", 12), "rounds up"
+    assert room_block(_room(), _ev(now, -5, 55), now, lead) == RoomBlock("live")
+    assert room_block(_room(), _ev(now, -5), now, lead) == RoomBlock("live"), "no end time: still on"
+    assert room_block(_room(), _ev(now, -90, -30), now, lead) is None, "over"
+    assert room_block(_room(), _ev(now, 90), now, timedelta(minutes=120)) == RoomBlock("soon", 90)
+
+
+def test_room_block_lets_a_stop_through_a_recording_but_not_an_event():
+    from fleetwatch.epiphan.executor import RoomBlock, room_block
+
+    now, lead = datetime.now(UTC), timedelta(minutes=30)
+    recording = _room(recording=True)
+    assert room_block(recording, None, now, lead, stops_recording=True) is None
+    assert room_block(recording, _ev(now, 5 * 60), now, lead, stops_recording=True) is None
+    assert room_block(recording, _ev(now, 12), now, lead, stops_recording=True) == RoomBlock("soon", 12)
+    assert room_block(recording, _ev(now, -5, 55), now, lead, stops_recording=True) == RoomBlock("live")
+    assert room_block(recording, None, now, lead) == RoomBlock("recording"), "everything else still refuses"
+
+
+async def test_stopping_a_manual_recording_with_no_event_runs(edge, sandbox, tools):
+    edge.recording = True
+    state = State()
+    args = {"action": "stop", "device_ids": [f"{ROOM}-1"]}
+    record, _ = _approved(state, tool="batch_recording", args=args, fp=_fp(recording=True))
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "ok", out.detail
+    assert edge.writes == [("batch_recording", args)]
+
+
+async def test_stopping_a_recording_while_an_event_is_on_is_refused(edge, sandbox, tools):
+    edge.recording = True
+    fp = _fp(recording=True, next_event_start=_event_in(edge, -5))
+    state = State()
+    args = {"action": "stop", "device_ids": [f"{ROOM}-1"]}
+    record, _ = _approved(state, tool="batch_recording", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "on now" in out.detail
+    assert edge.writes == []
+
+
+async def test_stopping_a_recording_before_an_event_inside_the_window_is_refused(edge, sandbox, tools):
+    edge.recording = True
+    fp = _fp(recording=True, next_event_start=_event_in(edge, 10))
+    state = State()
+    args = {"action": "stop", "device_ids": [f"{ROOM}-1"]}
+    record, _ = _approved(state, tool="batch_recording", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "starts within" in out.detail
+    assert edge.writes == []

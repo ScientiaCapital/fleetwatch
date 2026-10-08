@@ -7,6 +7,7 @@ from datetime import time
 from importlib.resources import files
 from pathlib import Path
 from types import MappingProxyType
+from typing import Any
 
 import yaml
 
@@ -107,7 +108,8 @@ _FIELD_KEYS = {
     "enum": {"type", "required", "values"},
     "list": {"type", "required", "items", "max_items"},
 }
-_ENTRY_KEYS = {"max_targets", "disruptive", "schema"}
+_ENTRY_KEYS = {"max_targets", "disruptive", "disruptive_when", "stops_recording", "lead_minutes", "schema"}
+MAX_LEAD_MINUTES = 1440
 _SCHEMA_KEYS = {"version", "target", "fields"}
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -137,6 +139,12 @@ class ProposeRule:
     max_targets: int
     disruptive: bool
     schema: ArgSchema | None  # None: pending until the first live run
+    # Per-action rule: (enum field, the values that make a call disruptive). None: every call is disruptive.
+    disruptive_when: tuple[str, frozenset[str]] | None = None
+    # The action that ends a recording, as (enum field, values): the room being busy recording doesn't block it
+    # (an event on now or starting soon still does). None: nothing this tool does ends a recording.
+    stops_recording: tuple[str, frozenset[str]] | None = None
+    lead_minutes: int | None = None  # this tool's readiness window; None: the policy's lead_minutes
 
     @property
     def pending(self) -> bool:
@@ -158,10 +166,48 @@ class ToolPolicy:
         rule = self.propose.get(tool)
         return rule is not None and not rule.pending and tool in self.write and tool not in self.read
 
-    def is_disruptive(self, tool: str) -> bool:
-        """On the disruptive list, or not reviewed: not listed under `propose`, pending, or marked disruptive."""
+    def is_disruptive(self, tool: str, arguments: Any = None) -> bool:
+        """On the disruptive list, or not reviewed: not listed under `propose`, pending, or marked disruptive.
+
+        With a `disruptive_when` rule, a call is calm only when its arguments carry a value of that field that the
+        schema knows and the rule doesn't name. A missing field, an unknown value, or no arguments at all is
+        disruptive."""
         rule = self.propose.get(tool)
-        return tool in self.disruptive or rule is None or rule.pending or rule.disruptive
+        if tool in self.disruptive or rule is None or rule.pending:
+            return True
+        return _action_disruptive(rule, arguments) if rule.disruptive else False
+
+    def stops_recording(self, tool: str, arguments: Any = None) -> bool:
+        """Does this call end a recording? Only when the rule names the action and the arguments carry it; a missing
+        or unknown value, or no arguments, is False, so the room's recording state blocks as it does for any change."""
+        rule = self.propose.get(tool)
+        if rule is None or rule.schema is None or rule.stops_recording is None:
+            return False
+        return _action_in(rule.schema, rule.stops_recording, arguments)
+
+    def lead_minutes(self, tool: str, default: int) -> int:
+        """The readiness window for this tool: its own `lead_minutes`, or `default` (policy.yaml's)."""
+        rule = self.propose.get(tool)
+        return default if rule is None or rule.lead_minutes is None else rule.lead_minutes
+
+
+def _action_in(schema: ArgSchema, rule: tuple[str, frozenset[str]], arguments: Any) -> bool:
+    """Do the arguments carry a value the schema knows for the rule's field, and does the rule name it?"""
+    if not isinstance(arguments, Mapping):
+        return False
+    name, values = rule
+    spec, given = schema.fields.get(name), arguments.get(name)
+    return spec is not None and isinstance(given, str) and given in spec.values and given in values
+
+
+def _action_disruptive(rule: ProposeRule, arguments: Any) -> bool:
+    if rule.disruptive_when is None or rule.schema is None:
+        return True
+    name, values = rule.disruptive_when
+    spec, given = rule.schema.fields.get(name), (arguments.get(name) if isinstance(arguments, Mapping) else None)
+    if spec is None or not isinstance(given, str) or given not in spec.values:
+        return True  # missing, unknown or unreadable: disruptive
+    return given in values
 
 
 def _check_value(spec: FieldSpec, value, where: str) -> None:
@@ -352,6 +398,46 @@ def _schema(raw, where: str, max_targets: int) -> ArgSchema | None:
     return ArgSchema(version=version, target=target, fields=MappingProxyType(fields))
 
 
+def _disruptive_when(
+    raw, at: str, schema: ArgSchema | None, flag: bool, listed: bool
+) -> tuple[str, frozenset[str]] | None:
+    """`disruptive_when: {action: [stop]}`: one enum field of the schema and the values that make a call disruptive."""
+    if raw is None:
+        return None
+    where = f"{at}.disruptive_when"
+    if schema is None:
+        raise ValueError(f"{where}: needs a reviewed schema, not {PENDING}")
+    if not flag:
+        raise ValueError(f"{where}: only makes sense on a tool that is disruptive; drop it or say disruptive: true")
+    if listed:
+        raise ValueError(f"{where}: the tool is on the disruptive list, so every call is disruptive")
+    return _field_values(raw, where, schema)
+
+
+def _stops_recording(raw, at: str, schema: ArgSchema | None) -> tuple[str, frozenset[str]] | None:
+    """`stops_recording: {action: [stop]}`: the action that ends a recording."""
+    if raw is None:
+        return None
+    where = f"{at}.stops_recording"
+    if schema is None:
+        raise ValueError(f"{where}: needs a reviewed schema, not {PENDING}")
+    return _field_values(raw, where, schema)
+
+
+def _field_values(raw, where: str, schema: ArgSchema) -> tuple[str, frozenset[str]]:
+    if not isinstance(raw, dict) or len(raw) != 1:
+        raise ValueError(f"{where} must name exactly one field, as in {{action: [stop]}}")
+    ((name, values),) = raw.items()
+    spec = schema.fields.get(str(name))
+    if spec is None or spec.type != "enum":
+        raise ValueError(f"{where}: {name!r} must be an enum field in the schema")
+    if not isinstance(values, list) or not values or not all(isinstance(v, str) for v in values):
+        raise ValueError(f"{where}.{name} must be a non-empty list of text values")
+    if unknown := sorted(set(values) - set(spec.values)):
+        raise ValueError(f"{where}.{name}: not values of that field: {', '.join(unknown)}")
+    return str(name), frozenset(values)
+
+
 def _propose(
     raw, where: str, read: frozenset[str], write: frozenset[str], disruptive: frozenset[str]
 ) -> Mapping[str, ProposeRule]:
@@ -380,7 +466,15 @@ def _propose(
             raise ValueError(f"{at}: is on the disruptive list, so it can't say disruptive: false")
         if "schema" not in entry:
             raise ValueError(f"{at}: schema is required ({PENDING} until the first live run)")
-        rules[str(tool)] = ProposeRule(max_targets, flag, _schema(entry["schema"], at, max_targets))
+        schema = _schema(entry["schema"], at, max_targets)
+        when = _disruptive_when(entry.get("disruptive_when"), at, schema, flag, tool in disruptive)
+        lead = None
+        if "lead_minutes" in entry:
+            lead = _positive_int(entry["lead_minutes"], f"{at}.lead_minutes")
+            if lead > MAX_LEAD_MINUTES:
+                raise ValueError(f"{at}: lead_minutes can be at most {MAX_LEAD_MINUTES}, not {lead}")
+        stops = _stops_recording(entry.get("stops_recording"), at, schema)
+        rules[str(tool)] = ProposeRule(max_targets, flag, schema, when, stops, lead)
     return MappingProxyType(rules)
 
 
@@ -425,8 +519,32 @@ def _narrow_propose(base: ToolPolicy, mine: ToolPolicy, where: str) -> None:
             )
         if was.disruptive and not rule.disruptive:
             raise ValueError(f"{where}: propose.{tool} is disruptive in Fleetwatch's file; it can't be turned off")
+        _narrow_action_rules(was, rule, tool, where)
         if rule.schema is not None and not _narrower_schema(rule.schema, was.schema):
             raise ValueError(f"{where}: propose.{tool}.schema must match Fleetwatch's, or be {PENDING}")
+
+
+def _narrow_action_rules(was: ProposeRule, rule: ProposeRule, tool: str, where: str) -> None:
+    """The per-action rule can only get stricter, and the readiness window only longer."""
+    if was.disruptive_when is not None and rule.disruptive_when is not None:
+        (was_field, was_values), (field_, values) = was.disruptive_when, rule.disruptive_when
+        if field_ != was_field or not was_values <= values:
+            raise ValueError(
+                f"{where}: propose.{tool}.disruptive_when can't make an action calm that Fleetwatch's file calls disruptive"
+            )
+    elif was.disruptive_when is None and rule.disruptive_when is not None and was.disruptive:
+        raise ValueError(
+            f"{where}: propose.{tool}.disruptive_when can't be added: every call is disruptive in Fleetwatch's file"
+        )
+    if rule.stops_recording is not None:
+        if was.stops_recording is None or rule.stops_recording[0] != was.stops_recording[0]:
+            raise ValueError(f"{where}: propose.{tool}.stops_recording can't be added: Fleetwatch's file has none")
+        if not rule.stops_recording[1] <= was.stops_recording[1]:
+            raise ValueError(f"{where}: propose.{tool}.stops_recording can't name more actions than Fleetwatch's file")
+    if rule.pending:
+        return  # can't be proposed, so its window never applies
+    if was.lead_minutes is not None and (rule.lead_minutes is None or rule.lead_minutes < was.lead_minutes):
+        raise ValueError(f"{where}: propose.{tool}.lead_minutes can only go up (Fleetwatch uses {was.lead_minutes})")
 
 
 def _narrower_schema(mine: ArgSchema, base: ArgSchema | None) -> bool:
