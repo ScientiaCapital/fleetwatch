@@ -1,5 +1,6 @@
 """The agent can only ever call read tools. The guard lives in the client, before anything reaches the network."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -60,3 +61,55 @@ def test_propose_tools_never_reach_the_read_list():
     tools = load_tool_policy(ROOT / "tool_policy.yaml")
     assert not set(tools.propose) & tools.read
     assert not tools.read & KNOWN_WRITE_TOOLS
+
+
+SRC = ROOT / "src" / "fleetwatch"
+# The only two places an MCP tool may be called: the read-only client (behind guard()) and the v0.2 write executor.
+CALLERS = {SRC / "epiphan" / "mcp.py", SRC / "epiphan" / "executor.py"}
+
+
+def test_call_tool_is_used_only_by_the_two_client_classes():
+    """A new `call_tool` anywhere else would be a path to Epiphan that skips both guard() and the executor's checks."""
+    found = sorted(
+        str(path.relative_to(ROOT))
+        for path in SRC.rglob("*.py")
+        if path not in CALLERS and "call_tool" in path.read_text(encoding="utf-8")
+    )
+    assert found == [], f"call_tool referenced outside mcp.py and executor.py: {found}"
+    assert all("call_tool" in p.read_text(encoding="utf-8") for p in CALLERS)
+
+
+class _RecordingSDK:
+    def __init__(self):
+        self.calls = []
+
+    async def call_tool(self, tool, arguments):
+        self.calls.append(tool)
+        raise AssertionError(f"{tool} reached the session")
+
+
+async def test_epiphan_client_refuses_every_write_even_with_propose_and_a_sandbox_sign_in(tmp_path):
+    """autonomy: propose and a sandbox sign-in change nothing for EpiphanClient: writes go only through the
+    executor, never through call()."""
+    from fleetwatch.config import Settings
+    from fleetwatch.epiphan.executor import sandbox_store
+
+    p = tmp_path / "policy.yaml"
+    p.write_text("autonomy: propose\n")
+    assert load_policy(p).proposes
+    s = Settings(
+        _env_file=None,
+        token_store="file",
+        token_file=tmp_path / "epiphan-oauth.json",
+        sandbox_token_file=tmp_path / "epiphan-sandbox-oauth.json",
+    )
+    s.sandbox_token_file.write_text(json.dumps({"tokens": {"access_token": "FAKESANDBOX", "token_type": "Bearer"}}))
+    store = sandbox_store(s)
+    assert store.has_tokens()
+    tools = load_tool_policy(ROOT / "tool_policy.yaml")
+    client = EpiphanClient("https://example.invalid/mcp", tools, storage=store)
+    client._client = sdk = _RecordingSDK()
+    for tool in sorted(KNOWN_WRITE_TOOLS | tools.write | set(tools.propose)):
+        with pytest.raises(ToolNotAllowed):
+            await client.call(tool, {"device_ids": ["0a1b2c3d"]})
+    assert sdk.calls == []

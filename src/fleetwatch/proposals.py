@@ -27,7 +27,10 @@ import json
 import math
 import secrets
 from dataclasses import dataclass
+from datetime import UTC
 from typing import Any
+
+from fleetwatch.model import Fleet
 
 _SECRET = secrets.token_bytes(32)
 
@@ -120,6 +123,24 @@ def normalize_fingerprint(targets: tuple[str, ...], fingerprint: dict[str, Any])
         if entry["next_event_start"] is not None and not isinstance(entry["next_event_start"], str):
             raise NotCanonical(f"fingerprint for {target!r}: next_event_start must be text or null")
         out[target] = {k: entry[k] for k in FINGERPRINT_FIELDS}
+    return out
+
+
+def state_fingerprint(fleet: Fleet, targets: tuple[str, ...] | list[str]) -> dict[str, dict[str, Any]]:
+    """Each target's online status, recording flag and next event start (UTC, ISO 8601, or None), from a fleet
+    that was just read. The same function makes the fingerprint at proposal time and checks it at run time.
+    Raises NotCanonical when a target isn't in the fleet."""
+    out: dict[str, dict[str, Any]] = {}
+    for target in targets:
+        device = fleet.devices.get(target)
+        if device is None:
+            raise NotCanonical(f"{target!r} isn't in the device list that was read")
+        event = fleet.events.get(target)
+        out[target] = {
+            "next_event_start": event.start.astimezone(UTC).isoformat() if event else None,
+            "online": device.online,
+            "recording": device.recording,
+        }
     return out
 
 

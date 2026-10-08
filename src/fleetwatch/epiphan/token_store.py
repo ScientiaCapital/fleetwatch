@@ -37,6 +37,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 STORES = ("auto", "file", "keychain", "systemd-creds")
 SERVICE = "fleetwatch-epiphan"  # Keychain service name and systemd-creds credential name
+SANDBOX_SERVICE = "fleetwatch-epiphan-sandbox"  # the v0.2 sandbox sign-in's own slot, never shared with SERVICE
 CHUNK = 1500  # bytes of JSON per Keychain item: 3000 hex chars, well inside a 4095-char `security -i` line
 NOT_FOUND = 44  # `security` exit code for "item not found"
 TIMEOUT_S = 30
@@ -325,13 +326,13 @@ class KeychainTokenStorage(_JsonStore):
 class SystemdCredsTokenStorage(_JsonStore):
     """A file encrypted with `systemd-creds --user`: only this user on this machine can decrypt it."""
 
-    def __init__(self, path: Path, legacy: Path | None = None):
-        self.path, self.legacy = path, legacy
+    def __init__(self, path: Path, legacy: Path | None = None, name: str = SERVICE):
+        self.path, self.legacy, self.name = path, legacy, name
         self.lock_path = path.with_suffix(".lock")
         self.where = f"{path} (systemd-creds, encrypted)"
 
     def _creds(self, verb: str, src: str, dst: str, stdin: str | None = None) -> str:
-        r = _run(["systemd-creds", verb, "--user", f"--name={SERVICE}", src, dst], stdin=stdin)
+        r = _run(["systemd-creds", verb, "--user", f"--name={self.name}", src, dst], stdin=stdin)
         if r.returncode:
             raise TokenStoreError(f"systemd-creds {verb}: {r.stderr.strip() or f'exited {r.returncode}'}")
         return r.stdout
@@ -369,8 +370,10 @@ def systemd_creds_version() -> int | None:
     return int(m.group(1)) if m else None
 
 
-def make_token_store(kind: str, token_file: Path) -> TokenStore:
-    """Build the store `FLEETWATCH_TOKEN_STORE` names. `token_file` is the file store, and the file others move from."""
+def make_token_store(kind: str, token_file: Path, service: str = SERVICE) -> TokenStore:
+    """Build the store `FLEETWATCH_TOKEN_STORE` names. `token_file` is the file store, and the file others move from.
+    `service` names the Keychain item and the systemd-creds credential: the sandbox slot passes SANDBOX_SERVICE, so
+    the two sign-ins never share a Keychain entry."""
     if kind not in STORES:
         raise ValueError(f"FLEETWATCH_TOKEN_STORE={kind!r}: use one of {', '.join(STORES)}")
     has_creds = sys.platform == "linux" and (systemd_creds_version() or 0) >= 256
@@ -382,9 +385,9 @@ def make_token_store(kind: str, token_file: Path) -> TokenStore:
     if kind == "keychain":
         if sys.platform != "darwin":
             raise ValueError("FLEETWATCH_TOKEN_STORE=keychain works on macOS only")
-        return KeychainTokenStorage(legacy=token_file)
+        return KeychainTokenStorage(service=service, legacy=token_file)
     if kind == "systemd-creds":
         if not has_creds:
             raise ValueError("FLEETWATCH_TOKEN_STORE=systemd-creds needs Linux with systemd 256 or later")
-        return SystemdCredsTokenStorage(token_file.with_suffix(".cred"), legacy=token_file)
+        return SystemdCredsTokenStorage(token_file.with_suffix(".cred"), legacy=token_file, name=service)
     return FileTokenStorage(token_file)

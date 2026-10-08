@@ -16,6 +16,7 @@ def settings(tmp_path: Path, **kw) -> Settings:
         "tool_policy_file": ROOT / "tool_policy.yaml",
         "state_db": tmp_path / "state.db",
         "token_file": tmp_path / "epiphan-oauth.json",
+        "sandbox_token_file": tmp_path / "epiphan-sandbox-oauth.json",
         "token_store": "file",  # never the real keychain from a test
         "slack_bot_token": None,
         "teams_webhook_url": None,
@@ -261,3 +262,22 @@ def test_doctor_never_prints_the_anthropic_key(tmp_path, capsys):
     signed_in(tmp_path)
     print_report(run(settings(tmp_path, anthropic_api_key="sk-ant-api03-FAKEDOCTOR")))
     assert "FAKEDOCTOR" not in capsys.readouterr().out
+
+
+def test_no_sandbox_sign_in_says_no_change_can_run(tmp_path):
+    c = by_name(run(settings(tmp_path)))["Sandbox sign-in"]
+    assert c.status == INFO and c.detail == "none, so no change can run"
+
+
+def test_a_sandbox_sign_in_is_shown_without_the_token(tmp_path):
+    f = tmp_path / "epiphan-sandbox-oauth.json"
+    f.write_text(json.dumps({"tokens": {"access_token": "FAKESANDBOX", "token_type": "Bearer"}}))
+    os.chmod(f, 0o600)
+    c = by_name(run(settings(tmp_path)))["Sandbox sign-in"]
+    assert c.status == INFO and "signed in" in c.detail and str(f) in c.detail
+    assert "FAKESANDBOX" not in c.detail
+
+
+def test_a_sandbox_slot_that_is_the_normal_file_fails(tmp_path):
+    c = by_name(run(settings(tmp_path, sandbox_token_file=tmp_path / "epiphan-oauth.json")))["Sandbox sign-in"]
+    assert c.status == FAIL and "different file" in c.detail

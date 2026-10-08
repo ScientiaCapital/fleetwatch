@@ -63,6 +63,7 @@ _TEXT_CAP = 500
 _ADDED_COLUMNS = {
     "findings": ("impact TEXT", "fix TEXT"),
     "readiness": ("device_id TEXT", "device_name TEXT", "title TEXT", "start TEXT", "notes TEXT"),
+    "approvals": ("started_at INTEGER",),  # set once, when the write executor takes a consumed approval
 }
 
 
@@ -485,6 +486,26 @@ class State:
         self.audit("consumed", {"approval_id": approval_id, **_audit_record(record)})
         return record
 
+    def claim(self, record: BoundRecord) -> int | None:
+        """The write executor takes a record that consume() returned, once. Returns its approval ID, or None when
+        the record isn't exactly what was stored and signed (its keyed hash doesn't match), its approval wasn't
+        consumed, or it was already claimed or has an outcome. One UPDATE marks it started, so two callers holding
+        the same record can't both run it."""
+        with self._immediate():
+            row = self.db.execute(
+                "SELECT p.*, a.id AS approval_id FROM proposals p JOIN approvals a ON a.proposal_id = p.id"
+                " WHERE p.id=? AND p.status='consumed' AND a.consumed_at IS NOT NULL",
+                (record.proposal_id,),
+            ).fetchone()
+            if row is None or not _signed(record, row["mac"]) or self._checked_record(row) != record:
+                return None
+            changed = self.db.execute(
+                f"UPDATE approvals SET started_at={_DB_NOW}"
+                " WHERE id=? AND consumed_at IS NOT NULL AND outcome IS NULL AND started_at IS NULL",
+                (row["approval_id"],),
+            ).rowcount
+        return int(row["approval_id"]) if changed == 1 else None
+
     def record_outcome(self, approval_id: int, outcome: str, detail: str = "") -> bool:
         """What happened after a consumed approval: ok, error or unknown. Recorded once, and final. `unknown`
         means the write may or may not have happened; it is never retried. False if an outcome is already
@@ -604,6 +625,14 @@ def _clean_text(text: str | None) -> str:
     """Untrusted free text (the model's reason, an error message): redacted, then capped."""
     cleaned = redact(str(text or ""))
     return cleaned if len(cleaned) <= _TEXT_CAP else cleaned[: _TEXT_CAP - 1] + "…"
+
+
+def _signed(record: BoundRecord, mac: str | None) -> bool:
+    """verify(), but a record too malformed to hash is simply not signed."""
+    try:
+        return verify(record, mac or "")
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 def _session_tag(page_session: str) -> str:

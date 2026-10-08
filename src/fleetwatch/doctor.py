@@ -152,6 +152,27 @@ def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
     return Check("Token expiry", OK, f"{local} (refreshes itself before then)")
 
 
+def _sandbox(s: Settings) -> Check:
+    """The v0.2 sandbox sign-in, in its own slot: the only sign-in an approved change may run on. Offline; never
+    shows the token. INFO either way: with none, nothing can change, which is what v0.1 wants."""
+    from fleetwatch.epiphan.executor import sandbox_store
+
+    name = "Sandbox sign-in"
+    try:
+        store = sandbox_store(s)
+        signed_in = store.has_tokens()
+    except ValueError as e:  # the slot is the normal sign-in's file, or the store kind is wrong
+        return Check(name, FAIL, str(e))
+    except TokenStoreError as e:
+        return Check(name, WARN, str(e))
+    if not signed_in:
+        return Check(name, INFO, "none, so no change can run")
+    if isinstance(store, FileTokenStorage) and stat.S_IMODE(os.stat(store.path).st_mode) & 0o077:
+        f = store.path
+        return Check(name, FAIL, f"{f} is readable by other users: run  chmod 600 {f}")
+    return Check(name, INFO, f"signed in, token in {store.where}; only changes a person approves (v0.2) use it")
+
+
 def _state_dir(s: Settings) -> Check:
     d = s.state_db.parent
     if d.exists() and not os.access(d, os.W_OK):
@@ -252,6 +273,7 @@ def run_checks(
         _redaction(),
         _sign_in(s),
         *filter(None, [_write_capable(s), _keychain_access(s), _token_expiry(s)]),
+        _sandbox(s),
         _state_dir(s),
         _slack(s),
         _slack_commands(s),

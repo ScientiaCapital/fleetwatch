@@ -2,6 +2,7 @@
 
 import json
 import sys
+from typing import ClassVar
 
 import httpx2
 import pytest
@@ -141,3 +142,82 @@ def test_replay_digest_ignores_quiet_hours(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Fleet check" in out
     assert "Fix soon" in out
+
+
+# --- the v0.2 sandbox slot: tested with mocks only, never a real sign-in ---------------------------------------
+
+
+class _FakeLoginClient:
+    """Stands in for EpiphanClient during `login`: records how it was built and answers the one read login makes."""
+
+    built: ClassVar[list[dict]] = []
+
+    def __init__(self, url, tools, **kw):
+        _FakeLoginClient.built.append({"url": url, **kw})
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return None
+
+    async def call(self, tool, arguments=None):
+        assert tool == "get_devices_in_my_team"
+        return {"devices": [{"Id": "0a1b2c3d"}, {"Id": "0e0f1a2b"}]}
+
+
+@pytest.fixture
+def slots(monkeypatch, tmp_path):
+    normal, sandbox = tmp_path / "epiphan-oauth.json", tmp_path / "epiphan-sandbox-oauth.json"
+    monkeypatch.setenv("FLEETWATCH_TOKEN_STORE", "file")
+    monkeypatch.setenv("FLEETWATCH_TOKEN_FILE", str(normal))
+    monkeypatch.setenv("FLEETWATCH_SANDBOX_TOKEN_FILE", str(sandbox))
+    monkeypatch.setenv("FLEETWATCH_EPIPHAN_TOKEN", "FAKESTATIC")  # the normal slot's static token: never used here
+    _FakeLoginClient.built = []
+    monkeypatch.setattr(cli, "EpiphanClient", _FakeLoginClient)
+    return normal, sandbox
+
+
+def test_login_sandbox_signs_in_to_the_sandbox_slot_only(slots, monkeypatch, capsys):
+    _, sandbox = slots
+    monkeypatch.setattr(sys, "argv", ["fleetwatch", "login", "--sandbox"])
+    cli.main()
+    [built] = _FakeLoginClient.built
+    assert built["interactive"] is True
+    assert built.get("static_token") is None, "the sandbox never uses the normal static token"
+    assert built["storage"].path == sandbox
+    out = capsys.readouterr().out
+    assert "sandbox" in out.lower() and "2 devices" in out and str(sandbox) in out
+
+
+def test_login_without_sandbox_still_uses_the_normal_slot(slots, monkeypatch):
+    normal, _ = slots
+    monkeypatch.setattr(sys, "argv", ["fleetwatch", "login"])
+    cli.main()
+    [built] = _FakeLoginClient.built
+    assert built["storage"].path == normal and built["static_token"] == "FAKESTATIC"
+
+
+def test_logout_sandbox_clears_only_the_sandbox_slot(slots, monkeypatch, capsys):
+    normal, sandbox = slots
+    normal.write_text(json.dumps(_stored()))
+    sandbox.write_text(json.dumps(_stored()))
+    revoked = []
+
+    async def no_network(storage, **_):
+        revoked.append(storage.path)
+        return auth.Revocation("no_endpoint", "")
+
+    monkeypatch.setattr(auth, "revoke_tokens", no_network)
+    monkeypatch.setattr(sys, "argv", ["fleetwatch", "logout", "--sandbox"])
+    cli.main()
+    assert revoked == [sandbox]
+    assert not sandbox.exists() and normal.exists()
+    assert "sandbox" in capsys.readouterr().out.lower()
+
+
+def test_sandbox_flag_is_only_for_login_and_logout(slots, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["fleetwatch", "status", "--sandbox"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 2
