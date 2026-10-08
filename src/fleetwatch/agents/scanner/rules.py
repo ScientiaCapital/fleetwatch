@@ -11,6 +11,7 @@ from fleetwatch.model import Device, Finding, Fleet, Priority
 from fleetwatch.policy import Policy
 
 PEARL_FAMILY = ("pearl-2", "pearl 2", "pearl mini", "pearl nano", "pearl nexus")
+CAMERA_OFFLINE_IMPACT = "Its picture may be missing from the Pearl channels that use it, and Edge can't control it"
 
 
 def firmware_family(model: str) -> str:
@@ -55,7 +56,21 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
 
         if not d.online:
             recording = [c.name for c in d.channels.values() if c.recording]
-            if recording:
+            if d.is_camera:
+                # An EC20 doesn't record or stream by itself. The Pearl channel that uses it raises its own
+                # Fix first "No picture" item, so the camera itself is Fix soon.
+                findings.append(
+                    Finding(
+                        key=f"{d.id}:offline",
+                        priority=Priority.FIX_SOON,
+                        device_id=d.id,
+                        device_name=d.name,
+                        what=f"{d.name} is offline",
+                        impact=CAMERA_OFFLINE_IMPACT,
+                        fix="Check power (PoE) and the network cable at the camera",
+                    )
+                )
+            elif recording:
                 findings.append(
                     Finding(
                         key=f"{d.id}:offline-recording",

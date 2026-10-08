@@ -42,6 +42,20 @@ def test_readiness_uses_the_vertical_word():
     assert "the hearing won't record" in " ".join(check(device, event, Policy(vertical="courts")).notes)
 
 
+def test_readiness_for_an_offline_camera_doesnt_say_it_records():
+    """Camera or encoder comes from the model Edge reports. The name here says Pearl on purpose."""
+    event = Event(device_id="c1", title="Keynote", start=NOW, id="e1")
+    cam = Device(id="c1", name="Main Stage Pearl-2", model="EC20", online=False)
+    r = check(cam, event, Policy())
+    assert r.verdict == "Not ready"
+    assert r.notes == (
+        (
+            "The camera is offline, so its picture may be missing from the Pearl channels that use it, "
+            "and Edge can't control it"
+        ),
+    )
+
+
 def test_every_vertical_has_singular_and_plural():
     for words in VERTICALS.values():
         assert len(words) == 2 and all(words)

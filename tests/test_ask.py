@@ -49,6 +49,12 @@ def test_partial_room_name_finds_every_device_in_that_room(known):
     assert "Room 110" not in out and "Room 312" not in out
 
 
+def test_offline_camera_is_fix_soon_and_its_pearl_keeps_fix_first(known):
+    out = ask(known, "is room 204 ready")
+    assert "- Fix soon: Room 204 EC20 is offline" in out
+    assert "- Fix first: Room 204 Pearl Mini is offline" in out
+
+
 def test_unknown_room_is_not_echoed(known):
     out = ask(known, "is <script>Narnia</script> ready")
     assert "couldn't find that room" in out and "Narnia" not in out and "<script>" not in out
