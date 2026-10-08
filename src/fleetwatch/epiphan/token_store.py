@@ -11,7 +11,8 @@ stdin/stdout too.
 
 `FLEETWATCH_TOKEN_STORE=auto` picks the Keychain on macOS, systemd-creds on Linux with systemd 256 or later
 (the first with `--user`), and the file everywhere else, Docker included. A token already in the file moves into
-the new store on first use, and the file is deleted.
+the new store on first use, and the file is deleted. A file found later, beside a store that already holds a
+token, is stale and is deleted too: the store is the copy that gets refreshed.
 """
 
 import itertools
@@ -103,11 +104,17 @@ class _JsonStore(TokenStorage):
 
     def _read(self, migrate: bool = True) -> dict:
         data = self._load()
-        if not data and self.legacy is not None:
+        if self.legacy is None:
+            return data
+        if not data:
             data = FileTokenStorage(self.legacy)._load()
             if data and migrate:
                 self._save(data)
                 self.legacy.unlink(missing_ok=True)
+        elif migrate and data.get("tokens"):
+            # This store holds a token, so a plain file left behind (a backup restored, an older build run once)
+            # is stale and never read again. Remove it; this store, not the file, is the one that gets refreshed.
+            self.legacy.unlink(missing_ok=True)
         return data
 
     async def get_tokens(self) -> OAuthToken | None:
