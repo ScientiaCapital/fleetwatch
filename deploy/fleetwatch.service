@@ -9,6 +9,8 @@ Type=simple
 User=%i
 WorkingDirectory=%h/fleetwatch
 EnvironmentFile=-%h/fleetwatch/.env
+# Unbuffered, or Python holds printed digests in an 8 KB block and the journal looks silent for hours.
+Environment=PYTHONUNBUFFERED=1
 ExecStart=%h/.local/bin/uv run --frozen fleetwatch run
 Restart=on-failure
 RestartSec=30
