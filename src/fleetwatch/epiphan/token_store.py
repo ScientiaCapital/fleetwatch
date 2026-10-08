@@ -74,6 +74,8 @@ class TokenStore(TokenStorage, Protocol):
 
     def expires_at(self) -> datetime | None: ...
 
+    def granted_scope(self) -> str | None: ...
+
     def oauth_metadata(self) -> dict | None: ...
 
     def set_oauth_metadata(self, oauth: dict) -> None: ...
@@ -143,6 +145,11 @@ class _JsonStore(TokenStorage):
         if data.get("oauth") != oauth:
             data["oauth"] = oauth
             self._save(data)
+
+    def granted_scope(self) -> str | None:
+        """The scope Epiphan granted with the stored token, if it said. Only looks; never migrates."""
+        scope = (self._read(migrate=False).get("tokens") or {}).get("scope")
+        return scope if isinstance(scope, str) and scope.strip() else None
 
     def is_dead(self) -> bool:
         """True when Epiphan refused the refresh token: only a new `fleetwatch login` helps."""

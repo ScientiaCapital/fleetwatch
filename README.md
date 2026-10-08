@@ -41,7 +41,7 @@ leaves the machine, and `policy.yaml` is forced to `autonomy: observe`.
 |---|---|
 | **Calm digest** | Posts only when something changes. Each problem is posted once, reminded at most every 4 hours, and closed with *Back to normal*. |
 | **Ready / Not ready** | 30 minutes before each scheduled event, one line per room: is the picture there, is the unit online. |
-| **Read-only by construction** | Write tools are refused inside the client, before any request leaves the machine. |
+| **Read-only by construction** | Write tools are refused inside the client, before any request leaves the machine. Epiphan Edge has no read-only sign-in, so use a least-access account. |
 | **Runs on a Pi or a Mac mini** | One-line install as a systemd or launchd service, or Docker on amd64 and arm64. |
 | **`fleetwatch doctor`** | One line per check: policy, guard, redaction, sign-in, network, service. |
 | **Offline demo** | A full heartbeat against a saved sample fleet. No account, no network. |
@@ -164,9 +164,13 @@ Still stuck? Open an [issue](https://github.com/ScientiaCapital/fleetwatch/issue
 
 Fleetwatch only reads. It listens on no network port except `127.0.0.1`, and only during `fleetwatch login` or while
 you run `fleetwatch ask --serve`. It talks only outward, to your Epiphan region and Slack. Every tool result is redacted before it is parsed,
-stored, logged or posted. Device and event names are treated as untrusted data. The OAuth token is stored with
-mode `600` and refreshes itself. The guard runs inside the process, so the boundaries that hold against an
-attacker are the OS user that runs Fleetwatch and the permissions of the Edge account you sign in with.
+stored, logged or posted. Device and event names are treated as untrusted data. The OAuth token refreshes itself and
+is kept in the macOS Keychain, encrypted with `systemd-creds`, or in a mode `600` file.
+
+Epiphan Edge has no read-only sign-in: the token can do whatever the Edge account can in that team. Fleetwatch never
+uses that power, because the guard refuses every write tool, but a stolen token could. So sign in with a dedicated
+account that has the least access that still sees the rooms you watch, and treat the token like a password.
+`fleetwatch doctor` reminds you on every run.
 
 The [trust model](SECURITY.md#trust-model), what is in and out of scope, and known limits are in
 [SECURITY.md](SECURITY.md). Report vulnerabilities privately through
@@ -207,6 +211,11 @@ v0.1. Unit and replay tests pass. The first live run against a real team is stil
 [planning/next-sprint.md](planning/next-sprint.md) and the
 [Sprint 2 milestone](https://github.com/ScientiaCapital/fleetwatch/milestone/1). Later versions add
 proposals with Slack approval, then routine fixes on their own; the guard, the dry run and the redaction stay.
+
+## Thanks
+
+Huge thanks to the **Epiphan engineering team** for building Epiphan Edge and the Epiphan MCP server. Fleetwatch
+sits entirely on what they built, and it's only going to keep getting better.
 
 ## License
 
