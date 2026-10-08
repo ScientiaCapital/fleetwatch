@@ -211,3 +211,37 @@ def test_sign_in_can_write_also_covers_a_static_token(tmp_path):
 
 def test_no_sign_in_no_write_warning(tmp_path):
     assert "Sign-in can write" not in by_name(run(settings(tmp_path)))
+
+
+def _keychain_store(tokens: bool):
+    from fleetwatch.epiphan.token_store import KeychainTokenStorage
+
+    class Store(KeychainTokenStorage):  # never touches the real keychain
+        def has_tokens(self):
+            return tokens
+
+        def granted_scope(self):
+            return None
+
+        def expires_at(self):
+            return None
+
+    return Store()
+
+
+def test_keychain_token_says_same_user_programs_can_read_it(tmp_path, monkeypatch):
+    # The Keychain items trust /usr/bin/security, so any program running as this macOS user can read them.
+    from fleetwatch import doctor
+
+    monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: _keychain_store(tokens=True))
+    row = by_name(run(settings(tmp_path, token_store="keychain")))["Keychain access"]
+    assert row.status == INFO and "same macOS user" in row.detail and "own user" in row.detail
+
+
+def test_no_keychain_row_when_signed_out_or_on_another_store(tmp_path, monkeypatch):
+    from fleetwatch import doctor
+
+    signed_in(tmp_path)
+    assert "Keychain access" not in by_name(run(settings(tmp_path)))
+    monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: _keychain_store(tokens=False))
+    assert "Keychain access" not in by_name(run(settings(tmp_path, token_store="keychain")))
