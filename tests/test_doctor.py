@@ -245,3 +245,19 @@ def test_no_keychain_row_when_signed_out_or_on_another_store(tmp_path, monkeypat
     assert "Keychain access" not in by_name(run(settings(tmp_path)))
     monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: _keychain_store(tokens=False))
     assert "Keychain access" not in by_name(run(settings(tmp_path, token_store="keychain")))
+
+
+def test_propose_mode_loads_and_says_nothing_proposes_yet(tmp_path):
+    signed_in(tmp_path)
+    p = tmp_path / "policy.yaml"
+    p.write_text("autonomy: propose\n")
+    c = by_name(run(settings(tmp_path, policy_file=p)))["Policy"]
+    assert c.status == OK and "propose" in c.detail and "observe-only" in c.detail
+
+
+def test_doctor_never_prints_the_anthropic_key(tmp_path, capsys):
+    from fleetwatch.doctor import print_report
+
+    signed_in(tmp_path)
+    print_report(run(settings(tmp_path, anthropic_api_key="sk-ant-api03-FAKEDOCTOR")))
+    assert "FAKEDOCTOR" not in capsys.readouterr().out

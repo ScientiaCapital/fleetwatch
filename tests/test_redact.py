@@ -172,3 +172,26 @@ def test_table_stream_id_column_keeps_uuids():
     uuid = "0f8fad5b-d9cb-469f-a165-70867728950e"
     out = scrub_text(f"| Stream ID | Name |\n|---|---|\n| {uuid} | A |\n| FAKE67 | B |")
     assert uuid in out and "FAKE67" not in out
+
+
+# v0.2 adds an Anthropic API key (FLEETWATCH_ANTHROPIC_API_KEY). Its shape is sk-ant-..., and it must be masked even
+# bare, with no "key:" in front, for example inside an error message. Not in the shared corpus yet: the Kit needs the
+# same rule first (redaction-cases.json stays byte-identical in both repos).
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Anthropic said 401 for sk-ant-api03-FAKEANTHROPIC70_abc-DEF",
+        "sk-ant-admin01-FAKEANTHROPIC71",
+        '{"detail": "bad key sk-ant-api03-FAKEANTHROPIC72"}',
+        "key was (sk-ant-api03-FAKEANTHROPIC73).",
+    ],
+)
+def test_bare_anthropic_api_key_is_masked(text):
+    for fn in (scrub_text, redact):
+        once = fn(text)
+        assert "FAKEANTHROPIC" not in once and "sk-ant-" not in once
+        assert fn(once) == once
+
+
+def test_words_like_sk_ant_are_kept():
+    assert scrub_text("ask-anthropic is a word, risk-ant too") == "ask-anthropic is a word, risk-ant too"

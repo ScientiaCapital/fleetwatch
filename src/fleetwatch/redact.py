@@ -64,7 +64,9 @@ _AUTH_SCHEME = re.compile(
 # A markdown pipe table whose header names a secret column (Stream key, Password, API key...) has that column masked.
 _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
-_LOOKS_SECRET = re.compile(r"://|key|pass|pwd|secret|token|auth|cred|bearer|basic|stream", re.IGNORECASE)
+_LOOKS_SECRET = re.compile(r"://|key|pass|pwd|secret|token|auth|cred|bearer|basic|stream|sk-ant-", re.IGNORECASE)
+# An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
+_ANTHROPIC_KEY = re.compile(rf"\bsk-ant-(?:{_M}|[\w-])+", re.IGNORECASE)
 MAX_TEXT = 200_000
 
 
@@ -128,7 +130,8 @@ def scrub_text(text: str) -> str:
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
-    return _AUTH_SCHEME.sub(lambda m: f"{m['s']} {MASK}", text)
+    text = _AUTH_SCHEME.sub(lambda m: f"{m['s']} {MASK}", text)
+    return _ANTHROPIC_KEY.sub(MASK, text)
 
 
 def redact(value: Any) -> Any:

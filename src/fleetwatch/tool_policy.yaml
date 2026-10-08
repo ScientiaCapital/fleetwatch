@@ -4,6 +4,7 @@
 # is refused by the client guard (src/fleetwatch/epiphan/mcp.py), including tools Epiphan adds later.
 # Loading fails if a known write tool is under `read`, or a `read` entry doesn't start with get_ or kb_.
 # FLEETWATCH_TOOL_POLICY_FILE may point at a shorter read list; it can only remove tools, never add one.
+# The propose section at the end is configuration for v0.2 only; it lets nothing call a write tool.
 read:
   - get_devices_in_my_team
   - get_device_info
@@ -45,6 +46,7 @@ write:
   - batch_firmware_update
 
 # Writes that take a room offline or interrupt a class. Never on a live room or before an event.
+# The last four aren't reviewed yet, so they count as disruptive until they are (docs/design/approved-writes.md).
 disruptive:
   - batch_reboot
   - batch_firmware_update
@@ -52,3 +54,63 @@ disruptive:
   - stop_stream_endpoint
   - delete_cms_event
   - delete_stream_endpoint
+  - batch_recording
+  - switch_device_to_cms
+  - update_cms_event
+  - cms_event_action
+
+# For v0.2 (docs/design/approved-writes.md): the write tools the assistant may *suggest*, for a person to approve
+# one at a time. Nothing in this version reads this section to run anything, and guard() still refuses every
+# write tool. A write tool that isn't listed here can never be proposed.
+#
+# Each entry has:
+#   max_targets  how many devices one proposal may touch (1 or more)
+#   disruptive   true or false; left out means true. A tool on the disruptive list above can't say false.
+#   schema       the arguments, or pending-live-run. A pending tool loads but can't be proposed.
+#
+# A reviewed schema looks like this:
+#   schema:
+#     version: 1
+#     target: device_ids            # the field that names the devices; must be required, with an ID pattern
+#     fields:
+#       device_ids: {type: list, required: true, max_items: 1, items: {type: string, pattern: "^[0-9a-f]+$"}}
+#       action: {type: enum, required: true, values: [start, stop]}
+# Field types: string (pattern, max_length), integer (minimum, maximum), boolean, enum (values),
+# list (items, max_items). Unknown keys fail the load.
+#
+# Every schema below is pending: Epiphan's write tools publish their argument names only to a signed-in client,
+# and nothing in this repo has called one. The batch read tools take `device_ids` (src/fleetwatch/heartbeat.py),
+# so the batch write tools probably do too; confirm on the first live run, against the sandbox team, then fill in.
+#
+# Not listed, so never proposed: create_/update_stream_endpoint (their arguments carry stream keys, which a card
+# can't show in full); create_/update_/delete_cms_event, cms_event_action, delete_stream_endpoint,
+# apply_team_preset and switch_device_to_cms (not reviewed yet).
+#
+# FLEETWATCH_TOOL_POLICY_FILE may remove entries, lower max_targets, turn disruptive on, or set a schema back to
+# pending. It can't add an entry, raise max_targets, turn disruptive off, or change a schema. A narrowing file
+# with no propose section proposes nothing.
+propose:
+  batch_recording:
+    max_targets: 1
+    disruptive: true  # stopping a recording ends a class's capture
+    schema: pending-live-run
+  start_stream_endpoint:
+    max_targets: 1
+    disruptive: false
+    schema: pending-live-run
+  stop_stream_endpoint:
+    max_targets: 1
+    disruptive: true
+    schema: pending-live-run
+  confirm_cms_event_on_device:
+    max_targets: 1
+    disruptive: false
+    schema: pending-live-run
+  batch_reboot:
+    max_targets: 1
+    disruptive: true
+    schema: pending-live-run
+  batch_firmware_update:
+    max_targets: 1
+    disruptive: true
+    schema: pending-live-run
