@@ -7,7 +7,7 @@ AGENTS.md (imported above) has the commands, hard rules, style and map. This fil
 ## Rules for Claude Code
 
 1. **Epiphan sign-in needs the maintainer's OK in this session**: `fleetwatch login`, `run`, `digest` without
-   `--replay`, and the claude.ai Epiphan connectors. The Edge Showcase team is shared.
+   `--replay`, and the claude.ai Epiphan connectors. The Edge team you sign in to may be shared.
 2. **Main is protected.** Branch, PR, 15 required checks green, squash-merge. Keep the job names "Docs build",
    "Replay heartbeat" and "Docker image" (they are required checks).
 3. **Show it works.** Run pytest and the replay digest and paste the output. Use `set -o pipefail` so a failure
@@ -26,4 +26,5 @@ uv run --group docs zensical serve      # docs at localhost:8000
 
 ## Now
 
-Sprint 2; booth about 2026-10-21. What's done and what's left: [planning/next-sprint.md](planning/next-sprint.md).
+Sprint 2: issues in the GitHub milestone. The sprint plan and event notes are kept on the maintainer's machine,
+not in this public repo; `planning/` is gitignored.

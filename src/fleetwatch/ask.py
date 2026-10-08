@@ -17,7 +17,7 @@ from fleetwatch.state import KnownDevice, State
 MAX_QUESTION = 300
 MAX_ROOMS = 6
 
-# English and Spanish, since the first booth is in Latin America. Answers stay in English like the digest.
+# English and Spanish. Answers stay in English like the digest.
 _OFFLINE = {"offline", "down", "desconectado", "desconectados", "desconectada", "caído", "caídos", "apagado"}
 _ATTENTION = {"attention", "wrong", "broken", "problem", "problems", "issue", "issues", "fix", "problema",
               "problemas", "atención", "falla", "fallas"}  # fmt: skip

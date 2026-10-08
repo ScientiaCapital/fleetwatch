@@ -35,3 +35,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Sprint plans and event notes stay on the maintainer's machine, not in this public repo
+planning/

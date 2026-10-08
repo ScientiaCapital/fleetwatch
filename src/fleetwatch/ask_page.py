@@ -1,4 +1,4 @@
-"""`fleetwatch ask --serve`: one local page with buttons and a text box, for a booth screen or a tech's laptop.
+"""`fleetwatch ask --serve`: one local page with buttons and a text box, for a wall screen or a tech's laptop.
 
 Standard library only. Listens on 127.0.0.1, answers only requests addressed to localhost (so another web page
 can't read answers through DNS rebinding), never calls Epiphan, and escapes everything it shows.

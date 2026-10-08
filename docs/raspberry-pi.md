@@ -2,8 +2,6 @@
 
 A Raspberry Pi 5 with Raspberry Pi OS (64-bit) is the reference Linux target. Any systemd distro works.
 
-Taking it to a trade show on a phone hotspot? See [At a booth](booth.md).
-
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/ScientiaCapital/fleetwatch.git && cd fleetwatch
