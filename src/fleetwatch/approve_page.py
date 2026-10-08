@@ -370,12 +370,13 @@ def _cap(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _visible(text: str) -> str:
+def _visible(text: str, keep: str = "") -> str:
     """Names and models come from the fleet and are untrusted: show hidden or direction-changing characters as
-    \\uXXXX so what a person reads is what's stored (the room named in the confirm step must be the real one)."""
+    \\uXXXX so what a person reads is what's stored (the room named in the confirm step must be the real one).
+    `keep` lists characters to leave alone, such as the newline and tab in a multi-line reason."""
     return "".join(
         f"\\u{ord(ch):04x}"
-        if unicodedata.category(ch) in _HIDDEN or (unicodedata.category(ch) == "Zs" and ch != " ")
+        if ch not in keep and (unicodedata.category(ch) in _HIDDEN or (unicodedata.category(ch) == "Zs" and ch != " "))
         else ch
         for ch in text
     )
@@ -631,7 +632,7 @@ class ApprovePage:
             + (f'<p class="note">{_e(t["disruptive"])}</p>' if disruptive else "")
             + (self._blocked_notes(fleet, record, args, disruptive, t) if fleet else "")
             + (f'<p class="warn">{_e(why)}</p>' if why else "")
-            + f'<section class="reason"><h3>{_e(t["reason"])}</h3><pre>{_e(clean_reason)}</pre></section>'
+            + f'<section class="reason"><h3>{_e(t["reason"])}</h3><pre>{_e(_visible(clean_reason, keep=chr(10) + chr(9)))}</pre></section>'
         )
         return Card(pid, body, not why, why, disruptive, name, ", ".join(rooms))
 

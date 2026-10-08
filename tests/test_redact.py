@@ -195,3 +195,11 @@ def test_bare_anthropic_api_key_is_masked(text):
 
 def test_words_like_sk_ant_are_kept():
     assert scrub_text("ask-anthropic is a word, risk-ant too") == "ask-anthropic is a word, risk-ant too"
+
+
+def test_encodable_writes_a_lone_surrogate_as_a_visible_escape_and_leaves_other_text_alone():
+    from fleetwatch.redact import encodable
+
+    assert encodable("Room \ud800 204").encode("utf-8") == b"Room \\ud800 204"
+    plain = "Sala 204 " + chr(0xF1) + " " + chr(0x202E)  # accented letter and a bidi override: valid text, left alone
+    assert encodable(plain) == plain
