@@ -193,7 +193,10 @@ def test_headers_are_set_on_every_page(harness):
         _req(harness.port, "POST", "/login", {"secret": "nope"}),
     ):
         csp = _header(headers, "Content-Security-Policy")[0]
-        assert csp == "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+        assert (
+            csp
+            == "default-src 'none'; base-uri 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+        )
         assert _header(headers, "X-Frame-Options") == ["DENY"]
         assert _header(headers, "Referrer-Policy") == ["no-referrer"]
         assert _header(headers, "Cache-Control") == ["no-store"]
@@ -239,6 +242,14 @@ def test_card_escapes_an_injected_device_name(harness):
     _, body = _card(harness)
     assert "<script>" not in body
     assert "&lt;script&gt;alert(1)&lt;/script&gt; &quot;Approve now&quot;" in body
+
+
+def test_hidden_characters_in_a_device_name_are_shown_as_escapes(harness):
+    harness.add()
+    harness.fleet_box[0] = _fleet(name="Room 204\u202e\u200b")
+    _, body = _card(harness)
+    assert "\u202e" not in body and "\u200b" not in body
+    assert "Room 204\\u202e\\u200b" in body
 
 
 def test_reason_is_in_its_own_labelled_box_escaped_and_capped(harness):
@@ -510,6 +521,15 @@ def test_chat_box_posts_to_ask_with_the_same_csrf_rules(harness):
     status, page, _ = _req(harness.port, "POST", "/ask", {**fields, "q": "<i>hi</i>"}, cookie=cookie)
     assert status == 200 and harness.asked == ["<i>hi</i>"]
     assert "You asked &lt;&lt;i&gt;hi&lt;/i&gt;&gt;" in page
+    reply = re.search(r'<section class="reason">.*?</section>', page, re.DOTALL).group(0)
+    assert "Written by the assistant, not checked" in reply and "You asked" in reply
+
+
+def test_the_handler_has_a_socket_timeout():
+    from fleetwatch.approve_page import make_handler
+
+    page = ApprovePage(State(":memory:"), None, None, TOOLS, 0, secret=SECRET)
+    assert 0 < make_handler(page).timeout <= 30
 
 
 def test_no_ask_fn_hides_the_chat_box():

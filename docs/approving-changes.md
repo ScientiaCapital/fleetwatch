@@ -45,6 +45,8 @@ match its schema, the fresh read failed, a target is missing, or the device stat
 - Changes run only on the sandbox team. Every other team stays read-only.
 - A write never retries. If the result is unknown, the page says "may or may not have run" so you can check the device.
 - After five approvals in one session, the page suggests a break.
+- Browsers send cookies to every port on the same host. Don't browse other local web servers, such as a dev server
+  on `localhost:3000`, while the approval page is open, and use `127.0.0.1` rather than `localhost`.
 
 See [the design](design/approved-writes.md) for the full reasoning and [Security model](security.md) for what the
 guard covers.

@@ -61,7 +61,7 @@ ARG_DEPTH = 3
 ARG_TOTAL_CAP = 4000
 _HIDDEN = {"Cc", "Cf", "Co", "Cs", "Cn", "Zl", "Zp"}  # control, format (bidi, zero-width), private, unassigned
 
-CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+CSP = "default-src 'none'; base-uri 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
 
 
 class Executor(Protocol):
@@ -308,6 +308,17 @@ def _cap(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _visible(text: str) -> str:
+    """Names and models come from the fleet and are untrusted: show hidden or direction-changing characters as
+    \\uXXXX so what a person reads is what's stored (the room named in the confirm step must be the real one)."""
+    return "".join(
+        f"\\u{ord(ch):04x}"
+        if unicodedata.category(ch) in _HIDDEN or (unicodedata.category(ch) == "Zs" and ch != " ")
+        else ch
+        for ch in text
+    )
+
+
 def _showable_text(s: str) -> bool:
     if len(s) > ARG_TEXT_CAP or s != s.strip():
         return False
@@ -453,10 +464,10 @@ class ApprovePage:
                 rows.append(f'<tr><td><code>{_e(target)}</code></td><td colspan="4">{_e(t["missing"])}</td></tr>')
                 rooms.append(target)
                 continue
-            dev_name = _cap(device.name, NAME_CAP)
+            dev_name = _visible(_cap(device.name, NAME_CAP))
             rooms.append(dev_name)
             rows.append(
-                f"<tr><td><code>{_e(target)}</code></td><td>{_e(dev_name)}</td><td>{_e(_cap(device.model, 60))}</td>"
+                f"<tr><td><code>{_e(target)}</code></td><td>{_e(dev_name)}</td><td>{_e(_visible(_cap(device.model, 60)))}</td>"
                 f"<td>{_e(t['online'] if device.online else t['offline'])}</td>"
                 f"<td>{_e(t['recording'] if device.recording else t['not_recording'])}</td></tr>"
             )
@@ -505,7 +516,11 @@ class ApprovePage:
             fatigue = f'<p class="note">{_e(t["fatigue"].format(n=self._sessions[sid]))}</p>'
         chat = ""
         if sid and self.ask_fn is not None:  # the chat box hook; hidden when no assistant is passed in
-            reply = f'<section class="outcome"><pre>{_e(answer)}</pre></section>' if answer is not None else ""
+            reply = (
+                f'<section class="reason"><h3>{_e(t["reason"])}</h3><pre>{_e(answer)}</pre></section>'
+                if answer is not None
+                else ""
+            )
             chat = (
                 f"<h3>{_e(t['ask_label'])}</h3>"
                 f'<form class="row" method="post" action="/ask">'
@@ -702,6 +717,7 @@ def make_handler(page: ApprovePage):
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "fleetwatch"
+        timeout = 10  # seconds: a client that stalls mid-request can't freeze the single-threaded page
         sys_version = ""
 
         def log_message(self, *_):  # nothing about requests goes to a log
