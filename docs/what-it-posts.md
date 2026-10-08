@@ -1,8 +1,10 @@
 # What it posts
 
 - Needs attention, with priority in words:
-    - Fix first: an event won't record. The unit is offline, or a channel has no picture.
-    - Fix soon: firmware behind the rest of its family, restarted recently, or running hot.
+    - Fix first: an event won't record. The Pearl is offline, or a channel has no picture.
+    - Fix soon: an EC20 camera is offline, firmware is behind the rest of its family, a unit restarted recently, or
+      it's running hot. An EC20 doesn't record or stream by itself. When a Pearl channel loses its
+      picture, that channel is its own Fix first item.
     - When convenient: everything else worth knowing.
 - The same problem is posted once, reminded at most every 4 hours, and closed with Back to normal.
 - Storage warnings are an FYI line, never a problem. Pearls on a CMS record locally and upload afterwards.

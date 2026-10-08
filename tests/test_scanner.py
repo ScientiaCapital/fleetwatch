@@ -38,6 +38,30 @@ def test_offline_and_offline_while_recording(policy):
     assert "still shows Program recording" in keys["b:offline-recording"].what
 
 
+def test_offline_camera_says_what_it_really_affects(policy):
+    fleet = Fleet(taken_at=NOW)
+    fleet.devices["c"] = Device(id="c", name="Lobby Cam", model="EC20", online=False)
+    f = {f.key: f for f in scan(fleet, policy)}["c:offline"]
+    assert f.what == "Lobby Cam is offline"
+    assert f.impact == "Its picture may be missing from the Pearl channels that use it, and Edge can't control it"
+    assert f.fix == "Check power (PoE) and the network cable at the camera"
+
+
+def test_offline_camera_is_fix_soon_because_the_pearl_flags_the_missing_picture(policy):
+    fleet = Fleet(taken_at=NOW)
+    fleet.devices["c"] = Device(id="c", name="Lobby Cam", model="EC20", online=False)
+    assert {f.key: f for f in scan(fleet, policy)}["c:offline"].priority is Priority.FIX_SOON
+
+
+def test_camera_or_encoder_comes_from_the_model_never_the_name(policy):
+    fleet = Fleet(taken_at=NOW)
+    fleet.devices["p"] = Device(id="p", name="Hall EC20 camera", model="Pearl Mini", online=False)
+    fleet.devices["c"] = Device(id="c", name="Hall Pearl Mini", model="EC20", online=False)
+    keys = {f.key: f for f in scan(fleet, policy)}
+    assert keys["p:offline"].priority is Priority.FIX_FIRST and "won't record or stream" in keys["p:offline"].impact
+    assert keys["c:offline"].priority is Priority.FIX_SOON and "Pearl channels" in keys["c:offline"].impact
+
+
 def test_firmware_family_rule():
     assert firmware_family("Pearl Mini") == firmware_family("Pearl-2") == firmware_family("Pearl Nexus") == "pearl"
     assert firmware_family("EC20") != "pearl"

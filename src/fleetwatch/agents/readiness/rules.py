@@ -12,7 +12,12 @@ def check(device: Device, event: Event, policy: Policy | None = None) -> Readine
     word = (policy or Policy()).event_word
     blockers: list[str] = []
     notes: list[str] = []
-    if not device.online:
+    if not device.online and device.is_camera:
+        blockers.append(
+            "The camera is offline, so its picture may be missing from the Pearl channels that use it, "
+            "and Edge can't control it"
+        )
+    elif not device.online:
         blockers.append(f"The unit is offline, so the {word} won't record")
     else:
         if device.is_camera:
