@@ -33,7 +33,7 @@ from fleetwatch.heartbeat import snapshot
 from fleetwatch.model import Fleet
 from fleetwatch.policy import FieldSpec, Policy, ToolPolicy, check_arguments
 from fleetwatch.proposals import ProposalRefused, state_fingerprint
-from fleetwatch.redact import redact, scrub_text
+from fleetwatch.redact import encodable, redact, scrub_text
 from fleetwatch.state import State
 
 log = logging.getLogger(__name__)
@@ -195,9 +195,10 @@ def _cap(value: Any, depth: int = 0) -> Any:
     if depth > MAX_DEPTH:
         return "…"
     if isinstance(value, str):
+        value = encodable(value)
         return value if len(value) <= MAX_STRING else value[:MAX_STRING] + "…"
     if isinstance(value, dict):
-        return {str(k)[:MAX_STRING]: _cap(v, depth + 1) for k, v in value.items() if k not in _NOISE_KEYS}
+        return {encodable(str(k))[:MAX_STRING]: _cap(v, depth + 1) for k, v in value.items() if k not in _NOISE_KEYS}
     if isinstance(value, (list, tuple)):
         items = [_cap(v, depth + 1) for v in value[:MAX_ITEMS]]
         if len(value) > MAX_ITEMS:

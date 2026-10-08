@@ -593,14 +593,7 @@ async def test_the_card_shows_the_device_channel_event_and_stream_names_it_resol
         assert probe in "".join(bodies), "the name is on a card, as text"
 
 
-# --- a hole the corpus found --------------------------------------------------------------------------------------------
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "approve_page.build_card shows the model's `reason` in <pre> through _e() only, not _visible(): a bidi "
-        "override or zero-width character in the reason (which a model copies from a name) reaches the person raw."
-    ),
-)
+# --- the reason on the card --------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("label", ["bidi-override", "bidi-isolate", "zero-width", "line-separator", "control-chars"])
 async def test_the_reason_on_the_card_shows_hidden_characters_as_escapes(tmp_path, caplog, monkeypatch, label):
     evil = next(name for lab, name, _ in CORPUS if lab == label)
@@ -624,12 +617,10 @@ async def test_the_reason_on_the_card_is_escaped_text(tmp_path, caplog, monkeypa
     assert "</fleet_data>" not in card.body
 
 
-# --- two holes the corpus found: a lone surrogate in a name -------------------------------------------------------------
+# --- a lone surrogate in a name -----------------------------------------------------------------------------------------
 # JSON from an API can carry "\\ud800". It isn't valid text, and nothing downstream can encode it as UTF-8.
-HOLE = pytest.mark.xfail(strict=True, reason="a lone surrogate in a name isn't handled: see the PR for file:line")
 
 
-@HOLE
 async def test_a_lone_surrogate_in_a_name_is_encodable_where_the_model_sees_it(tmp_path):
     d = hostile_fixtures(tmp_path, LONE_SURROGATE)
     async with ReplayClient(d, TOOLS, now=NOW) as client:
@@ -637,7 +628,6 @@ async def test_a_lone_surrogate_in_a_name_is_encodable_where_the_model_sees_it(t
     assistant.wrap_result("get_devices_in_my_team", result).encode("utf-8")  # what the API client puts on the wire
 
 
-@HOLE
 async def test_a_lone_surrogate_in_the_reason_is_refused_or_stored_not_a_crash(tmp_path, caplog, monkeypatch):
     r = Ran()
     r.state, r.fence = State(), Fence(device_ids=frozenset({COURTROOM}))

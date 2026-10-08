@@ -21,7 +21,7 @@ from fleetwatch.proposals import (
     sign,
     verify,
 )
-from fleetwatch.redact import redact
+from fleetwatch.redact import encodable, redact
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS findings (
@@ -699,7 +699,7 @@ class State:
 
 def _clean_text(text: str | None) -> str:
     """Untrusted free text (the model's reason, an error message): redacted, then capped."""
-    cleaned = redact(str(text or ""))
+    cleaned = encodable(redact(str(text or "")))
     return cleaned if len(cleaned) <= _TEXT_CAP else cleaned[: _TEXT_CAP - 1] + "…"
 
 

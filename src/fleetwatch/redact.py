@@ -134,6 +134,12 @@ def scrub_text(text: str) -> str:
     return _ANTHROPIC_KEY.sub(MASK, text)
 
 
+def encodable(text: str) -> str:
+    """`text` with any lone surrogate (invalid in UTF-8; JSON from an API can carry "\\ud800") written out as a
+    visible \\udXXX escape, so nothing downstream raises UnicodeEncodeError on untrusted text."""
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def redact(value: Any) -> Any:
     if isinstance(value, dict):
         pair = "value" in value and any(
