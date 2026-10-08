@@ -17,7 +17,7 @@ and restarts after a failure.
 | Start again | `deploy/install.sh` |
 
 Something not working? Run `uv run fleetwatch doctor` in the Fleetwatch folder first. It checks the policy, the
-read-only guard, redaction, the sign-in, the network route to Epiphan and the launchd agent.
+read-only guard, redaction, the sign-in, the network route to Epiphan, and the launchd agent.
 
 A launchd agent runs while that user is logged in. For an unattended Mac mini, turn on automatic login for the
 account that runs Fleetwatch, and stop the Mac from sleeping.

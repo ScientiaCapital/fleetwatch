@@ -1,9 +1,9 @@
 # Fleetwatch for Epiphan Edge
 
 An always-on, read-only watcher for an Epiphan Edge fleet. It checks every room on a heartbeat, posts a calm Slack
-digest when something changes, and says **Ready** or **Not ready** 30 minutes before each scheduled event.
+or Microsoft Teams digest when something changes, and says Ready or Not ready 30 minutes before each scheduled event.
 
-v0.1 is **observe-only**. It can't change a device: write tools are refused inside the client before any request
+Version 0.1 is observe-only. It can't change a device: the client refuses write tools before any request
 leaves the machine.
 
 ```mermaid

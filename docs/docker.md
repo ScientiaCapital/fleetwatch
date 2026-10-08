@@ -8,7 +8,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-The container runs as a non-root user with a read-only filesystem, all capabilities dropped and no open port.
+The container runs as a non-root user with a read-only filesystem, all capabilities dropped, and no open port.
 `docker compose ps` shows the container as healthy while heartbeats are landing. It turns unhealthy when no
 heartbeat has read the fleet for three intervals, for example after the sign-in expires.
 

@@ -1,6 +1,6 @@
 # Policy
 
-Two files control behaviour. Both are plain YAML in the repo folder.
+Two files control behavior. Both are plain YAML in the repo folder.
 
 ## policy.yaml: how it behaves
 
@@ -11,7 +11,7 @@ Two files control behaviour. Both are plain YAML in the repo folder.
 | `lead_minutes` | `30` | Post Ready / Not ready this long before each event (`preclass_lead_minutes` still works) |
 | `remind_after_minutes` | `240` | Repeat an open item at most this often |
 | `sweep_at` | `"03:00"` | Nightly sweep, local time. In quiet hours, the summary waits until they end. `""` turns it off |
-| `quiet_hours.start` / `.end` | `22:00` / `06:30` | Only *Fix first* items are posted in this window, in the machine's local time |
+| `quiet_hours.start` / `.end` | `22:00` / `06:30` | Only Fix first items are posted in this window, in the machine's local time |
 | `scope.groups` | `[]` | Only watch these Edge groups; empty watches the whole team |
 | `scope.exclude_devices` | `[]` | Device names to ignore |
 | `thresholds.cpu_load_pct` | `90` | CPU load that counts as busy |

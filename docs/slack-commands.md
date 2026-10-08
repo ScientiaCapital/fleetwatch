@@ -8,14 +8,14 @@ Ask Fleetwatch about a room from Slack:
 /fleetwatch what needs attention
 ```
 
-The reply is **ephemeral**, so only the person who asked sees it. It is the same answer `fleetwatch ask` gives:
+The reply is ephemeral, so only the person who asked sees it. It's the same answer `fleetwatch ask` gives:
 the room's Ready / Not ready check for its next event, or what is open on it. The command is read-only. It reads
 what the heartbeat already saw and never calls Epiphan or changes a device. What you type is treated as a
 question and nothing else.
 
 ## How it connects
 
-Fleetwatch uses Slack **Socket Mode**: `fleetwatch run` opens an outbound websocket to Slack, so nothing listens
+Fleetwatch uses Slack Socket Mode: `fleetwatch run` opens an outbound websocket to Slack, so nothing listens
 on an inbound port and you don't need a public URL. If Slack is unreachable, the heartbeat carries on and the
 connection is retried on each beat.
 
@@ -23,7 +23,7 @@ connection is retried on each beat.
 
 1. Create a Slack app from the manifest below (api.slack.com/apps > Create New App > From a manifest), or add
    the same settings to the app you already use for the digest.
-2. **Basic Information > App-Level Tokens**: generate a token with the `connections:write` scope. It starts
+2. Basic Information > App-Level Tokens: generate a token with the `connections:write` scope. It starts
    `xapp-`. Put it in `.env`:
 
     ```
@@ -43,7 +43,7 @@ connection is retried on each beat.
     Group membership is looked up with `usergroups.users.list` and cached for five minutes. If the lookup fails,
     nobody from the group is let in until it works again.
 
-5. Run `fleetwatch doctor`. The *Slack commands* row checks the token is an `xapp-` token and that someone is
+5. Run `fleetwatch doctor`. The "Slack commands" row checks the token is an `xapp-` token and that someone is
    allowed. It doesn't connect to Slack.
 6. Restart the service (`fleetwatch run`). The command only runs inside `fleetwatch run`.
 
@@ -86,4 +86,4 @@ The app-level `xapp-` token with `connections:write` is created by hand in step 
 | Anyone else | "Fleetwatch only answers people on its allowlist." Nothing about the fleet |
 
 Each command is written to the local audit log with the Slack member ID and whether it was answered. The text
-of the question is not stored.
+of the question isn't stored.
