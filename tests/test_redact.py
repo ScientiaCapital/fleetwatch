@@ -175,8 +175,8 @@ def test_table_stream_id_column_keeps_uuids():
 
 
 # v0.2 adds an Anthropic API key (FLEETWATCH_ANTHROPIC_API_KEY). Its shape is sk-ant-..., and it must be masked even
-# bare, with no "key:" in front, for example inside an error message. Not in the shared corpus yet: the Kit needs the
-# same rule first (redaction-cases.json stays byte-identical in both repos).
+# bare, with no "key:" in front, for example inside an error message. The shared corpus has the same shape
+# (bare-anthropic-key, keep-sk-ant-lookalikes), so the Kit is held to it too; these add more spellings.
 @pytest.mark.parametrize(
     "text",
     [
