@@ -7,9 +7,9 @@ Instructions for AI coding assistants (Claude Code, Codex, Cursor and others) wo
 
 Fleetwatch for Epiphan Edge: an always-on, **read-only** watcher for an Epiphan Edge fleet of Pearl encoders and
 EC20 cameras. Each heartbeat reads the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm
-Slack digest only when something changed. Before each scheduled event it posts Ready or Not ready.
+Slack or Teams digest only when something changed. Before each scheduled event it posts Ready or Not ready.
 
-Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout`.
+Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout | ask | sweep | history | note | notes`.
 
 ## Commands
 
