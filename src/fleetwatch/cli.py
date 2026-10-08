@@ -247,7 +247,9 @@ async def _live_assistant(settings: Settings, key: str, question: str, state: St
         return assistant.fallback(question, state, policy, None, None, "no_fleet").text
 
 
-def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str | None, model_client=None):
+def _approve_ask(
+    settings: Settings, state: State, policy, key: str, replay: str | None, model_client=None, replay_now=None
+):
     """The approval page's chat box. Sync, because the page's server is single-threaded: one question at a time, each
     in its own event loop. Replay reads the fixtures for both the model's reads and the proposal check, and binds
     proposals to the replay slot. With no key (or --no-ai) it's the keyword answer, with the note that says so."""
@@ -264,7 +266,7 @@ def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str
         from fleetwatch.fence import Fence
         from fleetwatch.heartbeat import snapshot
 
-        async with ReplayClient(Path(replay), tools) as reader:
+        async with ReplayClient(Path(replay), tools, now=replay_now) as reader:
             # A replay's fence is the fixtures' own devices: nothing real exists to reach, and only a
             # RecordingExecutor runs what's approved.
             fence = Fence(device_ids=frozenset((await snapshot(reader, datetime.now(UTC))).devices))
@@ -276,7 +278,7 @@ def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str
                 replay_policy,
                 reader,
                 None,
-                lambda: ReplayClient(Path(replay), tools),
+                lambda: ReplayClient(Path(replay), tools, now=replay_now),
                 slot="replay",
                 fence=fence,
                 client=model_client,
@@ -295,14 +297,17 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
     tools = load_tools(settings.tool_policy_file)
     key = "" if no_ai else reveal(settings.anthropic_api_key)
     if replay:
-        client = ReplayClient(Path(replay), tools)
+        # One clock for every replay client the page builds: relative times in the sample ("{{now+25m}}") resolve
+        # against it, so a proposal's fingerprint and the card's fresh read agree, however long the chat takes.
+        replay_now = datetime.now(UTC)
+        client = ReplayClient(Path(replay), tools, now=replay_now)
 
         async def read_replay():
             async with client:
                 return await read_for_approval(client, datetime.now(UTC))
 
         state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
-        ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client)
+        ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client, replay_now)
         page = ApprovePage(state, read_replay, RecordingExecutor(state), tools, settings.approve_port, ask_fn=ask_fn)
         seed_replay_sample(state, tools, asyncio.run(read_replay()))
         return page
