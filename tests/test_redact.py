@@ -58,3 +58,13 @@ def test_teams_workflow_webhook_signature_is_masked():
         "?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=FAKESIG123"
     )
     assert "FAKE" not in redact(f"posting to {url} failed")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["stream key: live_9f8e7d6c", "password=hunter2; token: abc", "rtmp://a.example/live/x?k=1", '"secret": "s3"'],
+)
+def test_scrub_text_twice_is_the_same_as_once(text):
+    # Room notes are redacted when saved and again when `ask` scrubs its answer; that must not leave "[redacted]]".
+    once = scrub_text(text)
+    assert MASK in once and scrub_text(once) == once

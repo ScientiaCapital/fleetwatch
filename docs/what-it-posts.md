@@ -12,6 +12,12 @@
 - Once a day (`sweep_at`, 03:00 by default): a *Nightly sweep* line with who is offline, who is behind on firmware,
   and what changed since the last sweep. It opens no new items, and in quiet hours it waits for the morning.
   `fleetwatch history` shows the days side by side.
+- Room notes: `fleetwatch note "Room 204 Pearl Mini" "Bulb replaced"` saves a note on one room. It shows as a
+  quoted line under that room's item in the digest, and in `fleetwatch ask` answers about that room. If the name
+  matches more than one room, nothing is saved and the matches are listed. `fleetwatch notes` lists them, newest
+  first; add a room name or `--search text` to narrow it. The author is your login name unless you pass
+  `--author`. Notes are redacted like everything else, kept to one line of 280 characters, and stay in the local
+  state DB: adding one never signs in or calls Epiphan.
 
 Example from the sample fleet in [Replay mode](replay.md):
 
@@ -22,4 +28,12 @@ Example from the sample fleet in [Replay mode](replay.md):
 • *Fix soon*: Hall A Auditorium runs firmware 4.24.5; others like it run 4.24.6. Works fine today; keeps the
   fleet consistent. _Update firmware when the room is free._
 FYI: 3 Pearls have little or no local space left. That's normal when recordings upload to your CMS.
+```
+
+With a note on the room (the date is when it was left):
+
+```text
+• *Fix first*: Room 312 Pearl Mini is offline. Events in that room won't record or stream until it's back.
+  _Check power and the network cable at the unit._
+  ↳ “Power strip under the lectern was switched off” (alex, Oct 7)
 ```

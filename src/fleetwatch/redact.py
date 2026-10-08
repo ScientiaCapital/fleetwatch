@@ -19,21 +19,24 @@ _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
 _STREAM_ID = re.compile(r"^(?:.*[_-])?stream_?id$", re.IGNORECASE)
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
+# Text that was already redacted stays as it is, so scrubbing twice equals scrubbing once (room notes are redacted
+# when saved and again inside an `ask` answer). A mask followed by more URL or token characters is scrubbed again.
+_DONE = rf"(?!{re.escape(MASK)}(?![\w/.~%+=&:@?#-]))"
 _STREAM_URL = re.compile(
     r"(?P<p>\b(?:rtmp[a-z]*|srt|rtsp|rist)://)(?:[^/?#\s\"<>()\[\]]*@)?(?P<h>[^/?#\s\"'<>()\[\],@]+)"
-    r"(?P<r>[/?#][^\s\"'<>()\[\],]*)?",
+    rf"(?P<r>[/?#]{_DONE}[^\s\"'<>()\[\],]*)?",
     re.IGNORECASE,
 )
 _HTTP_URL = re.compile(
     r"(?P<p>\bhttps?://)(?:[^/?#\s\"<>()\[\]]*@)?(?P<h>[^/?#\s\"'<>()\[\],@]+)"
-    r"(?P<path>/[^?#\s\"'<>()\[\],]*)?(?P<q>\?[^\s\"'<>()\[\],]*)?",
+    rf"(?P<path>/{_DONE}[^?#\s\"'<>()\[\],]*)?(?P<q>\?{_DONE}[^\s\"'<>()\[\],]*)?",
     re.IGNORECASE,
 )
 _INGEST_PATH = re.compile(r"whip|whep|ingest|publish|upload|live|stream|rtmp|srt|push|broadcast", re.IGNORECASE)
 _KEY_VALUE = re.compile(
     r"(?P<k>[\"']?\b(?:streaming[ _-]?key|stream[ _-]?key|stream[ _-]?name|password|passphrase|passwd|secret"
     r"|client[_-]?secret|access[_-]?token|token|authorization)[\"']?\s*[:=]\s*[\"']?(?:bearer\s+|basic\s+)?)"
-    r"(?P<v>[^\s\"',;}\]|]+)",
+    rf"{_DONE}(?P<v>[^\s\"',;}}\]|]+)",
     re.IGNORECASE,
 )
 _LOOKS_SECRET = re.compile(r"://|key|pass|pwd|secret|token|auth|cred|bearer|stream", re.IGNORECASE)

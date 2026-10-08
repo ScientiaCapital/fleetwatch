@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 
 from fleetwatch.agents.readiness.rules import check as readiness_check
 from fleetwatch.model import Fleet, Priority
+from fleetwatch.notes import format_note
 from fleetwatch.policy import Policy
 from fleetwatch.redact import scrub_text
 from fleetwatch.state import KnownDevice, State
@@ -109,7 +110,7 @@ def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now
         r = readiness_check(live, event, policy)
         lines = [f"{d.name} · {event.title} at {_when(event.start)}: {r.verdict}"]
         lines += [f"- {n}" for n in r.notes]
-        return "\n".join(lines)
+        return "\n".join(lines + _notes(d, state))
 
     posted = state.latest_readiness(d.id)
     open_items = [f for f in state.open_findings() if f.device_id == d.id and not f.fyi]
@@ -121,7 +122,11 @@ def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now
     if posted and posted.start and posted.start >= now:
         lines.append(f"Last check: {posted.title} at {_when(posted.start)}: {posted.verdict}")
         lines += [f"- {n}" for n in posted.notes]
-    return "\n".join(lines)
+    return "\n".join(lines + _notes(d, state))
+
+
+def _notes(d: KnownDevice, state: State) -> list[str]:
+    return [f"Note: {format_note(n)}" for n in state.notes(d.id)[:3]]
 
 
 def _offline(state: State) -> str:

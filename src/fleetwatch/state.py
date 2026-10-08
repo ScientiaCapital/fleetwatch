@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sweeps (
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, name TEXT, model TEXT, group_name TEXT, online INTEGER, firmware TEXT, recording INTEGER,
   last_seen TEXT);
+CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, device_id TEXT, note TEXT, author TEXT, at TEXT);
 """
 
 # Columns added after v0.1's first schema. Old databases get them on open; new ones go through the same path.
@@ -54,6 +55,17 @@ class PostedReadiness:
     verdict: str
     notes: tuple[str, ...]
     posted_at: datetime
+
+
+@dataclass(frozen=True)
+class Note:
+    """A note a person left on a room. Cleaned before it is stored (see fleetwatch.notes), still untrusted."""
+
+    id: int
+    device_id: str
+    note: str
+    author: str
+    at: datetime
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -196,6 +208,31 @@ class State:
         hits = [d for d in self.devices() if needle in " ".join(d.name.split()).casefold()]
         exact = [d for d in hits if " ".join(d.name.split()).casefold() == needle]
         return exact or hits
+
+    # --- notes --------------------------------------------------------------------------------------
+    def add_note(self, device_id: str, note: str, author: str, now: datetime) -> int:
+        """Store a note as given. Callers clean it first: fleetwatch.notes.add_note does."""
+        cur = self.db.execute(
+            "INSERT INTO notes (device_id, note, author, at) VALUES (?,?,?,?)", (device_id, note, author, _iso(now))
+        )
+        self.db.commit()
+        return int(cur.lastrowid)
+
+    def notes(self, device_id: str | None = None) -> list[Note]:
+        """Newest first; all rooms, or one."""
+        if device_id is None:
+            rows = self.db.execute("SELECT * FROM notes ORDER BY at DESC, id DESC")
+        else:
+            rows = self.db.execute("SELECT * FROM notes WHERE device_id=? ORDER BY at DESC, id DESC", (device_id,))
+        return [Note(r["id"], r["device_id"], r["note"] or "", r["author"] or "", _dt(r["at"])) for r in rows]
+
+    def notes_by_device(self, device_ids: set[str], limit: int = 3) -> dict[str, list[Note]]:
+        """The newest `limit` notes for each of these devices; devices without notes are left out."""
+        out: dict[str, list[Note]] = {}
+        for n in self.notes():
+            if n.device_id in device_ids and len(out.setdefault(n.device_id, [])) < limit:
+                out[n.device_id].append(n)
+        return {k: v for k, v in out.items() if v}
 
     # --- audit --------------------------------------------------------------------------------------
     def audit(self, kind: str, detail: dict, now: datetime | None = None) -> None:
