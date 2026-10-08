@@ -3,7 +3,7 @@
 A Raspberry Pi 5 with Raspberry Pi OS (64-bit) is the reference Linux target. Any systemd distro works.
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf https://astral.sh/uv/0.12.23/install.sh | sh   # a pinned uv release; the one-line installer does the same
 git clone https://github.com/ScientiaCapital/fleetwatch.git && cd fleetwatch
 uv sync && uv run fleetwatch login     # headless: open the link on your laptop, paste the redirect back
 deploy/install.sh

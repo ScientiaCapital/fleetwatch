@@ -39,3 +39,14 @@ jobs:
           git -C "$FLEETWATCH_REPO" branch --force "$REF" HEAD 2>/dev/null || true
           bash install.sh --dir "$RUNNER_TEMP/fleetwatch" --ref "$REF" --dry-run
           test "$(stat -c %a "$RUNNER_TEMP/fleetwatch/.env" 2>/dev/null || stat -f %Lp "$RUNNER_TEMP/fleetwatch/.env")" = "600"
+      - name: One-line installer picks the newest release tag by default
+        env:
+          FLEETWATCH_REPO: ${{ github.workspace }}
+        run: |
+          # Three tags on this commit: the newest vX.Y.Z must win, and a pre-release must not.
+          git -C "$FLEETWATCH_REPO" tag v0.0.0 HEAD
+          git -C "$FLEETWATCH_REPO" tag v0.0.1 HEAD
+          git -C "$FLEETWATCH_REPO" tag v0.0.1-rc1 HEAD
+          bash install.sh --dir "$RUNNER_TEMP/fleetwatch-release" --no-login --no-service --dry-run | tee "$RUNNER_TEMP/install.log"
+          grep -q '^==> Latest release: v0.0.1$' "$RUNNER_TEMP/install.log"
+          test "$(git -C "$RUNNER_TEMP/fleetwatch-release" rev-parse HEAD)" = "$(git -C "$FLEETWATCH_REPO" rev-parse HEAD)"
