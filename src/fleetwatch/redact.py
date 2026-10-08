@@ -19,24 +19,26 @@ _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
 _STREAM_ID = re.compile(r"^(?:.*[_-])?stream_?id$", re.IGNORECASE)
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
-# Text that was already redacted stays as it is, so scrubbing twice equals scrubbing once (room notes are redacted
-# when saved and again inside an `ask` answer). A mask followed by more URL or token characters is scrubbed again.
-_DONE = rf"(?!{re.escape(MASK)}(?![\w/.~%+=&:@?#-]))"
+# A mask already in the text is read as part of the value around it, so the whole value is masked again: scrubbing
+# twice equals scrubbing once (room notes are redacted when saved and again inside an `ask` answer), and typing
+# "[redacted]" in front of a secret can't split the match and let the rest through.
+_M = re.escape(MASK)
+_MASKS = rf"(?:{_M})+(?![\w/.~%+=&:@?#\[-])"  # masks with nothing secret after them: already done
 _STREAM_URL = re.compile(
     r"(?P<p>\b(?:rtmp[a-z]*|srt|rtsp|rist)://)(?:[^/?#\s\"<>()\[\]]*@)?(?P<h>[^/?#\s\"'<>()\[\],@]+)"
-    rf"(?P<r>[/?#]{_DONE}[^\s\"'<>()\[\],]*)?",
+    rf"(?P<r>[/?#](?:{_MASKS}|(?:{_M}|[^\s\"'<>()\[\],])*))?",
     re.IGNORECASE,
 )
 _HTTP_URL = re.compile(
     r"(?P<p>\bhttps?://)(?:[^/?#\s\"<>()\[\]]*@)?(?P<h>[^/?#\s\"'<>()\[\],@]+)"
-    rf"(?P<path>/{_DONE}[^?#\s\"'<>()\[\],]*)?(?P<q>\?{_DONE}[^\s\"'<>()\[\],]*)?",
+    rf"(?P<path>/(?:{_MASKS}|(?:{_M}|[^?#\s\"'<>()\[\],])*))?(?P<q>\?(?:{_MASKS}|(?:{_M}|[^\s\"'<>()\[\],])*))?",
     re.IGNORECASE,
 )
 _INGEST_PATH = re.compile(r"whip|whep|ingest|publish|upload|live|stream|rtmp|srt|push|broadcast", re.IGNORECASE)
 _KEY_VALUE = re.compile(
     r"(?P<k>[\"']?\b(?:streaming[ _-]?key|stream[ _-]?key|stream[ _-]?name|password|passphrase|passwd|secret"
     r"|client[_-]?secret|access[_-]?token|token|authorization)[\"']?\s*[:=]\s*[\"']?(?:bearer\s+|basic\s+)?)"
-    rf"{_DONE}(?P<v>[^\s\"',;}}\]|]+)",
+    rf"(?P<v>{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)",
     re.IGNORECASE,
 )
 _LOOKS_SECRET = re.compile(r"://|key|pass|pwd|secret|token|auth|cred|bearer|stream", re.IGNORECASE)
