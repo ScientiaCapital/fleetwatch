@@ -1,6 +1,7 @@
 """The redaction cases from the Edge Claude Kit's tests/hook-test.sh. None may leave FAKE in the output."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -87,3 +88,87 @@ def test_a_typed_mask_cannot_hide_the_secret_after_it(text):
     for leak in ("hunter2", "abc", "/secret", "live_key", "]x"):
         assert leak not in out
     assert scrub_text(out) == out
+
+
+# The shared corpus, byte-identical with the Epiphan Edge Claude Kit's copy. Don't edit it here; change both repos.
+_CORPUS = json.loads((Path(__file__).parent / "redaction-cases.json").read_text(encoding="utf-8"))["cases"]
+
+
+@pytest.mark.parametrize("case", _CORPUS, ids=[c["id"] for c in _CORPUS])
+@pytest.mark.parametrize("fn", [scrub_text, redact], ids=["scrub_text", "redact"])
+def test_shared_corpus(fn, case):
+    once = fn(case["input"])
+    for leak in case["must_not_contain"]:
+        assert leak not in once
+    for kept in case.get("must_contain", []):
+        assert kept in once
+    assert fn(once) == once
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "the monkey: George",
+        "keyboard: US layout",
+        "Keynote: opening session",
+        "turkey=roast",
+        "hotkey: F5",
+        "Basically the room is fine",
+        "a Bearer of good news",
+        "| Name | Keynote speaker |\n|---|---|\n| Hall A | Dr. Example |",
+        "| Room | Status |\n|---|---|\n| 204 | online |",
+    ],
+)
+def test_words_that_only_look_like_key_names_are_kept(text):
+    assert scrub_text(text) == text
+
+
+@pytest.mark.parametrize(
+    ("text", "leak"),
+    [
+        ("| Destination | Stream key | Status |\n|---|---|---|\n| YT | FAKE51 | live |", "FAKE51"),
+        ("| Name | Password |\n| --- | :---: |\n| admin | FAKE52 |\n\nafter the table", "FAKE52"),
+        ("| api-key | note |\n|---|---|\n| FAKE53 | x |", "FAKE53"),
+        ('stream key = "FAKE WITH SPACES 54"', "SPACES"),
+        ("stream%2Dkey=FAKE55", "FAKE55"),
+        ("streaming key: FAKE56", "FAKE56"),
+        ("private_key=FAKE57", "FAKE57"),
+        ("X-API-Key: FAKE58", "FAKE58"),
+        ("ws://u:FAKE59@ws.example/x", "FAKE59"),
+        ('{"key": "FAKE60"}', "FAKE60"),
+    ],
+)
+def test_new_secret_shapes(text, leak):
+    for fn in (scrub_text, redact):
+        out = fn(text)
+        assert leak not in out and fn(out) == out
+
+
+def test_table_keeps_other_columns_and_lines():
+    text = "| Destination | Stream key |\n|---|---|\n| YouTube | FAKE61 |\nplain line"
+    out = scrub_text(text)
+    assert "YouTube" in out and "plain line" in out and "| Destination | Stream key |" in out and "FAKE61" not in out
+
+
+def test_bearer_and_basic_keep_the_scheme_word():
+    assert scrub_text("got Bearer FAKE62 back") == f"got Bearer {MASK} back"
+    assert scrub_text("sent Basic RkFLRTYz=") == f"sent Basic {MASK}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "https://[redacted]u:FAKE64@host.example/x",
+        "rtmp://[redacted]u:FAKE65@a.example/app",
+        "ftp://[redacted]u:FAKE66@h/x",
+    ],
+)
+def test_a_typed_mask_in_userinfo_cannot_hide_the_password(text):
+    out = scrub_text(text)
+    assert "FAKE" not in out and scrub_text(out) == out
+
+
+def test_table_stream_id_column_keeps_uuids():
+    uuid = "0f8fad5b-d9cb-469f-a165-70867728950e"
+    out = scrub_text(f"| Stream ID | Name |\n|---|---|\n| {uuid} | A |\n| FAKE67 | B |")
+    assert uuid in out and "FAKE67" not in out
