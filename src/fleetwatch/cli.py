@@ -86,16 +86,37 @@ def _refuse_overlapping_sandbox(settings: Settings, raw: Any) -> None:
     from fleetwatch.epiphan.parse import parse_devices
 
     sandbox_ids = {i.lower() for i in parse_devices(raw, datetime.now(UTC)).devices}
+    if not sandbox_ids:
+        _refuse_sandbox(settings, "it lists no devices, so it can't be told apart from the normal team")
     known = {d.id.lower() for d in State(settings.state_db).devices()}
+    if not known:
+        print(
+            "Warning: the normal sign-in has no saved devices yet, so the two teams can't be compared. Run one "
+            "`fleetwatch digest` on the normal sign-in first, then sign in to the sandbox again."
+        )
+        return
     shared = sorted(sandbox_ids & known)
     if shared:
-        _sandbox_store(settings).clear()
-        print(
-            f"Sandbox sign-in refused and forgotten: it can see {len(shared)} device(s) the normal sign-in watches "
-            "(for example "
-            f"{shared[0]}), so it reaches the same team. Sign in with an account for the sandbox team only."
+        _refuse_sandbox(
+            settings,
+            f"it can see {len(shared)} device(s) the normal sign-in watches (for example {shared[0]}), "
+            "so it reaches the same team. Sign in with an account for the sandbox team only",
         )
-        raise SystemExit(2)
+
+
+def _refuse_sandbox(settings: Settings, why: str) -> None:
+    """Forget the sandbox sign-in and stop. If it can't be forgotten, say so and how to do it by hand."""
+    try:
+        _sandbox_store(settings).clear()
+        print(f"Sandbox sign-in refused and forgotten: {why}.")
+    except Exception as e:  # noqa: BLE001 - a store error must not turn a refusal into a traceback
+        from fleetwatch.redact import redact
+
+        print(
+            f"Sandbox sign-in refused: {why}. The saved token could not be removed ({redact(type(e).__name__)}): "
+            "run  fleetwatch logout --sandbox"
+        )
+    raise SystemExit(2)
 
 
 def _logout(settings: Settings, sandbox: bool = False) -> str:

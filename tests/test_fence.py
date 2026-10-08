@@ -31,3 +31,14 @@ def test_a_channel_id_is_checked_by_its_master_device():
     fence = Fence.from_settings(_s(write_device_ids="0a1b2c3d"))
     assert fence.allows("0a1b2c3d-2") is True
     assert fence.allows("0fffffff-2") is False
+
+
+def test_entries_that_arent_device_ids_are_dropped_and_remembered():
+    fence = Fence.from_settings(_s(write_device_ids="0a1b2c3d, 0a1b2c3d-1, 'x', abc\n0e0f1a2b"))
+    assert fence.device_ids == frozenset({"0a1b2c3d"})
+    assert set(fence.invalid) == {"0a1b2c3d-1", "'x'", "abc\n0e0f1a2b"}
+
+
+def test_an_allowlist_with_only_invalid_entries_is_not_a_fence():
+    fence = Fence.from_settings(_s(write_device_ids="0a1b2c3d-1"))
+    assert not fence.is_set and fence.invalid == ("0a1b2c3d-1",)

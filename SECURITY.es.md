@@ -91,7 +91,7 @@ Límites conocidos:
   sigue sin confirmarse hasta la primera ejecución real. Hoy la verificación del equipo de pruebas es la lista de
   dispositivos y la lista de permitidos `FLEETWATCH_WRITE_DEVICE_IDS`. Sin esa lista y sin `FLEETWATCH_WRITE_TEAM_ID`,
   ningún cambio se ejecuta. `login --sandbox` se rechaza, y el inicio de sesión se olvida, si el equipo de pruebas
-  ve un dispositivo que el inicio de sesión normal ya vigila.
+  no lista dispositivos o ve un dispositivo que el inicio de sesión normal ya vigila.
 - El modelo puede escribir un motivo o una respuesta engañosos. Lee la tarjeta, no el motivo.
 
 ## Más detalles

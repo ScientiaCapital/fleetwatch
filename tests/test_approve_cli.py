@@ -88,6 +88,48 @@ def test_sandbox_login_overlapping_the_normal_sign_in_is_refused_and_forgotten(t
     assert not s.sandbox_token_file.exists(), "a refused sandbox sign-in is forgotten"
 
 
+def test_sandbox_login_that_lists_no_devices_is_refused_and_forgotten(tmp_path, capsys):
+    s = _settings(tmp_path, "propose")
+    _sign_in_sandbox(s)
+    for odd in ({"devices": []}, "Epiphan is having trouble", {"error": "nope"}):
+        _sign_in_sandbox(s)
+        with pytest.raises(SystemExit) as e:
+            cli._refuse_overlapping_sandbox(s, odd)
+        assert e.value.code != 0
+        assert not s.sandbox_token_file.exists()
+    assert "no devices" in capsys.readouterr().out
+
+
+def test_sandbox_login_with_no_normal_history_is_kept_with_a_warning(tmp_path, capsys):
+    s = _settings(tmp_path, "propose")
+    _sign_in_sandbox(s)
+    cli._refuse_overlapping_sandbox(s, {"devices": [{"Id": "0e0f1a2b", "Name": "Lab Pearl-2", "Status": "online"}]})
+    assert s.sandbox_token_file.exists()
+    assert "can't be compared" in capsys.readouterr().out
+
+
+def test_a_sandbox_sign_in_that_cant_be_cleared_says_so_instead_of_a_traceback(tmp_path, capsys, monkeypatch):
+    from datetime import UTC, datetime
+
+    from fleetwatch.epiphan.parse import parse_devices
+    from fleetwatch.state import State
+
+    s = _settings(tmp_path, "propose")
+    _sign_in_sandbox(s)
+    both = {"devices": [{"Id": "0a1b2c3d", "Name": "Room 204 Pearl Mini", "Status": "online"}]}
+    State(s.state_db).record_devices(parse_devices(both, datetime.now(UTC)), datetime.now(UTC))
+
+    class Stuck:
+        def clear(self):
+            raise OSError("keychain locked")
+
+    monkeypatch.setattr(cli, "_sandbox_store", lambda _s: Stuck())
+    with pytest.raises(SystemExit) as e:
+        cli._refuse_overlapping_sandbox(s, both)
+    out = capsys.readouterr().out
+    assert e.value.code != 0 and "fleetwatch logout --sandbox" in out and "forgotten" not in out
+
+
 def test_sandbox_login_with_different_devices_is_kept(tmp_path):
     from datetime import UTC, datetime
 

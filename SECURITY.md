@@ -143,7 +143,7 @@ What stops a change from running without that approval:
 - Sandbox fence. Writes use a second sign-in, made with `fleetwatch login --sandbox`, and every target must be on that
   sign-in's own fresh device list and on `FLEETWATCH_WRITE_DEVICE_IDS`, the sandbox devices you list. With no sandbox
   sign-in, or with neither that list nor `FLEETWATCH_WRITE_TEAM_ID` set, no write can run. `login --sandbox` is
-  refused, and the sign-in forgotten, if the sandbox can see a device the normal sign-in already watches. The
+  refused, and the sign-in forgotten, if the sandbox lists no devices or can see a device the normal sign-in already watches. The
   heartbeat and the read-only assistant never load the sandbox token.
 - Disruptive tools (reboot, firmware update, team preset, stopping or deleting a stream endpoint, deleting an event,
   and tools not yet reviewed) are refused near a scheduled event or while a target is recording, even with approval.

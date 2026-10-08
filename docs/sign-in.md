@@ -70,8 +70,13 @@ use it with the team you watch.
   (the sandbox devices you list, comma-separated). If `FLEETWATCH_WRITE_TEAM_ID` is set, it also refuses when
   Epiphan reports a different team, or no team ID at all. With neither set, every change is refused, so a sign-in
   that lands on the wrong team can't write to it.
-- `fleetwatch login --sandbox` forgets the sign-in and stops if the sandbox can see a device the normal sign-in
-  already watches, because that means both reach the same team.
+- List only devices that exist on the sandbox team, as master device IDs (8 to 32 characters, 0-9 and a-f). The check
+  proves a device is on the signed-in team's list, not that the team is the sandbox, so a device that also exists
+  on a real team would pass. `fleetwatch doctor` flags entries that aren't device IDs, and warns when only a team ID
+  is set.
+- `fleetwatch login --sandbox` forgets the sign-in and stops if the sandbox lists no devices, or can see a device
+  the normal sign-in already watches, because that means both reach the same team. If the normal sign-in has no
+  saved devices yet, it warns that the two can't be compared: run one `fleetwatch digest` first.
 - With no sandbox sign-in, no change can run. `fleetwatch doctor` shows "Sandbox sign-in: none, so no change can
   run".
 - `uv run fleetwatch logout --sandbox` signs out of the sandbox only. The normal sign-in stays.
