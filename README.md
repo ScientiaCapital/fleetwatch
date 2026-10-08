@@ -28,7 +28,7 @@ Slack or Microsoft Teams digest when something changes, and says Ready or Not re
 event.
 
 Version 0.1 is observe-only. Fleetwatch never calls a write tool: its client refuses them before any request
-leaves the machine, and `policy.yaml` accepts only `autonomy: observe` or `propose` (for v0.2; it changes nothing yet). The Epiphan sign-in it stores can write, so
+leaves the machine, and `policy.yaml` accepts only `autonomy: observe` or `propose` (`propose` is for the optional v0.2 assistant, below). The Epiphan sign-in it stores can write, so
 use a least-access account.
 
 <p align="center">
@@ -222,15 +222,24 @@ The [trust model](SECURITY.md#trust-model), what is in and out of scope, and kno
 
 ### Assistant (v0.2, optional)
 
-In progress for v0.2. With `FLEETWATCH_ANTHROPIC_API_KEY` set, `fleetwatch ask` uses Claude Haiku 5.5 to answer in
-plain English or Spanish. It reads the fleet through the same read-only guard. It can't change anything: when
-`policy.yaml` says `autonomy: propose`, the most it can do is store a proposed change for a person to approve, and
-a person approves it on a local page (`fleetwatch approve --serve`, see
-[Approving changes](docs/approving-changes.md)). When it's on, your question and redacted fleet data, including device, channel
-and event names, go to the Anthropic API. To turn it off, leave `FLEETWATCH_ANTHROPIC_API_KEY` empty, or use
-`ask --no-ai` for one question. If the API can't be reached, `ask` gives the keyword answer and says so. So far it's
-tested only against a mocked model, not the live API or a real team. Details are in
-[SECURITY.md](SECURITY.md#data-sent-to-the-model-v02-in-progress).
+Built but not released, and tested only against fakes and mocks: a fake Epiphan server and a mocked model. It has not
+run against a real team or the live Anthropic API.
+
+With `FLEETWATCH_ANTHROPIC_API_KEY` set, `fleetwatch ask` uses Claude Haiku 5.5 to answer in plain English or
+Spanish. It reads the fleet through the same read-only guard. It can't change anything. When `policy.yaml` says
+`autonomy: propose`, it can store a proposed change, nothing more.
+
+- A person approves each change, one at a time, on a local page: `fleetwatch approve --serve`. See
+  [Approving changes](docs/approving-changes.md).
+- Changes run on a sandbox team only, through a separate sign-in (`fleetwatch login --sandbox`).
+- Each approval works once, expires after five minutes, and is bound to the exact tool and arguments.
+- Disruptive tools, such as a reboot or a firmware update, are refused near a scheduled event or while a room is
+  recording, even with approval.
+
+When it's on, your question and redacted fleet data, including device, channel and event names, go to the Anthropic API.
+To turn it off, leave `FLEETWATCH_ANTHROPIC_API_KEY` empty, or use `ask --no-ai` for one question. If the API can't be
+reached, `ask` gives the keyword answer and says so. `fleetwatch doctor` shows whether the assistant is on. The
+trust model and its known limits are in [SECURITY.md](SECURITY.md#v02-trust-model).
 
 ## Documentation
 
@@ -268,9 +277,9 @@ Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has only
 so far: the first live run against a real team is still to do. What's next is in the
 [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) and
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2) milestones, including a voice interface that
-isn't built yet. The plan after that is an optional assistant that answers questions and proposes changes for a
-person to approve on a local page. It won't run disruptive actions unattended. The guard, the dry run, and the
-redaction stay.
+isn't built yet. The optional assistant that proposes changes for a person to approve is built but not released, and
+chat wiring is still in progress. It's untested against a real team. It won't run disruptive actions unattended. The
+guard, the dry run, and the redaction stay.
 
 ## Thanks
 

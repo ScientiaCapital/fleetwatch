@@ -1,6 +1,21 @@
 # Design: an assistant that proposes changes a person approves (v0.2)
 
-Status: proposed. Nothing on this page is built yet. Version 0.1 stays read-only, and its client refuses every write tool.
+Status: mostly built, not released, and tested only against fakes and mocks. It hasn't run against a real team or the
+live Anthropic API. Version 0.1 stays read-only, and its client refuses every write tool.
+
+Merged:
+
+- Proposal and approval store (#89).
+- The `propose` policy with argument schemas for the six proposable tools (#90, #92).
+- The write executor, separate from `EpiphanClient` (#93).
+- The assistant, which reads through the guard and can only propose (#94).
+- The local approval page (#95).
+
+Still to do:
+
+- Chat wiring is in progress.
+- Live verification is not done. It waits for the first live run, and the "Open until the first live run" list below
+  still applies.
 
 ## Goal
 

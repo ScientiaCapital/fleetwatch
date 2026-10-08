@@ -1,3 +1,5 @@
+<p align="right">English · <a href="SECURITY.es.md">Español</a></p>
+
 # Security
 
 Fleetwatch watches classroom and studio video gear for a whole campus or company, so a bug that leaks a stream
@@ -48,8 +50,8 @@ refuse anything wider.
 
 - Refuses write tools in code. The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the
   `read` list in `tool_policy.yaml` before a request leaves the machine, including tools Epiphan adds later.
-  `policy.yaml` accepts `autonomy: observe` or `propose` (for v0.2; nothing reads it yet, and the guard refuses
-  every write tool in both), and `dry_run` is forced to `true`; any other autonomy value fails at start-up.
+  `policy.yaml` accepts `autonomy: observe` or `propose` (`propose` is for the v0.2 assistant; the guard refuses
+  every write tool in both modes, and v0.2 writes use a separate executor, below), and `dry_run` is forced to `true`; any other autonomy value fails at start-up.
 - Redaction first. Every tool result passes through `src/fleetwatch/redact.py` before it's parsed, stored,
   logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
   `[redacted]`.
@@ -110,6 +112,61 @@ mocked model so far, not the live Anthropic API or a real team.
 - Turning it off. Leave `FLEETWATCH_ANTHROPIC_API_KEY` empty. Anthropic's own data handling for API traffic applies
   to what is sent.
 
+## v0.2 trust model
+
+This covers the optional assistant and the approval flow. They're built but not released, and tested only against
+fakes and mocks: a fake Epiphan server and a mocked model. Nothing here has run against a real team or the live
+Anthropic API. Version 0.1 doesn't use any of it. The design is in
+[docs/design/approved-writes.md](docs/design/approved-writes.md).
+
+What the model can see. Your question, and redacted results from the read tools it asks for. Those results include
+device, channel, source and event names, models, groups, firmware, and online, recording and event status. They go to
+the Anthropic API. Redaction removes known secret shapes, not every possible secret, so see
+[Known limits](#known-limits).
+
+What the model can do. Read, through the same `guard()` as everything else, and call `propose_change`. That tool
+stores a pending proposal and runs nothing. The model never sees a write tool. It's untrusted: a prompt that
+persuades it to propose something still meets every check below.
+
+What a person approves. One change at a time, on the approval page (`fleetwatch approve --serve`, see
+[Approving changes](docs/approving-changes.md)). Code builds the card from the stored proposal and a fresh read of
+each target: the tool in plain words, each device's ID, name and state, and every argument in full. The assistant's
+reason appears in a separate box marked as not checked. If an argument can't be shown in full, only Deny is offered.
+
+What stops a change from running without that approval:
+
+- Approval is single-use and expires after five minutes. It's bound to the exact tool, arguments and targets, so a
+  changed argument or a reused approval is refused.
+- Writes go only through a separate executor, never through the normal client. The executor takes only a consumed
+  approval, and re-reads each target right before the call. It refuses if a read fails or the target's state changed.
+  It calls the tool once and never retries, so an unknown outcome is shown as "may or may not have run".
+- Sandbox fence. Writes use a second sign-in, made with `fleetwatch login --sandbox`, and every target must be on that
+  sign-in's own fresh device list. With no sandbox sign-in, no write can run. The heartbeat and the read-only
+  assistant never load the sandbox token.
+- Disruptive tools (reboot, firmware update, team preset, stopping or deleting a stream endpoint, deleting an event,
+  and tools not yet reviewed) are refused near a scheduled event or while a target is recording, even with approval.
+
+The approval page:
+
+- It listens on `127.0.0.1` only, on its own port, and checks the Host header.
+- A page secret, printed once to the console and never put in a URL, gates it. Five wrong tries lock the form for a
+  minute.
+- Every POST needs a token bound to the proposal and a same-origin header. Nothing changes on a GET.
+- Approve is never the focused button, and the assistant can't set labels, colors or focus.
+
+Known limits:
+
+- Browsers send cookies to every port on the same host. Another local web server on `localhost` could receive the
+  page's session cookie. Use `127.0.0.1`, and don't browse other local web servers while the page is open.
+- The page suggests a break after five approvals in a session. That's a warning, not a hard limit, and a person can
+  still approve through it. The audit log counts approvals so a rubber-stamping pattern shows.
+- Epiphan's OAuth has no read-only scope. The sandbox sign-in's token can write to the sandbox team, and the normal
+  sign-in's token can write to its team. The fence is Fleetwatch's code, not the credential. If someone controls the
+  process or its files, they hold a token that can write.
+- Whether Epiphan returns a team ID, and whether each proposable tool takes the arguments in `tool_policy.yaml`, stay
+  unconfirmed until the first live run. Today the sandbox check is the device list.
+- The model can write a misleading reason or answer. Read the card, not the reason.
+
 ## In scope
 
 - A write tool, or any tool not on the `read` list, being called.
@@ -123,7 +180,7 @@ mocked model so far, not the live Anthropic API or a real team.
 
 - Attacks that need control of the machine or user account Fleetwatch runs as.
 - Deployments that expose the host or its login callback to the internet against the docs.
-- Prompt-injection-only chains with no effect beyond the wording of a message: v0.1 sends nothing to a model.
+- Prompt-injection-only chains with no effect beyond the wording of a message. Injection that leads to a proposal, or past an approval or the sandbox fence, is in scope.
 - Odd text in a digest because a device or event was given an odd name.
 - Vulnerabilities in Epiphan's services or in Slack.
 

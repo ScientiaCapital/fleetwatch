@@ -20,7 +20,7 @@ publica un resumen tranquilo en Slack o Microsoft Teams cuando algo cambia y dic
 (no listo) 30 minutos antes de cada evento programado.
 
 La versión 0.1 solo observa. Fleetwatch nunca llama a una herramienta de escritura: su cliente las rechaza antes de
-que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe` o `propose` (para la v0.2; todavía no cambia nada). El inicio de sesión de Epiphan que
+que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe` o `propose` (`propose` es para el asistente opcional de la v0.2, más abajo). El inicio de sesión de Epiphan que
 guarda sí puede escribir, así que usa una cuenta con el mínimo acceso.
 
 <p align="center">
@@ -204,16 +204,27 @@ en [SECURITY.md](SECURITY.md) (en inglés). Reporta vulnerabilidades en privado 
 
 ### Asistente (v0.2, opcional)
 
-En desarrollo para v0.2. Si configuras `FLEETWATCH_ANTHROPIC_API_KEY`, `fleetwatch ask` usa Claude Haiku 5.5 para
-responder en palabras simples, en inglés o en español. Lee la flota con la misma protección de solo lectura. No
-puede cambiar nada: cuando `policy.yaml` dice `autonomy: propose`, lo más que puede hacer es guardar un cambio
-propuesto para que una persona lo apruebe en una página local (`fleetwatch approve --serve`, ver
-[Approving changes](docs/approving-changes.md), en inglés). Cuando está activo, tu
-pregunta y los datos de la flota, con los secretos ocultos y con los nombres de equipos, canales y eventos, se envían
-a la API de Anthropic. Para apagarlo, deja vacía `FLEETWATCH_ANTHROPIC_API_KEY`, o usa `ask --no-ai` para una sola
-pregunta. Si no se puede llegar a la API, `ask` da la respuesta por palabras clave y lo dice. Hasta ahora solo se ha
-probado con un modelo simulado, no con la API real ni con un equipo real. Los detalles están en
-[SECURITY.md](SECURITY.md#data-sent-to-the-model-v02-in-progress) (en inglés).
+Construido, pero sin publicar, y probado solo con simulaciones: un servidor de Epiphan simulado y un modelo simulado.
+No se ha ejecutado con un equipo real ni con la API real de Anthropic.
+
+Si configuras `FLEETWATCH_ANTHROPIC_API_KEY`, `fleetwatch ask` usa Claude Haiku 5.5 para responder en palabras
+simples, en inglés o en español. Lee la flota con la misma protección de solo lectura. No puede cambiar nada. Cuando
+`policy.yaml` dice `autonomy: propose`, solo puede guardar un cambio propuesto.
+
+- Una persona aprueba cada cambio, uno por uno, en una página local: `fleetwatch approve --serve`. Ver
+  [Approving changes](docs/approving-changes.md) (en inglés).
+- Los cambios se ejecutan solo en un equipo de pruebas (sandbox), con un inicio de sesión aparte
+  (`fleetwatch login --sandbox`).
+- Cada aprobación sirve una sola vez, vence a los cinco minutos y queda ligada a la herramienta y a los argumentos
+  exactos.
+- Las herramientas disruptivas, como un reinicio o una actualización de firmware, se rechazan cerca de un evento
+  programado o mientras una sala graba, incluso con aprobación.
+
+Cuando está activo, tu pregunta y los datos de la flota, con los secretos ocultos y con los nombres de equipos, canales
+y eventos, se envían a la API de Anthropic. Para apagarlo, deja vacía `FLEETWATCH_ANTHROPIC_API_KEY`, o usa
+`ask --no-ai` para una sola pregunta. Si no se puede llegar a la API, `ask` da la respuesta por palabras clave y lo
+dice. `fleetwatch doctor` muestra si el asistente está activo. El modelo de confianza y sus límites conocidos están en
+[SECURITY.es.md](SECURITY.es.md#modelo-de-confianza-de-la-v02).
 
 ## Documentación
 
@@ -233,9 +244,9 @@ Versión 0.1.0, todavía sin publicar. Las pruebas unitarias y de replay pasan. 
 ejecutado contra la flota de ejemplo guardada: falta la primera ejecución contra un equipo real. Lo que sigue está
 en los hitos [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) y
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2), incluida una interfaz de voz que aún no
-existe. Después, el plan es un asistente opcional que responda preguntas y proponga cambios para que una persona
-los apruebe en una página local. No ejecutará acciones disruptivas sin supervisión. La protección, la ejecución en
-seco y la ocultación de secretos se quedan.
+existe. El asistente opcional que propone cambios para que una persona los apruebe está construido, pero sin
+publicar, y su conexión al chat sigue en curso. No se ha probado con un equipo real. No ejecutará acciones
+disruptivas sin supervisión. La protección, la ejecución en seco y la ocultación de secretos se quedan.
 
 ## Agradecimientos
 
