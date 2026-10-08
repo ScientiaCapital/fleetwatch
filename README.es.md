@@ -20,7 +20,7 @@ publica un resumen tranquilo en Slack o Microsoft Teams cuando algo cambia y dic
 (no listo) 30 minutos antes de cada evento programado.
 
 La versión 0.1 solo observa. Fleetwatch nunca llama a una herramienta de escritura: su cliente las rechaza antes de
-que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe`. El inicio de sesión de Epiphan que
+que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe` o `propose` (para la v0.2; todavía no cambia nada). El inicio de sesión de Epiphan que
 guarda sí puede escribir, así que usa una cuenta con el mínimo acceso.
 
 <p align="center">

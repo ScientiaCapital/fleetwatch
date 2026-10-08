@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fleetwatch.epiphan.mcp import EpiphanClient, ToolNotAllowed
-from fleetwatch.policy import load_policy, load_tool_policy
+from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tool_policy
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,3 +43,20 @@ def test_policy_forces_observe_and_dry_run(tmp_path):
 def test_shipped_policy_loads():
     pol = load_policy(ROOT / "policy.yaml")
     assert pol.autonomy == "observe" and pol.dry_run and pol.heartbeat_seconds >= 60
+
+
+def test_guard_refuses_every_write_tool_with_autonomy_propose(tmp_path):
+    p = tmp_path / "policy.yaml"
+    p.write_text("autonomy: propose\n")
+    assert load_policy(p).autonomy == "propose"
+    tools = load_tool_policy(ROOT / "tool_policy.yaml")
+    client = EpiphanClient("https://example.invalid/mcp", tools, static_token="x")
+    for tool in sorted(KNOWN_WRITE_TOOLS | tools.write | set(tools.propose)):
+        with pytest.raises(ToolNotAllowed):
+            client.guard(tool)
+
+
+def test_propose_tools_never_reach_the_read_list():
+    tools = load_tool_policy(ROOT / "tool_policy.yaml")
+    assert not set(tools.propose) & tools.read
+    assert not tools.read & KNOWN_WRITE_TOOLS

@@ -53,7 +53,8 @@ def _policy(s: Settings) -> Check:
         p = load_policy(s.policy_file)
     except Exception as e:  # noqa: BLE001
         return Check("Policy", FAIL, f"{s.policy_file}: {e}")
-    return Check("Policy", OK, f"observe-only, heartbeat every {p.heartbeat_seconds} s")
+    mode = "autonomy: propose is set, but proposals aren't built yet: observe-only" if p.proposes else "observe-only"
+    return Check("Policy", OK, f"{mode}, heartbeat every {p.heartbeat_seconds} s")
 
 
 def _guard(s: Settings) -> Check:

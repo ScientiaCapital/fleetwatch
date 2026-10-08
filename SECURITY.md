@@ -47,7 +47,8 @@ refuse anything wider.
 
 - Refuses write tools in code. The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the
   `read` list in `tool_policy.yaml` before a request leaves the machine, including tools Epiphan adds later.
-  `policy.yaml` is forced to `autonomy: observe` and `dry_run: true`; any other value fails at start-up.
+  `policy.yaml` accepts `autonomy: observe` or `propose` (for v0.2; nothing reads it yet, and the guard refuses
+  every write tool in both), and `dry_run` is forced to `true`; any other autonomy value fails at start-up.
 - Redaction first. Every tool result passes through `src/fleetwatch/redact.py` before it's parsed, stored,
   logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
   `[redacted]`.

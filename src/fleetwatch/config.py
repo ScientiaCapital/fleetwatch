@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     # auto | file | keychain | systemd-creds. auto: Keychain on macOS, systemd-creds on systemd 256+, else the file.
     token_store: str = "auto"
 
+    # For v0.2 (docs/design/approved-writes.md). Nothing reads these yet.
+    # The assistant's model key. Empty: no question or fleet data goes to Anthropic; the keyword `ask` answers.
+    anthropic_api_key: SecretStr | None = None
+    ai_model: str = "claude-haiku-5-5"
+    # Checked against the team the sandbox sign-in reaches, if Epiphan exposes a team ID. Empty: no team check.
+    write_team_id: str = ""
+    # The sandbox sign-in's own slot, separate from token_file. The heartbeat never loads it.
+    sandbox_token_file: Path = HOME / "epiphan-sandbox-oauth.json"
+
     @field_validator("epiphan_mcp_url")
     @classmethod
     def _https_only(cls, v: str) -> str:

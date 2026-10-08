@@ -378,3 +378,27 @@ async def test_group_lookup_client_has_no_retry_handlers(tmp_path, monkeypatch):
     (kw,) = made
     assert kw["retry_handlers"] == [] and kw["token"] == "xoxb-test"
     listener.close()
+
+
+# --- v0.2 settings: present, empty by default, and the API key never printed ----------------------------------
+def test_v02_settings_defaults(monkeypatch):
+    for name in ("ANTHROPIC_API_KEY", "AI_MODEL", "WRITE_TEAM_ID", "SANDBOX_TOKEN_FILE"):
+        monkeypatch.delenv(f"FLEETWATCH_{name}", raising=False)
+    s = Settings(_env_file=None)
+    assert s.anthropic_api_key is None
+    assert s.ai_model == "claude-haiku-5-5"
+    assert s.write_team_id == ""
+    assert s.sandbox_token_file.name == "epiphan-sandbox-oauth.json"
+    assert s.sandbox_token_file != s.token_file, "the sandbox sign-in has its own slot"
+
+
+def test_settings_repr_hides_the_anthropic_key():
+    s = Settings(_env_file=None, anthropic_api_key="sk-ant-api03-FAKEKEY")
+    assert "FAKEKEY" not in repr(s) and "FAKEKEY" not in str(s) and "FAKEKEY" not in str(s.model_dump())
+    assert s.anthropic_api_key.get_secret_value() == "sk-ant-api03-FAKEKEY"
+
+
+def test_env_example_documents_every_v02_setting():
+    text = (Path(__file__).resolve().parents[1] / ".env.example").read_text()
+    for name in ("ANTHROPIC_API_KEY", "AI_MODEL", "WRITE_TEAM_ID", "SANDBOX_TOKEN_FILE"):
+        assert f"FLEETWATCH_{name}" in text

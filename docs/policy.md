@@ -19,7 +19,7 @@ Two files control behavior. Both are plain YAML in the repo folder.
 | `thresholds.recent_reboot_minutes` | `30` | Uptime below this counts as a recent restart |
 | `slack.allowed_user_ids` | `[]` | Slack member IDs that may use `/fleetwatch` ([Slack commands](slack-commands.md)); empty with no group means nobody |
 | `slack.allowed_usergroup` | none | A Slack user group ID whose members may use `/fleetwatch`; needs `usergroups:read` |
-| `autonomy` | `observe` | v0.1 accepts only `observe`; any other value stops start-up |
+| `autonomy` | `observe` | `observe` or `propose`. `propose` is for the v0.2 assistant and changes nothing yet; any other value stops start-up |
 | `dry_run` | `true` | Forced to `true` in v0.1 |
 
 ## tool_policy.yaml: what it may call

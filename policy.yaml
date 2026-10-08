@@ -1,5 +1,5 @@
 # How the agent behaves. Safe defaults: watch only, never change a device.
-autonomy: observe          # observe (v0.1). Later: propose (ask in Slack), auto (routine fixes only)
+autonomy: observe          # observe or propose. propose is for the v0.2 assistant and changes nothing yet
 dry_run: true              # never call a write tool, whatever autonomy says
 
 heartbeat_seconds: 180     # how often to look at the fleet

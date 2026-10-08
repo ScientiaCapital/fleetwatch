@@ -28,7 +28,7 @@ Slack or Microsoft Teams digest when something changes, and says Ready or Not re
 event.
 
 Version 0.1 is observe-only. Fleetwatch never calls a write tool: its client refuses them before any request
-leaves the machine, and `policy.yaml` accepts only `autonomy: observe`. The Epiphan sign-in it stores can write, so
+leaves the machine, and `policy.yaml` accepts only `autonomy: observe` or `propose` (for v0.2; it changes nothing yet). The Epiphan sign-in it stores can write, so
 use a least-access account.
 
 <p align="center">
