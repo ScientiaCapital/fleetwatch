@@ -30,7 +30,7 @@ Slack. Questions typed into `ask` are untrusted text too: they pick a fixed answ
 
 **Where the real boundary is.** The read-only guard and redaction run inside the Fleetwatch process. They stop
 Fleetwatch's own code from writing or leaking, but they don't contain someone who controls that process or its
-files. On an Epiphan Edge paid plan, the OAuth token in `~/.fleetwatch/` can make changes to devices, just like
+files. On an Epiphan Edge paid plan, the stored OAuth token can make changes to devices, just like
 the account it belongs to. The boundaries that hold against an attacker are the operating-system user that runs
 Fleetwatch and the permissions of the Edge account you signed in with. So run Fleetwatch as its own user on a
 machine you trust, and sign in with an Edge account that has the least access that still sees the rooms you
@@ -45,8 +45,19 @@ watch.
   logged or posted. Stream keys, passwords, tokens and credentialed or ingest URLs become `[redacted]`.
 - **No model call.** v0.1 builds every message from fixed templates and has no AI model dependency. A later
   feature that uses a model will get its own section here first.
-- **Token at rest.** The Epiphan OAuth token lives in `~/.fleetwatch/epiphan-oauth.json` with mode `600` and
-  refreshes itself. `fleetwatch logout` deletes it.
+- **Token at rest.** The Epiphan OAuth token refreshes itself, so it lives in a store Fleetwatch can write
+  (`FLEETWATCH_TOKEN_STORE`, default `auto`):
+  - **macOS:** the login Keychain, service `fleetwatch-epiphan`. Fleetwatch writes it with `security -i`, sending
+    the token hex-encoded on stdin, so it never appears in a process's arguments (`ps`). `security -i` reads at
+    most 4095 characters a line, so the token is split across a few items (`part-0`, `part-1`, ...).
+  - **Linux with systemd 256 or later:** `~/.fleetwatch/epiphan-oauth.cred`, encrypted with
+    `systemd-creds encrypt --user`, so only this user on this machine can decrypt it. Plain text goes in and out on
+    stdin and stdout. (`LoadCredential` is read-only, and the token has to be rewritten when it refreshes.)
+  - **Everywhere else, and in Docker:** `~/.fleetwatch/epiphan-oauth.json` with mode `600`.
+
+  A token already in the file moves to the Keychain or systemd-creds the first time it is used, and the file is
+  deleted. `fleetwatch logout` deletes the token from whichever store holds it. `fleetwatch doctor` says which
+  store is in use.
 - **Service hardening.** The systemd unit sets `NoNewPrivileges`, `ProtectSystem=strict` and `PrivateTmp`, with
   write access only to its own state folder and virtual environment.
 - **CI.** The redaction and guard suites run as their own job on every PR, alongside CodeQL, pip-audit,
@@ -73,6 +84,6 @@ watch.
 
 - Redaction recognises the secret field names Epiphan uses today and common shapes in text. A secret written
   some other way may not be caught. Add a case to `tests/test_redact.py` if you find one.
-- The token file is plain JSON protected by file permissions. macOS Keychain and `systemd-creds` support are
-  planned.
+- On the file store (Docker, Linux before systemd 256), the token is plain JSON protected only by file
+  permissions.
 - Slack messages name rooms and devices. Pick a channel whose members may see that.

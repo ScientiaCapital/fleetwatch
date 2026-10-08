@@ -16,6 +16,7 @@ def settings(tmp_path: Path, **kw) -> Settings:
         "tool_policy_file": ROOT / "tool_policy.yaml",
         "state_db": tmp_path / "state.db",
         "token_file": tmp_path / "epiphan-oauth.json",
+        "token_store": "file",  # never the real keychain from a test
         "slack_bot_token": None,
         "epiphan_token": None,
     }
@@ -58,6 +59,32 @@ def test_not_signed_in_is_a_warning(tmp_path):
     c = by_name(checks)["Sign-in"]
     assert c.status == WARN and "fleetwatch login" in c.detail
     assert exit_code(checks) == 0
+
+
+def test_other_stores_report_where_the_token_is(tmp_path, monkeypatch):
+    from fleetwatch import doctor
+
+    class Store:
+        where = "macOS Keychain (fleetwatch-epiphan)"
+
+        def has_tokens(self):
+            return True
+
+    monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: Store())
+    c = by_name(run(settings(tmp_path, token_store="keychain")))["Sign-in"]
+    assert c.status == OK and "Keychain" in c.detail
+
+
+def test_token_store_trouble_fails(tmp_path, monkeypatch):
+    from fleetwatch import doctor
+    from fleetwatch.epiphan.token_store import TokenStoreError
+
+    def broken(kind, path):
+        raise TokenStoreError("Keychain: the keychain is locked")
+
+    monkeypatch.setattr(doctor, "make_token_store", broken)
+    c = by_name(run(settings(tmp_path, token_store="keychain")))["Sign-in"]
+    assert c.status == FAIL and "locked" in c.detail
 
 
 def test_static_token_counts_as_signed_in(tmp_path):
