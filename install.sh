@@ -4,19 +4,21 @@
 #   curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 #
 # What it does, in order:
-#   1. installs uv if it is missing (from astral.sh)
-#   2. clones or updates Fleetwatch in ~/fleetwatch (change with --dir)
+#   1. installs uv if it is missing (a pinned release of the astral.sh installer, which checks the archive's sha256)
+#   2. clones or updates Fleetwatch in ~/fleetwatch (change with --dir) at the newest release tag
 #   3. installs the locked dependencies and creates .env from .env.example
 #   4. runs `fleetwatch login` to sign in to Epiphan Edge
 #   5. installs the always-on service with deploy/install.sh
 #
-# Options: --dir PATH   --ref BRANCH_OR_TAG   --no-login   --no-service   --dry-run (service file only, nothing loaded)
+# Options: --dir PATH   --ref BRANCH_OR_TAG (default: newest vX.Y.Z tag, else main)   --no-login   --no-service
+#          --dry-run (service file only, nothing loaded)
 # Read it first if you like: https://github.com/ScientiaCapital/fleetwatch/blob/main/install.sh
 set -euo pipefail
 
 repo="${FLEETWATCH_REPO:-https://github.com/ScientiaCapital/fleetwatch.git}"
 dir="${FLEETWATCH_DIR:-$HOME/fleetwatch}"
-ref="main"
+ref=""  # --ref; otherwise the newest release tag
+uv_version="0.12.23"  # keep in step with the uv image in the Dockerfile
 do_login=true
 do_service=true
 dry_run=false
@@ -42,9 +44,22 @@ esac
 command -v git >/dev/null || { echo "git is required. Install it and run this again."; exit 1; }
 
 if ! command -v uv >/dev/null; then
-  say "Installing uv"
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  say "Installing uv $uv_version"
+  # A pinned release, not whatever astral.sh serves today. The installer checks the archive's sha256 itself.
+  curl -LsSf "https://astral.sh/uv/$uv_version/install.sh" | sh
   export PATH="$HOME/.local/bin:$PATH"
+fi
+
+latest_release() {
+  # The newest vX.Y.Z tag on the remote; pre-releases (v0.2.0-rc1) don't count. Empty until the first release.
+  # Sorted numerically field by field, which BSD and GNU sort both do; -V isn't everywhere.
+  git ls-remote --tags --refs "$repo" 'refs/tags/v*' 2>/dev/null | sed 's#.*refs/tags/v##' \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1 | sed 's/^/v/' || true
+}
+
+if [ -z "$ref" ]; then
+  ref="$(latest_release)"
+  if [ -n "$ref" ]; then say "Latest release: $ref"; else ref="main"; say "No release yet: installing the main branch"; fi
 fi
 
 if [ -d "$dir/.git" ]; then

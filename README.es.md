@@ -47,6 +47,9 @@ e instala el servicio. Puedes [leer el script](install.sh) antes.
 curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 ```
 
+Instala la última versión publicada (hasta que exista la primera, la rama `main`); añade `-s -- --ref main` para
+la rama de desarrollo.
+
 ¿Prefieres Docker? `docker compose run --rm fleetwatch login` y luego `docker compose up -d`.
 
 ## Inicio rápido

@@ -54,6 +54,9 @@ and installs the always-on service. [Read the script](install.sh) first if you l
 curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 ```
 
+It installs the newest release (until the first one is tagged, the `main` branch); add `-s -- --ref main` for
+the development branch.
+
 Prefer Docker? `docker compose run --rm fleetwatch login`, then `docker compose up -d`.
 
 | Tier | Platform | Runs as |
