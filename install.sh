@@ -62,11 +62,36 @@ if [ -z "$ref" ]; then
   if [ -n "$ref" ]; then say "Latest release: $ref"; else ref="main"; say "No release yet: installing the main branch"; fi
 fi
 
+not_updated() {
+  printf '\nFleetwatch was not updated: %s\n' "$*" >&2
+  exit 1
+}
+
+update_clone() {
+  # Fetch every branch and tag. `git fetch origin v0.2.0` alone writes only FETCH_HEAD, so a release tagged
+  # after the clone was made never becomes a local tag and checking it out fails.
+  git -C "$dir" fetch --quiet --tags origin || not_updated "could not fetch from $repo (the git error above says why)."
+  if git -C "$dir" rev-parse --quiet --verify "refs/tags/$ref^{commit}" >/dev/null; then
+    # A release: check out that exact commit.
+    git -C "$dir" checkout --quiet --detach "refs/tags/$ref" \
+      || not_updated "$dir has local changes that $ref would overwrite. Run  git -C $dir status  to see them, commit or stash them, then run this again."
+  elif git -C "$dir" rev-parse --quiet --verify "refs/remotes/origin/$ref^{commit}" >/dev/null; then
+    # A branch: switch to it (creating it from origin if this clone started from a tag), then fast-forward.
+    if git -C "$dir" rev-parse --quiet --verify "refs/heads/$ref" >/dev/null; then
+      git -C "$dir" checkout --quiet "$ref"
+    else
+      git -C "$dir" checkout --quiet -b "$ref" --track "origin/$ref"
+    fi || not_updated "$dir has local changes that $ref would overwrite. Run  git -C $dir status  to see them, commit or stash them, then run this again."
+    git -C "$dir" merge --quiet --ff-only "origin/$ref" \
+      || not_updated "$dir has commits on $ref that are not upstream, so it can't fast-forward. Run  git -C $dir status  to see them."
+  else
+    not_updated "$repo has no branch or tag named $ref."
+  fi
+}
+
 if [ -d "$dir/.git" ]; then
   say "Updating $dir"
-  git -C "$dir" fetch --quiet origin "$ref"
-  git -C "$dir" checkout --quiet "$ref"
-  git -C "$dir" merge --quiet --ff-only FETCH_HEAD
+  update_clone
 else
   say "Downloading Fleetwatch to $dir"
   git clone --quiet --branch "$ref" "$repo" "$dir"
