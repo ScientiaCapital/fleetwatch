@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # auto | file | keychain | systemd-creds. auto: Keychain on macOS, systemd-creds on systemd 256+, else the file.
     token_store: str = "auto"
 
-    # For v0.2 (docs/design/approved-writes.md). Nothing reads the model settings yet.
+    # For v0.2 (docs/design/approved-writes.md). `fleetwatch ask` reads the key and model.
     # The assistant's model key. Empty: no question or fleet data goes to Anthropic; the keyword `ask` answers.
     anthropic_api_key: SecretStr | None = None
     ai_model: str = "claude-haiku-5-5"

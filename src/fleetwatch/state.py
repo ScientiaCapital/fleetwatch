@@ -541,6 +541,21 @@ class State:
         self.audit("expiry", {"proposals": proposals, "approvals": approvals})
         return proposals
 
+    def expire_proposals(self, proposal_ids: list[int]) -> int:
+        """Expire these proposals if they're still pending: the assistant's turn that made them failed partway,
+        so no card may show them. Returns how many expired."""
+        ids = [int(i) for i in proposal_ids]
+        if not ids:
+            return 0
+        marks = ",".join("?" * len(ids))
+        with self._immediate():
+            n = self.db.execute(
+                f"UPDATE proposals SET status='expired', decided_at={_DB_NOW} WHERE status='pending' AND id IN ({marks})",
+                ids,
+            ).rowcount
+        self.audit("expiry", {"proposal_ids": ids, "proposals": n, "why": "assistant turn failed"})
+        return n
+
     # --- audit --------------------------------------------------------------------------------------
     def audit(self, kind: str, detail: dict, now: datetime | None = None) -> None:
         self.db.execute(

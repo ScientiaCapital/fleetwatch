@@ -53,7 +53,12 @@ def _policy(s: Settings) -> Check:
         p = load_policy(s.policy_file)
     except Exception as e:  # noqa: BLE001
         return Check("Policy", FAIL, f"{s.policy_file}: {e}")
-    mode = "autonomy: propose is set, but proposals aren't built yet: observe-only" if p.proposes else "observe-only"
+    mode = (
+        "autonomy: propose: the assistant may propose changes for a person to approve; the heartbeat stays "
+        "observe-only, and nothing runs without an approval"
+        if p.proposes
+        else "observe-only"
+    )
     return Check("Policy", OK, f"{mode}, heartbeat every {p.heartbeat_seconds} s")
 
 
@@ -187,6 +192,24 @@ def _reach(name: str, url: str, reach: Callable[[str], bool]) -> Check:
     return Check(name, WARN, f"can't reach {host}: check the network, DNS or a proxy")
 
 
+def _mask(key: str) -> str:
+    """Enough of a key to tell two apart, never enough to use: its prefix and last four characters."""
+    return f"{key[:7]}…{key[-4:]}" if len(key) >= 20 else "set"
+
+
+def _assistant(s: Settings) -> Check:
+    """Whether `fleetwatch ask` sends the question and redacted fleet data to Anthropic. Offline: no API call."""
+    key = reveal(s.anthropic_api_key)
+    if not key:
+        return Check("Assistant", INFO, "off (no API key)")
+    return Check(
+        "Assistant",
+        INFO,
+        f"on, model {s.ai_model}, sends redacted fleet data to the Anthropic API (key {_mask(key)}; "
+        "leave FLEETWATCH_ANTHROPIC_API_KEY empty to turn it off)",
+    )
+
+
 def _slack(s: Settings) -> Check:
     return Check(
         "Slack", OK, f"posts to {s.slack_channel}" if reveal(s.slack_bot_token) else "no token: prints to the console"
@@ -278,6 +301,7 @@ def run_checks(
         _slack(s),
         _slack_commands(s),
         _teams(s),
+        _assistant(s),
     ]
     checks.append(_reach("Epiphan reachable", s.epiphan_mcp_url, reach))
     if reveal(s.slack_bot_token):

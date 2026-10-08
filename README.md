@@ -220,6 +220,17 @@ The [trust model](SECURITY.md#trust-model), what is in and out of scope, and kno
 [SECURITY.md](SECURITY.md). Report vulnerabilities privately through
 [GitHub security advisories](https://github.com/ScientiaCapital/fleetwatch/security/advisories/new).
 
+### Assistant (v0.2, optional)
+
+In progress for v0.2. With `FLEETWATCH_ANTHROPIC_API_KEY` set, `fleetwatch ask` uses Claude Haiku 5.5 to answer in
+plain English or Spanish. It reads the fleet through the same read-only guard. It can't change anything: when
+`policy.yaml` says `autonomy: propose`, the most it can do is store a proposed change for a person to approve, and
+the approval page isn't built yet. When it's on, your question and redacted fleet data, including device, channel
+and event names, go to the Anthropic API. To turn it off, leave `FLEETWATCH_ANTHROPIC_API_KEY` empty, or use
+`ask --no-ai` for one question. If the API can't be reached, `ask` gives the keyword answer and says so. So far it's
+tested only against a mocked model, not the live API or a real team. Details are in
+[SECURITY.md](SECURITY.md#data-sent-to-the-model-v02-in-progress).
+
 ## Documentation
 
 [scientiacapital.github.io/fleetwatch](https://scientiacapital.github.io/fleetwatch/): install, sign-in, policy,
