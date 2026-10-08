@@ -25,7 +25,7 @@ src/fleetwatch/
   agents/                scanner/ (what needs attention), readiness/ (before an event), room_state/
   heartbeat.py           one tick: read, diff, post once
   state.py               SQLite: open items, posts, audit log
-  notify/                digest.py templates, slack.py (console when no token)
+  notify/                digest.py templates, slack.py, teams.py; fans out, console when none set
   redact.py              stream keys, passwords, credentialed URLs -> [redacted]
 deploy/                  launchd plist, systemd unit, install.sh (--dry-run)
 install.sh               curl | bash one-liner
@@ -57,6 +57,7 @@ All optional, read from `.env` (see `.env.example`).
 | `FLEETWATCH_EPIPHAN_MCP_URL` | `https://go.epiphan.cloud/mcp` | Region: `go.`, `eu.`, `au.` |
 | `FLEETWATCH_SLACK_BOT_TOKEN` | empty | `chat:write` bot token; empty prints to the console |
 | `FLEETWATCH_SLACK_CHANNEL` | `#av-ops` | Where the digest goes |
+| `FLEETWATCH_TEAMS_WEBHOOK_URL` | unset | Teams Workflows webhook (a secret; never logged); posts alongside Slack |
 | `FLEETWATCH_EPIPHAN_TOKEN` | unset | Static bearer token for hosts that can't run OAuth |
 | `FLEETWATCH_OAUTH_CALLBACK_PORT` | `8765` | Login callback on 127.0.0.1 |
 | `FLEETWATCH_ASK_PORT` | `8766` | `fleetwatch ask --serve` page on 127.0.0.1 |
