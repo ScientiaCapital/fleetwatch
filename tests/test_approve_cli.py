@@ -133,3 +133,48 @@ def test_replay_reads_go_through_the_replay_client_only(tmp_path, no_real_execut
     page = cli._approve_page(_settings(tmp_path, "observe"), str(FIXTURES))
     fleet = asyncio.run(page.read_fleet())
     assert fleet.devices
+
+
+# --- the chat box, wired to the assistant ------------------------------------------------------------------------
+def _post(page, path, sid, pid, purpose):
+    return page.handle_post(path, {"proposal": [str(pid)], "token": [page.token(purpose, sid, pid)]}, sid, "en")
+
+
+def test_replay_chat_proposal_becomes_a_card_and_one_approval_records_one_write(tmp_path, no_real_executor):
+    """A mocked model proposes a change through the chat box; it appears as a card; Approve (then the confirm step a
+    disruptive change needs) records exactly one write; approving the same proposal again is refused."""
+    from tests.test_assistant import COURTROOM, COURTROOM_CH1, FakeAnthropic, propose, reply, text, tool_use
+
+    fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("I proposed it.")))
+    s = _settings(tmp_path, "observe", anthropic_api_key="sk-ant-test")  # a replay still lets the model propose
+    page = cli._approve_page(s, str(FIXTURES), model_client=fake)
+    assert isinstance(page.executor, RecordingExecutor) and page.ask_fn is not None
+    sid = page.new_session()
+    ((sample, _r, _w),) = page.state.pending_proposals()
+    assert page.state.deny(sample, sid)  # the demo sample; leave only what the chat proposes
+
+    q = {"q": ["start recording in Courtroom"], "token": [page.token("ask", sid, 0)]}
+    code, answered = page.handle_post("/ask", q, sid, "en")
+    assert code == 200 and "I proposed it." in answered
+    ((pid, record, _why),) = page.state.pending_proposals()
+    assert record.slot == "replay" and record.targets == (COURTROOM,)
+    card = page.render_card_page(sid, "en")
+    assert COURTROOM in card and 'action="/approve"' in card
+
+    code, confirm = _post(page, "/approve", sid, pid, "card")
+    assert code == 200 and 'action="/confirm"' in confirm and page.executor.calls == []
+    code, done = _post(page, "/confirm", sid, pid, "confirm")
+    assert code == 200 and "Nothing was sent" in done
+    assert page.executor.calls == [("batch_recording", canonical({"action": "start", "device_ids": [COURTROOM_CH1]}))]
+
+    code, _ = _post(page, "/approve", sid, pid, "card")
+    assert code == 409 and len(page.executor.calls) == 1
+
+
+@pytest.mark.parametrize(("no_ai", "key"), [(False, None), (True, "sk-ant-test")])
+def test_chat_without_a_key_or_with_no_ai_uses_the_keyword_answer_and_says_so(tmp_path, no_ai, key, no_real_executor):
+    s = _settings(tmp_path, "observe", anthropic_api_key=key)
+    page = cli._approve_page(s, str(FIXTURES), no_ai=no_ai)
+    answer = page.ask_fn("what needs attention")
+    assert "assistant is off" in answer and "quick answer" in answer
+    assert len(page.state.pending_proposals()) == 1  # only the replay sample: the keyword answer can't propose
