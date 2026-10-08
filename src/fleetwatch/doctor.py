@@ -127,6 +127,16 @@ def _slack(s: Settings) -> Check:
     return Check("Slack", OK, f"posts to {s.slack_channel}" if s.slack_bot_token else "no token: prints to the console")
 
 
+def _teams(s: Settings) -> Check:
+    """Never shows or calls the webhook: the URL is the credential."""
+    url = s.teams_webhook_url.get_secret_value() if s.teams_webhook_url else ""
+    if not url:
+        return Check("Teams", OK, "not configured")
+    if not url.startswith("https://"):
+        return Check("Teams", WARN, "FLEETWATCH_TEAMS_WEBHOOK_URL should start with https://")
+    return Check("Teams", OK, "configured")
+
+
 def can_reach(url: str) -> bool:
     """Any HTTP answer counts: we only want DNS, TLS and a route. Nothing is sent but a HEAD request."""
     try:
@@ -169,7 +179,7 @@ def run_checks(
     service: Callable[[], tuple[str, str]] = service_status,
 ) -> list[Check]:
     logging.getLogger("httpx").setLevel(logging.WARNING)  # keep the report to one line per check
-    checks = [_version(), _policy(s), _guard(s), _redaction(), _sign_in(s), _state_dir(s), _slack(s)]
+    checks = [_version(), _policy(s), _guard(s), _redaction(), _sign_in(s), _state_dir(s), _slack(s), _teams(s)]
     checks.append(_reach("Epiphan reachable", s.epiphan_mcp_url, reach))
     if s.slack_bot_token:
         checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))

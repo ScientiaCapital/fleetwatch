@@ -50,3 +50,11 @@ def test_stream_id_uuid_kept_and_paging_kept():
 
 def test_scrub_text_fast_path():
     assert scrub_text("Room 204 is offline") == "Room 204 is offline"
+
+
+def test_teams_workflow_webhook_signature_is_masked():
+    url = (
+        "https://prod-00.westus.logic.example.com:443/workflows/0f0f/triggers/manual/paths/invoke"
+        "?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=FAKESIG123"
+    )
+    assert "FAKE" not in redact(f"posting to {url} failed")

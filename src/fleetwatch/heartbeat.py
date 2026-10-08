@@ -9,8 +9,8 @@ from fleetwatch.agents.scanner.rules import scan
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
 from fleetwatch.model import Fleet, Priority, RoomState
+from fleetwatch.notify import Notifier
 from fleetwatch.notify.digest import render_digest, render_readiness
-from fleetwatch.notify.slack import Notifier
 from fleetwatch.policy import Policy
 from fleetwatch.redact import redact
 from fleetwatch.state import State

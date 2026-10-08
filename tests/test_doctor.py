@@ -18,6 +18,7 @@ def settings(tmp_path: Path, **kw) -> Settings:
         "token_file": tmp_path / "epiphan-oauth.json",
         "token_store": "file",  # never the real keychain from a test
         "slack_bot_token": None,
+        "teams_webhook_url": None,
         "epiphan_token": None,
     }
     base.update(kw)
@@ -119,6 +120,23 @@ def test_slack_is_checked_only_with_a_token(tmp_path):
     signed_in(tmp_path)
     assert "Slack reachable" not in by_name(run(settings(tmp_path)))
     assert by_name(run(settings(tmp_path, slack_bot_token="xoxb-test")))["Slack reachable"].status == OK
+
+
+def test_teams_row_says_configured_without_showing_the_url_or_calling_it(tmp_path):
+    reached = []
+    url = "https://prod-00.example.com/workflows/x/triggers/manual/paths/invoke?sig=FAKESIG9"
+    checks = run_checks(
+        settings(tmp_path, teams_webhook_url=url), reach=lambda u: reached.append(u) or True, service=lambda: (OK, "")
+    )
+    teams = by_name(checks)["Teams"]
+    assert teams.status == OK and teams.detail == "configured"
+    assert url not in reached
+    assert by_name(run(settings(tmp_path)))["Teams"].detail == "not configured"
+
+
+def test_teams_webhook_must_be_https(tmp_path):
+    teams = by_name(run(settings(tmp_path, teams_webhook_url="http://example.com/x?sig=FAKESIG9")))["Teams"]
+    assert teams.status == WARN and "FAKESIG9" not in teams.detail
 
 
 def test_service_not_installed_is_a_warning(tmp_path):

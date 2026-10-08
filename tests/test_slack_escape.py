@@ -1,6 +1,7 @@
 """Device, channel and event names are untrusted: in Slack they must not become mentions or links."""
 
-from fleetwatch.notify.slack import Notifier, slack_escape
+from fleetwatch.notify import ConsoleNotifier
+from fleetwatch.notify.slack import SlackNotifier, slack_escape
 
 
 def test_control_characters_are_escaped_and_formatting_survives():
@@ -17,11 +18,11 @@ def test_slack_posts_are_escaped_and_the_console_is_not(capsys):
         def chat_postMessage(self, **kw):
             sent.update(kw)
 
-    n = Notifier(None, "#av-ops")
+    n = SlackNotifier("xoxb-test", "#av-ops")
     n._client = FakeClient()
     assert n.post("*Nightly sweep* · Offline (1): <!here> Lobby")
     assert sent["text"] == "*Nightly sweep* · Offline (1): &lt;!here&gt; Lobby"
     assert sent.get("link_names") in (None, False, 0)
 
-    Notifier(None, "#av-ops").post("Lobby <b>")
+    ConsoleNotifier("#av-ops").post("Lobby <b>")
     assert "Lobby <b>" in capsys.readouterr().out

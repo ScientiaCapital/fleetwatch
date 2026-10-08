@@ -34,8 +34,8 @@ shellcheck deploy/install.sh && deploy/install.sh --dry-run
    a code path, a tool, or a file path.
 5. **No real fleet data** in fixtures, tests, docs or commits: no real device names, IDs, IPs, serials, stream
    keys or people's names. Use neutral names like "Room 204 Pearl Mini".
-6. **Don't post to Slack from tests or CI.** Leave `FLEETWATCH_SLACK_BOT_TOKEN` empty; the console notifier
-   prints instead.
+6. **Don't post to Slack or Teams from tests or CI.** Leave `FLEETWATCH_SLACK_BOT_TOKEN` and
+   `FLEETWATCH_TEAMS_WEBHOOK_URL` empty; the console notifier prints instead.
 
 ## Style
 
@@ -57,7 +57,7 @@ shellcheck deploy/install.sh && deploy/install.sh --dry-run
 | `src/fleetwatch/agents/` | Scanner (what needs attention), readiness (before an event), room state |
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
 | `src/fleetwatch/state.py` | SQLite: open items, what was posted when, audit log |
-| `src/fleetwatch/notify/` | Digest templates; Slack or console |
+| `src/fleetwatch/notify/` | Digest templates; Slack, Teams or console |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
 | `tests/fixtures/` | Redacted, renamed fleet sample used by replay mode |
 | `planning/next-sprint.md` | The current sprint plan; issues are in the GitHub milestone of the same name |
