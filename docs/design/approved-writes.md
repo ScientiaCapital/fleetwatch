@@ -67,10 +67,14 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 
    The model's reason appears in a separate box labelled "Written by the assistant, not checked", as escaped plain text with a
    length cap. The card won't render if any argument can't be shown in full.
+   The card also shows names for the IDs it holds, from the same fresh read: the channel's name, a stream destination's
+   name and host (never its key or full URL), and an event's title with start and end. These are display text only,
+   escaped and never bound. An ID that isn't found, or a list that couldn't be read, leaves Deny as the only button.
 4. The operator selects Approve. In one SQLite statement, the approval is consumed:
    `UPDATE approvals SET used = 1 WHERE id = ? AND used = 0 AND expires_at > ?`. If no row changed, it's refused.
 5. The executor re-reads each target through the read tools, right then. It fails closed if a read fails, if the state fingerprint
-   changed, or if a disruptive change now hits a room that's recording or inside the readiness window.
+   changed, if a `stream_id` isn't on the sandbox team's stream destination list, if an `event_id` isn't the one the
+   target device reports, or if a disruptive change now hits a room that's recording or inside the readiness window.
 6. The executor calls the write tool once. There's no retry, not even after a 401. "Consumed but outcome unknown" is a final
    state that the operator sees.
 7. Every step goes to the audit table: proposal, approval, denial, expiry, refusal, and result.

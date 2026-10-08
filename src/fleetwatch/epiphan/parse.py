@@ -4,8 +4,9 @@ running when a field is absent, and must never invent state it didn't read."""
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 
-from fleetwatch.model import Channel, Device, Event, Fleet, SystemStatus
+from fleetwatch.model import Channel, Device, Endpoint, Event, Fleet, SystemStatus
 
 log = logging.getLogger(__name__)
 
@@ -239,3 +240,40 @@ def apply_events(fleet: Fleet, raw: Any) -> None:
             end=_when(ev.get("end") or ev.get("end_time") or ev.get("ends_at") or _find(ev, "end")),
             id=str(ev.get("id") or ev.get("event_id") or ev.get("occurrence_id") or ""),
         )
+
+
+_URL_KEYS = ("url", "Url", "URL", "rtmp_url", "server", "address", "Address")
+
+
+def _host(entry: dict[str, Any]) -> str:
+    """The host of an endpoint's URL, and nothing else: a stream key lives in the URL's path or query."""
+    for key in _URL_KEYS:
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            text = value.strip()
+            try:
+                return urlsplit(text if "//" in text else f"//{text}").hostname or ""
+            except ValueError:
+                return ""
+    return ""
+
+
+def parse_stream_endpoints(raw: Any) -> dict[str, Endpoint] | None:
+    """`get_stream_endpoints` → the team's destinations by ID, each with its name and host only. None when the
+    result isn't a list of entries with IDs (text, or a shape we don't know): a failed read, never "no endpoints"."""
+    items = raw
+    if isinstance(raw, dict):
+        items = next((raw[k] for k in ("stream_endpoints", "endpoints", "streams", "items") if k in raw), None)
+    if not isinstance(items, list):
+        return None
+    out: dict[str, Endpoint] = {}
+    for d in items:
+        if not isinstance(d, dict):
+            continue
+        sid = d.get("id") or d.get("Id") or d.get("stream_id") or d.get("StreamID")
+        if not sid:
+            return None
+        out[str(sid)] = Endpoint(str(sid), str(d.get("name") or d.get("Name") or ""), _host(d))
+    if items and not out:
+        return None
+    return out

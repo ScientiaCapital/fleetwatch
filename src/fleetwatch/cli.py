@@ -290,7 +290,7 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
     imported or built. Otherwise it refuses to start unless policy.yaml says autonomy: propose and a sandbox
     sign-in exists."""
     from fleetwatch.approve_page import ApprovePage, RecordingExecutor, seed_replay_sample
-    from fleetwatch.heartbeat import snapshot
+    from fleetwatch.epiphan.approval_read import read_for_approval
 
     tools = load_tools(settings.tool_policy_file)
     key = "" if no_ai else reveal(settings.anthropic_api_key)
@@ -299,7 +299,7 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
 
         async def read_replay():
             async with client:
-                return await snapshot(client, datetime.now(UTC))
+                return await read_for_approval(client, datetime.now(UTC))
 
         state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
         ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client)
@@ -341,7 +341,7 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
         )
         async with client:
             # Strict: a failed recorder or event read must fail the card (Deny only), not read as "Not recording".
-            return await snapshot(client, datetime.now(UTC), strict=True)
+            return await read_for_approval(client, datetime.now(UTC), strict=True)
 
     ask_fn = _approve_ask(settings, state, policy, key, None)
     return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn)

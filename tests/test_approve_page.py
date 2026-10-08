@@ -10,7 +10,7 @@ import logging
 import re
 import socket
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.server import HTTPServer
 from urllib.parse import urlencode
 
@@ -19,7 +19,7 @@ import pytest
 from fleetwatch import approve_page
 from fleetwatch.approve_page import FATIGUE_AFTER, MAX_BODY, ApprovePage, RecordingExecutor, make_handler
 from fleetwatch.epiphan.executor import Outcome
-from fleetwatch.model import Channel, Device, Fleet
+from fleetwatch.model import Channel, Device, Endpoint, Event, Fleet
 from fleetwatch.policy import load_tools
 from fleetwatch.proposals import canonical, parse_canonical, state_fingerprint
 from fleetwatch.state import State
@@ -36,6 +36,7 @@ def _fleet(name: str = "Room 204 Pearl Mini") -> Fleet:
     fleet = Fleet(taken_at=now)
     fleet.devices[ROOM] = Device(ROOM, name, "Pearl Mini", channels={"1": Channel("1", "Lecture")})
     fleet.devices[OTHER] = Device(OTHER, "Room 105 Pearl-2", "Pearl-2", online=False)
+    fleet.endpoints = {STREAM: Endpoint(STREAM, "Rehearsal stream", "rehearsal.example.invalid")}
     return fleet
 
 
@@ -398,6 +399,94 @@ def test_post_without_a_session_is_refused(harness):
     assert status == 403
 
 
+# --- names for stream, event and channel targets (issue #99) -------------------------------------------
+
+UNKNOWN_STREAM = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d"
+START = {"stream_id": STREAM, "device_id": ROOM, "channel_id": "1"}
+
+
+def _only_deny(body: str) -> bool:
+    forms = _forms(body)
+    return "/deny" in forms and "/approve" not in forms
+
+
+def test_card_shows_the_stream_endpoints_name_and_host_and_no_key(harness):
+    harness.fleet_box[0].endpoints[STREAM] = Endpoint(STREAM, "Rehearsal stream", "rehearsal.example.invalid")
+    harness.add("start_stream_endpoint", START)
+    _, body = _card(harness)
+    assert "Rehearsal stream" in body and "rehearsal.example.invalid" in body
+    assert "FAKEKEY123" not in body and "rtmp://" not in body
+    assert "/approve" in _forms(body)
+
+
+def test_card_shows_the_channels_name_for_a_channel_argument(harness):
+    harness.add("start_stream_endpoint", START)
+    _, body = _card(harness)
+    assert "Lecture" in body
+
+
+def test_card_shows_the_channels_name_for_a_channel_target(harness):
+    harness.add("batch_recording", {"action": "start", "device_ids": [f"{ROOM}-1"]})
+    _, body = _card(harness)
+    assert "Lecture" in body and "/approve" in _forms(body)
+
+
+def test_an_unknown_channel_offers_deny_only(harness):
+    harness.add("batch_recording", {"action": "start", "device_ids": [f"{ROOM}-7"]})
+    _, body = _card(harness)
+    assert "isn't on" in body and _only_deny(body)
+
+
+def test_an_unknown_stream_id_offers_deny_only(harness):
+    harness.add("start_stream_endpoint", {**START, "stream_id": UNKNOWN_STREAM})
+    _, body = _card(harness)
+    assert "Rehearsal stream" not in body and "isn't on the team's list" in body
+    assert _only_deny(body)
+
+
+def test_a_stream_list_that_couldnt_be_read_offers_deny_only(harness):
+    harness.fleet_box[0].endpoints = None
+    harness.add("start_stream_endpoint", START)
+    _, body = _card(harness)
+    assert "couldn't read" in body and _only_deny(body)
+
+
+def test_card_shows_the_event_title_with_start_and_end(harness):
+    start = datetime(2030, 1, 2, 15, 0, tzinfo=UTC)
+    harness.fleet_box[0].events[ROOM] = Event(ROOM, "Rehearsal session", start, start + timedelta(hours=1), id="evt-1")
+    harness.add("confirm_cms_event_on_device", {"device_id": ROOM, "event_id": "evt-1"})
+    _, body = _card(harness)
+    assert "Rehearsal session" in body and "2030-01-02 15:00" in body and "2030-01-02 16:00" in body
+    assert "/approve" in _forms(body)
+
+
+def test_an_event_that_isnt_the_devices_offers_deny_only(harness):
+    start = datetime(2030, 1, 2, 15, 0, tzinfo=UTC)
+    harness.fleet_box[0].events[ROOM] = Event(ROOM, "Rehearsal session", start, None, id="evt-1")
+    harness.add("confirm_cms_event_on_device", {"device_id": ROOM, "event_id": "evt-2"})
+    _, body = _card(harness)
+    assert "Rehearsal session" not in body and _only_deny(body)
+
+
+def test_injected_stream_and_channel_names_are_escaped_and_hidden_characters_shown(harness):
+    fleet = harness.fleet_box[0]
+    fleet.endpoints[STREAM] = Endpoint(STREAM, "<script>alert(1)</script>\u202eevil", "host<b>.example.invalid")
+    fleet.devices[ROOM].channels["1"].name = "<img src=x onerror=alert(2)>\u200b"
+    harness.add("start_stream_endpoint", START)
+    _, body = _card(harness)
+    assert "<script>" not in body and "<img" not in body and "<b>" not in body
+    assert "&lt;script&gt;" in body and "\\u202e" in body and "\\u200b" in body
+    assert "\u202e" not in body and "\u200b" not in body
+
+
+def test_an_injected_event_title_is_escaped_and_hidden_characters_shown(harness):
+    start = datetime(2030, 1, 2, 15, 0, tzinfo=UTC)
+    harness.fleet_box[0].events[ROOM] = Event(ROOM, "<i>title</i>\u202e", start, None, id="evt-1")
+    harness.add("confirm_cms_event_on_device", {"device_id": ROOM, "event_id": "evt-1"})
+    _, body = _card(harness)
+    assert "<i>" not in body and "&lt;i&gt;title" in body and "\\u202e" in body and "\u202e" not in body
+
+
 # --- approve, confirm, deny --------------------------------------------------------------------------
 
 
@@ -484,6 +573,8 @@ def test_card_that_cant_be_shown_cant_be_approved_even_with_a_token(harness):
 
 def test_fatigue_note_after_several_approvals(harness):
     cookie = _login(harness)
+    for n in range(2, FATIGUE_AFTER + 1):  # the cards name each channel, so the unit needs them all
+        harness.fleet_box[0].devices[ROOM].channels[str(n)] = Channel(str(n), f"Channel {n}")
     for i in range(FATIGUE_AFTER):
         harness.add("start_stream_endpoint", {"stream_id": STREAM, "device_id": ROOM, "channel_id": str(i + 1)})
         _, body, _ = _req(harness.port, "GET", "/", cookie=cookie)

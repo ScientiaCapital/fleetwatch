@@ -241,3 +241,10 @@ def test_the_live_pages_sandbox_read_is_strict(tmp_path, monkeypatch):
     page = cli._approve_page(s, None)
     with pytest.raises(FailedRead):
         asyncio.run(page.read_fleet())
+
+
+def test_replay_reads_name_the_stream_endpoints_by_host_only(tmp_path, no_real_executor):
+    page = cli._approve_page(_settings(tmp_path, "observe"), str(FIXTURES))
+    fleet = asyncio.run(page.read_fleet())
+    assert fleet.endpoints, "the replay sample lists stream destinations"
+    assert all(e.host and "/" not in e.host for e in fleet.endpoints.values())
