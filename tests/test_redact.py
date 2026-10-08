@@ -68,3 +68,22 @@ def test_scrub_text_twice_is_the_same_as_once(text):
     # Room notes are redacted when saved and again when `ask` scrubs its answer; that must not leave "[redacted]]".
     once = scrub_text(text)
     assert MASK in once and scrub_text(once) == once
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "password=[redacted]hunter2",
+        "password=[redacted][redacted]hunter2",
+        "token: [redacted]abc",
+        "https://live.example/[redacted]/secret",
+        "rtmp://a.example/[redacted]live_key",
+        "srt://a.example:9000?streamid=[redacted]x",
+    ],
+)
+def test_a_typed_mask_cannot_hide_the_secret_after_it(text):
+    # Someone could type "[redacted]" in a device name or a room note; the value after it must still be masked.
+    out = scrub_text(text)
+    for leak in ("hunter2", "abc", "/secret", "live_key", "]x"):
+        assert leak not in out
+    assert scrub_text(out) == out
