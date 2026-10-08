@@ -1,9 +1,11 @@
 """Token stores: file, macOS Keychain, systemd-creds. `subprocess.run` is faked; the real keychain is never touched."""
 
 import base64
+import logging
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -161,6 +163,35 @@ def test_systemd_creds_version(creds):
     assert ts.systemd_creds_version() == 256
     creds.version = "garbage"
     assert ts.systemd_creds_version() is None
+
+
+# --- the refresh lock --------------------------------------------------------------------------------------------
+
+
+async def test_refresh_lock_waits_then_gives_way(tmp_path, caplog):
+    """Two processes (`run`, a cron `digest`) refresh one at a time. A wait that runs out goes ahead with a
+    warning: a lock must never stop a heartbeat. The kernel drops the lock with its process, so none goes stale."""
+    held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await held.acquire(timeout_s=1)
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()  # a different open file: contends like a process
+    started = time.monotonic()
+    with caplog.at_level(logging.WARNING):
+        assert not await other.acquire(timeout_s=0.4)
+    assert time.monotonic() - started < 2 and "refresh lock" in caplog.text
+    other.release()  # nothing held: a no-op
+    held.release()
+    assert await other.acquire(timeout_s=0.4)
+    other.release()
+    lock_file = tmp_path / "t.lock"
+    assert lock_file.stat().st_mode & 0o777 == 0o600 and not lock_file.is_symlink()
+    assert "FAKE" not in lock_file.read_text() and lock_file.read_text() == "", "the lock file holds nothing"
+
+
+def test_every_store_has_a_lock_beside_the_token_file(tmp_path, monkeypatch, creds):
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert make_token_store("file", tmp_path / "t.json").refresh_lock().path == tmp_path / "t.lock"
+    assert make_token_store("systemd-creds", tmp_path / "t.json").refresh_lock().path == tmp_path / "t.lock"
+    assert KeychainTokenStorage(legacy=tmp_path / "t.json").refresh_lock().path == tmp_path / "t.lock"
 
 
 # --- Keychain ----------------------------------------------------------------------------------------------------
