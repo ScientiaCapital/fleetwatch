@@ -1,0 +1,42 @@
+{
+  "about": "Shared redaction cases for Fleetwatch (src/fleetwatch/redact.py) and the Epiphan Edge Claude Kit (.claude/hooks/epiphan-redact.sh). Keep this file byte-identical in both repos. Each case: the text must not contain any of must_not_contain after redaction, must contain every must_contain, and redacting twice must give the same text as once. All values are fake.",
+  "version": 1,
+  "cases": [
+    {"id": "kv-password", "input": "password=hunter2", "must_not_contain": ["hunter2"]},
+    {"id": "kv-stream-key-colon", "input": "stream key: live_9f8e7d6c", "must_not_contain": ["9f8e7d6c"]},
+    {"id": "kv-token", "input": "token: abc123secret", "must_not_contain": ["abc123secret"]},
+    {"id": "json-secret", "input": "{\"secret\": \"s3cr3tvalue\"}", "must_not_contain": ["s3cr3tvalue"]},
+    {"id": "rtmp-key-in-path", "input": "rtmp://a.example/live/FAKEKEY123", "must_not_contain": ["FAKEKEY123"]},
+    {"id": "srt-streamid", "input": "srt://a.example:9000?streamid=FAKEID77", "must_not_contain": ["FAKEID77"]},
+    {"id": "https-userinfo", "input": "https://user:FAKEPASS9@host.example/x", "must_not_contain": ["FAKEPASS9"]},
+    {"id": "teams-sig", "input": "posting to https://prod-00.logic.example.com/workflows/x/invoke?api-version=1&sig=FAKESIG123 failed", "must_not_contain": ["FAKESIG123"]},
+
+    {"id": "mask-bypass-kv", "input": "password=[redacted]hunter2", "must_not_contain": ["hunter2"]},
+    {"id": "mask-bypass-kv-double", "input": "password=[redacted][redacted]hunter2", "must_not_contain": ["hunter2"]},
+    {"id": "mask-bypass-token", "input": "token: [redacted]abc456", "must_not_contain": ["abc456"]},
+    {"id": "mask-bypass-https-path", "input": "https://live.example/[redacted]/secretpath", "must_not_contain": ["secretpath"]},
+    {"id": "mask-bypass-rtmp", "input": "rtmp://a.example/[redacted]FAKELIVE5", "must_not_contain": ["FAKELIVE5"]},
+    {"id": "mask-bypass-srt", "input": "srt://a.example:9000?streamid=[redacted]FAKEX", "must_not_contain": ["FAKEX"]},
+    {"id": "mask-already-done-quote", "input": "stream key: [redacted]”", "must_not_contain": [], "must_contain": ["[redacted]”"]},
+
+    {"id": "table-stream-key-column", "input": "| Name | Stream key |\n|---|---|\n| YT | FAKE22 |", "must_not_contain": ["FAKE22"]},
+
+    {"id": "kv-bare-key", "input": "key: FAKEKEY31", "must_not_contain": ["FAKEKEY31"]},
+    {"id": "kv-api-key", "input": "api_key=FAKEAPI32", "must_not_contain": ["FAKEAPI32"]},
+    {"id": "header-x-api-key", "input": "x-api-key: FAKEAPI33", "must_not_contain": ["FAKEAPI33"]},
+    {"id": "kv-pwd", "input": "pwd=FAKEPWD34", "must_not_contain": ["FAKEPWD34"]},
+    {"id": "json-apikey", "input": "{\"apiKey\": \"FAKEAPI35\"}", "must_not_contain": ["FAKEAPI35"]},
+    {"id": "json-privatekey", "input": "{\"privateKey\": \"FAKEPRIV36\"}", "must_not_contain": ["FAKEPRIV36"]},
+    {"id": "bare-bearer", "input": "Authorization header was Bearer FAKEBEARER37", "must_not_contain": ["FAKEBEARER37"]},
+    {"id": "bare-basic", "input": "sent Basic RkFLRUJBU0lDMzg=", "must_not_contain": ["RkFLRUJBU0lDMzg="]},
+    {"id": "ftp-userinfo", "input": "ftp://u:FAKEFTP39@files.example/x", "must_not_contain": ["FAKEFTP39"]},
+    {"id": "sftp-userinfo", "input": "sftp://u:FAKESFTP40@files.example/x", "must_not_contain": ["FAKESFTP40"]},
+    {"id": "wss-userinfo", "input": "wss://u:FAKEWSS41@ws.example/x", "must_not_contain": ["FAKEWSS41"]},
+    {"id": "urlencoded-stream-key", "input": "stream%20key=FAKEENC42", "must_not_contain": ["FAKEENC42"]},
+    {"id": "quoted-value-with-space", "input": "stream_key = \"FAKE SPACE43\"", "must_not_contain": ["SPACE43"]},
+
+    {"id": "keep-plain-text", "input": "Room 204 Pearl Mini is offline", "must_not_contain": [], "must_contain": ["Room 204 Pearl Mini is offline"]},
+    {"id": "keep-docs-url", "input": "see https://kb.epiphan.com/pearl-2/firmware-upgrade", "must_not_contain": [], "must_contain": ["kb.epiphan.com/pearl-2/firmware-upgrade"]},
+    {"id": "keep-uuid-stream-id", "input": "{\"stream_id\": \"0f8fad5b-d9cb-469f-a165-70867728950e\"}", "must_not_contain": [], "must_contain": ["0f8fad5b-d9cb-469f-a165-70867728950e"]}
+  ]
+}
