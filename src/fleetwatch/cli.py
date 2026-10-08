@@ -43,22 +43,52 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None, cap
     return client, state, from_settings(settings)
 
 
-async def _login(settings: Settings) -> None:
-    client, _, _ = _build(settings, interactive=True)
+def _sandbox_store(settings: Settings):
+    from fleetwatch.epiphan.executor import sandbox_store
+
+    return sandbox_store(settings)
+
+
+async def _login(settings: Settings, sandbox: bool = False) -> None:
+    """Sign in. `sandbox`: the v0.2 sandbox sign-in, in its own token slot, never the normal one or its static
+    token. The same OAuth flow; only where the token is kept differs."""
+    if sandbox:
+        store = _sandbox_store(settings)
+        client = EpiphanClient(
+            settings.epiphan_mcp_url,
+            load_tools(settings.tool_policy_file),
+            storage=store,
+            callback_port=settings.oauth_callback_port,
+            interactive=True,
+        )
+    else:
+        client, _, _ = _build(settings, interactive=True)
+        store = make_token_store(settings.token_store, settings.token_file)
     async with client:
         fleet = await client.call("get_devices_in_my_team")
     n = len(fleet.get("devices", fleet)) if isinstance(fleet, (dict, list)) else 0
-    where = make_token_store(settings.token_store, settings.token_file).where
-    print(f"Signed in. This team has {n} devices. Token saved to {where}.")
+    if sandbox:
+        print(
+            f"Signed in to the sandbox team. It has {n} devices. Token saved to {store.where}.\n"
+            "Only v0.2 changes a person approves use this sign-in; the heartbeat never loads it."
+        )
+    else:
+        print(f"Signed in. This team has {n} devices. Token saved to {store.where}.")
 
 
-def _logout(settings: Settings) -> str:
+def _logout(settings: Settings, sandbox: bool = False) -> str:
     """Ask Epiphan to revoke the token (RFC 7009) when it offers that, then always delete it here. Revocation never
-    stops the sign-out: whatever happens on the network, the store is cleared and a plain message comes back."""
+    stops the sign-out: whatever happens on the network, the store is cleared and a plain message comes back.
+    `sandbox`: sign out of the sandbox slot only; the normal sign-in stays."""
+    if sandbox:
+        return "Sandbox sign-in: " + _logout_store(_sandbox_store(settings))
+    return _logout_store(make_token_store(settings.token_store, settings.token_file))
+
+
+def _logout_store(store) -> str:
     from fleetwatch.epiphan import auth
     from fleetwatch.redact import redact
 
-    store = make_token_store(settings.token_store, settings.token_file)
     try:
         result = asyncio.run(auth.revoke_tokens(store))
     except Exception as e:  # noqa: BLE001 - a bug or a store read error must not leave the token on disk
@@ -240,13 +270,20 @@ def main() -> None:
     p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
     p.add_argument("--author", help="note: who left it (default: your login name)")
     p.add_argument("--search", metavar="TEXT", help="notes: only notes containing TEXT")
+    p.add_argument(
+        "--sandbox",
+        action="store_true",
+        help="login, logout: the v0.2 sandbox sign-in, kept in its own slot (needs a sandbox team)",
+    )
     args = p.parse_intermixed_args()
+    if args.sandbox and args.command not in ("login", "logout"):
+        p.error("--sandbox works with login and logout only")
     configure_logging(args.verbose)  # redacted, and the MCP/HTTP libraries stay at WARNING even with -v
     settings = Settings()
     if args.command == "login":
-        asyncio.run(_login(settings))
+        asyncio.run(_login(settings, args.sandbox))
     elif args.command == "logout":
-        print(_logout(settings))
+        print(_logout(settings, args.sandbox))
     elif args.command == "digest":
         asyncio.run(_digest(settings, args.replay, args.capture))
     elif args.command == "ask":

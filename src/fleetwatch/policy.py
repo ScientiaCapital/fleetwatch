@@ -27,8 +27,9 @@ VERTICALS: dict[str, tuple[str, str]] = {
     "worship": ("service", "services"),
 }
 
-# observe: watch and report. propose: the v0.2 assistant may suggest changes for a person to approve. Nothing reads
-# propose mode yet, and neither mode lets Fleetwatch run a write: guard() refuses every write tool in both.
+# observe: watch and report. propose: the v0.2 assistant may suggest changes for a person to approve. guard() refuses
+# every write tool in both modes. Only the write executor (src/fleetwatch/epiphan/executor.py) reads propose mode: it
+# refuses every change under observe.
 AUTONOMY = ("observe", "propose")
 
 
@@ -52,7 +53,7 @@ class Policy:
 
     @property
     def proposes(self) -> bool:
-        """True when policy.yaml says `autonomy: propose`. Nothing reads it yet; the v0.2 assistant will."""
+        """True when policy.yaml says `autonomy: propose`. The write executor refuses every change without it."""
         return self.autonomy == "propose"
 
     @property

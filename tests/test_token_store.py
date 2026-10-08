@@ -296,3 +296,34 @@ def test_systemd_creds_error_is_reported(monkeypatch, tmp_path):
     )
     with pytest.raises(TokenStoreError, match="decrypt"):
         SystemdCredsTokenStorage(tmp_path / "t.cred").has_tokens()
+
+
+def test_the_sandbox_slot_never_shares_the_normal_file_or_keychain_item(tmp_path):
+    from fleetwatch.config import Settings
+    from fleetwatch.epiphan.executor import sandbox_store
+
+    s = Settings(
+        _env_file=None,
+        token_store="file",
+        token_file=tmp_path / "epiphan-oauth.json",
+        sandbox_token_file=tmp_path / "epiphan-sandbox-oauth.json",
+    )
+    store = sandbox_store(s)
+    assert isinstance(store, FileTokenStorage) and store.path == tmp_path / "epiphan-sandbox-oauth.json"
+    assert ts.SANDBOX_SERVICE != ts.SERVICE
+    if sys.platform == "darwin":  # constructing a Keychain store runs nothing
+        assert make_token_store("keychain", s.sandbox_token_file, ts.SANDBOX_SERVICE).service == ts.SANDBOX_SERVICE
+        assert make_token_store("keychain", s.token_file).service == ts.SERVICE
+
+
+def test_the_sandbox_systemd_credential_has_its_own_name(tmp_path, monkeypatch):
+    seen = []
+
+    def run(argv, **kw):
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "{}", "")
+
+    monkeypatch.setattr(ts.subprocess, "run", run)
+    (tmp_path / "s.cred").write_text("x")
+    SystemdCredsTokenStorage(tmp_path / "s.cred", name=ts.SANDBOX_SERVICE).has_tokens()
+    assert f"--name={ts.SANDBOX_SERVICE}" in seen[0]

@@ -50,6 +50,30 @@ but anyone who copies the token could. So:
 - `fleetwatch doctor` shows an INFO line, "Sign-in can write", as a reminder, with the granted scope when Epiphan
   reports one.
 
+## Sandbox sign-in (for v0.2)
+
+```bash
+uv run fleetwatch login --sandbox
+```
+
+This is for v0.2, the assistant that proposes changes a person approves
+([design](design/approved-writes.md)). It needs a sandbox team: an Edge team that holds only test devices. Don't
+use it with the team you watch.
+
+- It's the same sign-in flow as `fleetwatch login`. Pick the sandbox team when Epiphan asks.
+- The token is kept apart from the normal one: `FLEETWATCH_SANDBOX_TOKEN_FILE` (default
+  `~/.fleetwatch/epiphan-sandbox-oauth.json`), or its own Keychain or `systemd-creds` entry. It must be a different
+  file from `FLEETWATCH_TOKEN_FILE`. `FLEETWATCH_EPIPHAN_TOKEN` is never used for it.
+- Only the write executor loads it. The heartbeat, `digest`, `ask` and Slack commands keep using the normal sign-in.
+- Before an approved change runs, Fleetwatch reads the sandbox team's device list with this sign-in and refuses
+  the change if any target isn't on it. If `FLEETWATCH_WRITE_TEAM_ID` is set, it also refuses when Epiphan reports
+  a different team, or no team ID at all.
+- With no sandbox sign-in, no change can run. `fleetwatch doctor` shows "Sandbox sign-in: none, so no change can
+  run".
+- `uv run fleetwatch logout --sandbox` signs out of the sandbox only. The normal sign-in stays.
+
+This version has no approval page yet, so nothing uses the sandbox sign-in.
+
 ## When the sign-in can't be refreshed
 
 If Epiphan refuses the refresh token (it was revoked, or the account changed), restarting won't help. Fleetwatch
