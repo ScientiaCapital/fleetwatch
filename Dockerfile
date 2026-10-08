@@ -27,6 +27,8 @@ COPY policy.yaml tool_policy.yaml ./
 COPY tests/fixtures ./tests/fixtures
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 # No keychain or systemd-creds in a container: the token is a mode-600 file in the mounted volume.
+# The value names the store type, not a secret.
+# hadolint ignore=DL3064
 ENV FLEETWATCH_TOKEN_STORE=file
 USER 10001:10001
 # Token and state live here. Mount a volume so they survive restarts.
