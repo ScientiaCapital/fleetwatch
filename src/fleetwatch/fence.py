@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from fleetwatch.config import Settings
 
 _CHANNEL_ID = re.compile(r"([0-9a-f]{8,32})-[1-9][0-9]{0,2}")
+_DEVICE_ID = re.compile(r"[0-9a-f]{8,32}")  # a master device ID, which is what the allowlist lists
 
 
 def master_id(target: str) -> str:
@@ -26,11 +27,13 @@ def master_id(target: str) -> str:
 class Fence:
     team_id: str = ""
     device_ids: frozenset[str] = frozenset()
+    invalid: tuple[str, ...] = ()  # allowlist entries that aren't master device IDs: ignored here, flagged by doctor
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "Fence":
-        ids = frozenset(d.strip().lower() for d in settings.write_device_ids.split(",") if d.strip())
-        return cls(settings.write_team_id.strip(), ids)
+        entries = [d.strip().lower() for d in settings.write_device_ids.split(",") if d.strip()]
+        ids = frozenset(e for e in entries if _DEVICE_ID.fullmatch(e))
+        return cls(settings.write_team_id.strip(), ids, tuple(e for e in entries if not _DEVICE_ID.fullmatch(e)))
 
     @property
     def is_set(self) -> bool:

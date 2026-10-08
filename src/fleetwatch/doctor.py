@@ -190,6 +190,16 @@ def _fence(s: Settings) -> Check:
     if not p.proposes:
         return Check(name, INFO, "not needed: autonomy is observe, so no change can be proposed")
     fence = Fence.from_settings(s)
+    if fence.invalid:
+        shown = ", ".join(repr(e[:40]) for e in fence.invalid[:3])
+        n = len(fence.invalid)
+        return Check(
+            name,
+            FAIL,
+            f"{n} {'entry' if n == 1 else 'entries'} in FLEETWATCH_WRITE_DEVICE_IDS "
+            f"{'isn' if n == 1 else 'aren'}'t a device ID ({shown}). List master device IDs only, comma-separated: "
+            "8 to 32 characters, 0-9 and a-f. A channel ID such as 0a1b2c3d-1 doesn't go here.",
+        )
     if not fence.is_set:
         return Check(
             name,
@@ -197,12 +207,15 @@ def _fence(s: Settings) -> Check:
             "autonomy: propose needs a fence, or every change is refused: list the sandbox devices in "
             "FLEETWATCH_WRITE_DEVICE_IDS (or set FLEETWATCH_WRITE_TEAM_ID)",
         )
-    parts = []
-    if fence.device_ids:
-        parts.append(f"{len(fence.device_ids)} sandbox device(s) on the allowlist")
-    if fence.team_id:
-        parts.append("a team ID is set (Epiphan may not report one, so the allowlist is the stronger fence)")
-    return Check(name, OK, "; ".join(parts))
+    if not fence.device_ids:
+        return Check(
+            name,
+            WARN,
+            "only a team ID is set. Epiphan may not report one, and then every change is refused: also list the "
+            "sandbox devices in FLEETWATCH_WRITE_DEVICE_IDS",
+        )
+    detail = f"{len(fence.device_ids)} sandbox device(s) on the allowlist"
+    return Check(name, OK, detail + ("; a team ID is also set" if fence.team_id else ""))
 
 
 def _state_dir(s: Settings) -> Check:

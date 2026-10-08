@@ -321,10 +321,22 @@ def test_propose_mode_with_an_allowlist_passes_and_counts_the_devices(tmp_path):
     assert c.status == OK and "2 sandbox device" in c.detail
 
 
-def test_propose_mode_with_only_a_team_id_passes_with_a_note(tmp_path):
+def test_propose_mode_with_only_a_team_id_warns_and_suggests_the_allowlist(tmp_path):
     s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_team_id="team-sandbox")
     c = by_name(run(s))["Write fence"]
-    assert c.status == OK and "team ID" in c.detail
+    assert c.status == WARN and "FLEETWATCH_WRITE_DEVICE_IDS" in c.detail
+
+
+def test_an_invalid_allowlist_entry_fails_even_next_to_valid_ones(tmp_path):
+    s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_device_ids="0a1b2c3d, 0a1b2c3d-1")
+    c = by_name(run(s))["Write fence"]
+    assert c.status == FAIL and "0a1b2c3d-1" in c.detail and "1 entry" in c.detail
+
+
+def test_an_allowlist_of_only_invalid_entries_is_an_unset_fence(tmp_path):
+    s = settings(tmp_path, policy_file=_propose_policy(tmp_path), write_device_ids="not-an-id")
+    c = by_name(run(s))["Write fence"]
+    assert c.status == FAIL
 
 
 def test_audit_log_check_is_ok_when_the_chain_holds_and_names_only_the_row_when_it_breaks(tmp_path):
