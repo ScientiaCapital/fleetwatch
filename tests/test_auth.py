@@ -8,9 +8,10 @@ from fleetwatch.epiphan.auth import FileTokenStorage, LoginAuth, parse_callback
 
 
 def test_parse_callback_shapes():
-    assert parse_callback("http://localhost:8765/callback?code=abc&state=xyz").code == "abc"
+    assert parse_callback("http://127.0.0.1:8765/callback?code=abc&state=xyz").code == "abc"
     assert parse_callback("  ?code=abc&state=xyz\n").state == "xyz"
-    assert parse_callback("code=only") is not None
+    assert parse_callback("code=abc&state=xyz") is not None
+    assert parse_callback("code=only") is None, "no state: the SDK would refuse it, so it doesn't end the wait"
     assert parse_callback("http://localhost:8765/callback?error=denied") is None
     assert parse_callback("not a url") is None
 

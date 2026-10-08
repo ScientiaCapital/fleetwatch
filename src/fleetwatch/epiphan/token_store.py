@@ -21,6 +21,8 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -36,6 +38,30 @@ TIMEOUT_S = 30
 
 class TokenStoreError(RuntimeError):
     pass
+
+
+def _private_dir(folder: Path) -> None:
+    """Create the token folder 0700. A folder that already exists is left as it is: we tighten only what we made."""
+    if folder.exists():
+        return
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)  # mkdir's mode is masked by the umask; this only ever removes bits from 0700
+
+
+def _create_private(path: Path) -> int:
+    """A fresh 0600 file for writing, never through a symlink. A stale file (or a link planted) there goes first, so
+    O_CREAT really creates and the mode applies."""
+    path.unlink(missing_ok=True)
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+
+
+@contextmanager
+def _umask(mask: int) -> Iterator[None]:
+    old = os.umask(mask)
+    try:
+        yield
+    finally:
+        os.umask(old)
 
 
 @runtime_checkable
@@ -111,10 +137,10 @@ class FileTokenStorage(_JsonStore):
             return {}
 
     def _save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _private_dir(self.path.parent)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data))
-        os.chmod(tmp, 0o600)
+        with os.fdopen(_create_private(tmp), "w") as f:
+            f.write(json.dumps(data))
         tmp.replace(self.path)
 
     def _drop(self) -> None:
@@ -196,10 +222,12 @@ class SystemdCredsTokenStorage(_JsonStore):
             return {}
 
     def _save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _private_dir(self.path.parent)
         tmp = self.path.with_suffix(".tmp")
-        self._creds("encrypt", "-", str(tmp), stdin=json.dumps(data))
-        os.chmod(tmp, 0o600)
+        os.close(_create_private(tmp))  # exists at 0600 before systemd-creds writes into it
+        with _umask(0o077):  # and if it replaces the file instead, what it creates is 0600 too
+            self._creds("encrypt", "-", str(tmp), stdin=json.dumps(data))
+        os.chmod(tmp, 0o600)  # never wider than before; only ever tightens
         tmp.replace(self.path)
 
     def _drop(self) -> None:

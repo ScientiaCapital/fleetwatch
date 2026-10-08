@@ -12,6 +12,8 @@
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ThrottleInterval</key><integer>30</integer>
+  <!-- 63 is octal 077: the token, state and log files the agent creates are readable by this user only. -->
+  <key>Umask</key><integer>63</integer>
   <key>StandardOutPath</key><string>__HOME__/.fleetwatch/agent.log</string>
   <key>StandardErrorPath</key><string>__HOME__/.fleetwatch/agent.log</string>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/local/bin:__HOME__/.local/bin</string></dict>

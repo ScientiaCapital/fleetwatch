@@ -27,16 +27,29 @@ from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStore
 __all__ = ["FileTokenStorage", "LoginAuth", "TokenStore", "make_provider", "parse_callback"]
 
 LOGIN_TIMEOUT_S = 300
+CALLBACK_PATH = "/callback"
+# What the user sees when the server redirects back with an error. Fixed text: the redirect's own
+# error_description is unvalidated (anyone can send the browser here), so it is never shown.
+SIGN_IN_REFUSED = "Epiphan Edge did not complete the sign-in. Run  fleetwatch login  again."
+
+
+def _first(params: dict[str, list[str]], key: str) -> str | None:
+    return (params.get(key) or [None])[0]
+
+
+def _query(url_or_query: str) -> dict[str, list[str]]:
+    text = url_or_query.strip()
+    return parse_qs(urlparse(text).query if "?" in text else text.lstrip("?"))
 
 
 def parse_callback(url_or_query: str) -> AuthorizationCodeResult | None:
-    """The redirect URL (or just its query string) → code and state, or None if it has no code."""
-    text = url_or_query.strip()
-    query = urlparse(text).query if "?" in text else text.lstrip("?")
-    params = parse_qs(query)
-    if not params.get("code"):
+    """The redirect URL (or just its query string) → code, state and the RFC 9207 `iss`, or None without both a
+    code and a state. The SDK checks the state and the issuer."""
+    params = _query(url_or_query)
+    code, state = _first(params, "code"), _first(params, "state")
+    if not code or not state:
         return None
-    return AuthorizationCodeResult(code=params["code"][0], state=(params.get("state") or [None])[0])
+    return AuthorizationCodeResult(code=code, state=state, iss=_first(params, "iss"))
 
 
 class _Redirect:
@@ -53,19 +66,31 @@ class _Redirect:
         collector = self
 
         class Handler(BaseHTTPRequestHandler):
+            def _reply(self, status: int, body: str) -> None:
+                data = body.encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+
             def do_GET(self):
+                # Only /callback counts. A favicon request or a stray tab must not end the wait.
+                if urlparse(self.path).path != CALLBACK_PATH:
+                    self._reply(404, "Not found")
+                    return
+                params = _query(self.path)
                 got = parse_callback(self.path)
                 if got:
                     collector.result = got
-                    body = "Signed in to Epiphan Edge. You can close this tab and go back to the terminal."
-                else:
-                    q = parse_qs(urlparse(self.path).query)
-                    collector.error = (q.get("error_description") or q.get("error") or ["no code in the redirect"])[0]
-                    body = f"Sign-in did not finish: {collector.error}"
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(body.encode())
+                    self._reply(200, "Signed in to Epiphan Edge. You can close this tab and go back to the terminal.")
+                elif _first(params, "error") and _first(params, "state"):
+                    collector.error = SIGN_IN_REFUSED
+                    self._reply(200, SIGN_IN_REFUSED)
+                else:  # neither code+state nor error+state: not a real redirect, keep waiting
+                    self._reply(400, "This isn't a sign-in redirect. Fleetwatch is still waiting.")
+                    return
                 collector._done.set()
 
             def log_message(self, *_):  # keep the terminal quiet
@@ -91,7 +116,7 @@ class _Redirect:
                     self.result = got
                     self._done.set()
                     return
-                print("That doesn't look like the redirect URL (it should contain code=...). Try again:")
+                print("That doesn't look like the redirect URL (it should contain code=... and state=...). Try again:")
         except (OSError, ValueError):
             return
 
@@ -99,7 +124,7 @@ class _Redirect:
         threading.Thread(target=self._serve, daemon=True).start()
         if self.prompt:
             print(
-                "After you sign in, the browser lands on a localhost page. If that page can't load (for example\n"
+                "After you sign in, the browser lands on a 127.0.0.1 page. If that page can't load (for example\n"
                 "when the agent runs on a Raspberry Pi), paste the full URL from the address bar here and press Enter."
             )
             threading.Thread(target=self._read_paste, daemon=True).start()
@@ -120,7 +145,9 @@ def _headless() -> bool:
 
 
 def make_provider(server_url: str, storage: TokenStore, port: int, interactive: bool) -> OAuthClientProvider:
-    redirect = f"http://localhost:{port}/callback"
+    # RFC 8252 §7.3: the loopback IP literal, not "localhost", which a resolver could point elsewhere. The callback
+    # server binds the same 127.0.0.1.
+    redirect = f"http://127.0.0.1:{port}{CALLBACK_PATH}"
     metadata = OAuthClientMetadata(
         client_name="fleetwatch",
         redirect_uris=[redirect],

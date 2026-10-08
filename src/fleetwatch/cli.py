@@ -7,18 +7,20 @@ import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fleetwatch.config import Settings
+from fleetwatch.config import Settings, reveal
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
 from fleetwatch.epiphan.token_store import make_token_store
 from fleetwatch.heartbeat import tick
+from fleetwatch.logsetup import configure_logging
 from fleetwatch.notify import from_settings
-from fleetwatch.policy import load_policy, load_tool_policy
+from fleetwatch.policy import load_policy, load_tools
+from fleetwatch.redact import redact
 from fleetwatch.state import State
 
 
 def _build(settings: Settings, interactive: bool, replay: str | None = None):
-    tools = load_tool_policy(settings.tool_policy_file)
+    tools = load_tools(settings.tool_policy_file)
     if replay:
         client = ReplayClient(Path(replay), tools)
         state = State(":memory:")  # a replay never touches the real history
@@ -28,7 +30,7 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None):
             settings.epiphan_mcp_url,
             tools,
             storage=storage,
-            static_token=settings.epiphan_token,
+            static_token=reveal(settings.epiphan_token) or None,
             callback_port=settings.oauth_callback_port,
             interactive=interactive,
         )
@@ -152,12 +154,12 @@ async def _run(settings: Settings) -> None:
                 try:
                     await tick(client, state, policy, notifier, first_run=first, on_fleet=slash and slash.see)
                 except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
-                    logging.getLogger("fleetwatch").warning("heartbeat failed: %s", e)
+                    logging.getLogger("fleetwatch").warning("heartbeat failed: %s", redact(str(e)))
                 first = False
                 try:
                     await _maybe_sweep(client, state, policy, notifier)
                 except Exception as e:  # noqa: BLE001  (a failed sweep retries on the next beat)
-                    logging.getLogger("fleetwatch").warning("sweep failed: %s", e)
+                    logging.getLogger("fleetwatch").warning("sweep failed: %s", redact(str(e)))
                 if slash:
                     slash.keep_alive()
                 await asyncio.sleep(policy.heartbeat_seconds)
@@ -200,9 +202,7 @@ def main() -> None:
     p.add_argument("--author", help="note: who left it (default: your login name)")
     p.add_argument("--search", metavar="TEXT", help="notes: only notes containing TEXT")
     args = p.parse_intermixed_args()
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    configure_logging(args.verbose)  # redacted, and the MCP/HTTP libraries stay at WARNING even with -v
     settings = Settings()
     if args.command == "login":
         asyncio.run(_login(settings))
@@ -239,7 +239,7 @@ def main() -> None:
         state = State(settings.state_db)
         items = state.open_findings()
         store = make_token_store(settings.token_store, settings.token_file)
-        signed_in = bool(settings.epiphan_token) or store.has_tokens()
+        signed_in = bool(reveal(settings.epiphan_token)) or store.has_tokens()
         print(
             f"Signed in: {'yes' if signed_in else 'no (run fleetwatch login)'}\nOpen items: {len(items)}  ({datetime.now(UTC):%Y-%m-%d %H:%M} UTC)"
         )

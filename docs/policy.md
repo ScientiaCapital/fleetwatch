@@ -26,3 +26,10 @@ Two files control behaviour. Both are plain YAML in the repo folder.
 
 Only tools under `read` are ever called. Anything else, including tools Epiphan adds later, is refused by the
 client guard. The `write` and `disruptive` lists are kept for the approval flow planned after v0.1.
+
+The file ships inside the package (`src/fleetwatch/tool_policy.yaml`; the copy at the repo root is a link to it),
+so the list never depends on the folder Fleetwatch starts in. Loading stops with an error if a known write tool is
+under `read`, or a `read` entry doesn't start with `get_` or `kb_`.
+
+To call fewer tools, point `FLEETWATCH_TOOL_POLICY_FILE` at your own file with a shorter `read` list. It can only
+remove tools: a tool that isn't on the shipped list stops start-up with an error.

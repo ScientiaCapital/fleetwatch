@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import time
+from importlib.resources import files
 from pathlib import Path
 
 import yaml
@@ -58,6 +59,31 @@ class Policy:
         return now >= self.quiet_start or now < self.quiet_end  # window crosses midnight
 
 
+# Epiphan write tools known today. Checked independently of tool_policy.yaml's own write list, so an edit that moves
+# one onto the read list is refused at load even if it was also dropped from the file's write list. `doctor` uses
+# the same set.
+KNOWN_WRITE_TOOLS = frozenset(
+    {
+        "batch_recording",
+        "batch_reboot",
+        "batch_firmware_update",
+        "apply_team_preset",
+        "switch_device_to_cms",
+        "start_stream_endpoint",
+        "stop_stream_endpoint",
+        "create_stream_endpoint",
+        "update_stream_endpoint",
+        "delete_stream_endpoint",
+        "create_cms_event",
+        "update_cms_event",
+        "delete_cms_event",
+        "cms_event_action",
+        "confirm_cms_event_on_device",
+    }
+)
+READ_PREFIXES = ("get_", "kb_")
+
+
 @dataclass(frozen=True)
 class ToolPolicy:
     read: frozenset[str]
@@ -112,10 +138,32 @@ def load_policy(path: Path) -> Policy:
     )
 
 
-def load_tool_policy(path: Path) -> ToolPolicy:
-    raw = yaml.safe_load(path.read_text()) or {}
-    read = frozenset(raw.get("read") or ())
-    write = frozenset(raw.get("write") or ())
+def _parse_tool_policy(text: str, where: str) -> ToolPolicy:
+    raw = yaml.safe_load(text) or {}
+    read = frozenset(str(t) for t in raw.get("read") or ())
+    write = frozenset(str(t) for t in raw.get("write") or ())
     if read & write:
-        raise ValueError(f"tools listed as both read and write: {sorted(read & write)}")
+        raise ValueError(f"{where}: tools listed as both read and write: {sorted(read & write)}")
+    if leaked := sorted(read & KNOWN_WRITE_TOOLS):
+        raise ValueError(f"{where}: write tools on the read list: {', '.join(leaked)}")
+    if odd := sorted(t for t in read if not t.startswith(READ_PREFIXES)):
+        raise ValueError(f"{where}: read tools must start with get_ or kb_, not: {', '.join(odd)}")
     return ToolPolicy(read=read, write=write, disruptive=frozenset(raw.get("disruptive") or ()))
+
+
+def load_tool_policy(path: Path) -> ToolPolicy:
+    """One tool_policy.yaml, checked: no known write tool, and nothing but get_ and kb_ tools, under `read`."""
+    return _parse_tool_policy(path.read_text(), str(path))
+
+
+def load_tools(narrow: Path | None = None) -> ToolPolicy:
+    """The read list that ships inside the package, whatever the working directory. `narrow`
+    (FLEETWATCH_TOOL_POLICY_FILE) may remove read tools, never add one; write and disruptive come from the package."""
+    packaged = files("fleetwatch").joinpath("tool_policy.yaml").read_text()
+    base = _parse_tool_policy(packaged, "packaged tool_policy.yaml")
+    if narrow is None:
+        return base
+    mine = load_tool_policy(narrow)
+    if extra := sorted(mine.read - base.read):
+        raise ValueError(f"{narrow}: can only remove tools from Fleetwatch's read list, not add: {', '.join(extra)}")
+    return ToolPolicy(read=mine.read, write=base.write, disruptive=base.disruptive)
