@@ -58,6 +58,7 @@ All optional, read from `.env` (see `.env.example`).
 | `FLEETWATCH_SLACK_BOT_TOKEN` | empty | `chat:write` bot token; empty prints to the console |
 | `FLEETWATCH_SLACK_CHANNEL` | `#av-ops` | Where the digest goes |
 | `FLEETWATCH_TEAMS_WEBHOOK_URL` | unset | Teams Workflows webhook (a secret; never logged); posts alongside Slack |
+| `FLEETWATCH_SLACK_APP_TOKEN` | unset | `xapp-` Socket Mode token; turns on `/fleetwatch check <room>` in `run` |
 | `FLEETWATCH_EPIPHAN_TOKEN` | unset | Static bearer token for hosts that can't run OAuth |
 | `FLEETWATCH_OAUTH_CALLBACK_PORT` | `8765` | Login callback on 127.0.0.1 |
 | `FLEETWATCH_ASK_PORT` | `8766` | `fleetwatch ask --serve` page on 127.0.0.1 |

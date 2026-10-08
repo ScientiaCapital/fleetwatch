@@ -140,21 +140,30 @@ def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Setti
 
 
 async def _run(settings: Settings) -> None:
+    from fleetwatch.slack_command import start_listener
+
     client, state, notifier = _build(settings, interactive=False)
     policy = load_policy(settings.policy_file)
     first = not state.open_findings()
-    async with client:
-        while True:
-            try:
-                await tick(client, state, policy, notifier, first_run=first)
-            except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
-                logging.getLogger("fleetwatch").warning("heartbeat failed: %s", e)
-            first = False
-            try:
-                await _maybe_sweep(client, state, policy, notifier)
-            except Exception as e:  # noqa: BLE001  (a failed sweep retries on the next beat)
-                logging.getLogger("fleetwatch").warning("sweep failed: %s", e)
-            await asyncio.sleep(policy.heartbeat_seconds)
+    slash = await start_listener(settings, policy, state)  # None unless FLEETWATCH_SLACK_APP_TOKEN is set
+    try:
+        async with client:
+            while True:
+                try:
+                    await tick(client, state, policy, notifier, first_run=first, on_fleet=slash and slash.see)
+                except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
+                    logging.getLogger("fleetwatch").warning("heartbeat failed: %s", e)
+                first = False
+                try:
+                    await _maybe_sweep(client, state, policy, notifier)
+                except Exception as e:  # noqa: BLE001  (a failed sweep retries on the next beat)
+                    logging.getLogger("fleetwatch").warning("sweep failed: %s", e)
+                if slash:
+                    slash.keep_alive()
+                await asyncio.sleep(policy.heartbeat_seconds)
+    finally:
+        if slash:
+            slash.close()
 
 
 def _package_version() -> str:
