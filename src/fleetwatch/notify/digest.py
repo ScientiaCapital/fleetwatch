@@ -2,6 +2,8 @@
 priorities in words. No AI model is involved."""
 
 from fleetwatch.model import Finding, Priority, Readiness
+from fleetwatch.notes import format_note
+from fleetwatch.state import Note
 
 _ORDER = {Priority.FIX_FIRST: 0, Priority.FIX_SOON: 1, Priority.WHEN_CONVENIENT: 2}
 
@@ -16,19 +18,33 @@ def _line(f: Finding) -> str:
 
 
 def render_digest(
-    new: list[Finding], reminders: list[Finding], resolved: list[Finding], *, first_run: bool = False
+    new: list[Finding],
+    reminders: list[Finding],
+    resolved: list[Finding],
+    *,
+    first_run: bool = False,
+    notes: dict[str, list[Note]] | None = None,
 ) -> str | None:
     """None means nothing to say. Storage FYIs ride along only when there is something else to post,
-    or on the first run."""
+    or on the first run. A room's notes show once, quoted, under its first finding."""
+    notes, shown = notes or {}, set()
+
+    def with_notes(f: Finding) -> list[str]:
+        out = [f"• {_line(f)}"]
+        if f.device_id in notes and f.device_id not in shown:
+            shown.add(f.device_id)
+            out += [f"  ↳ {format_note(n)}" for n in notes[f.device_id]]
+        return out
+
     items = sorted((f for f in new if not f.fyi), key=lambda f: _ORDER[f.priority])
     fyi = [f for f in new if f.fyi]
     lines: list[str] = []
     if items:
         lines.append("*Needs attention*" if not first_run else "*Fleet check*")
-        lines += [f"• {_line(f)}" for f in items]
+        lines += [line for f in items for line in with_notes(f)]
     if reminders:
         lines.append("*Still open*")
-        lines += [f"• {_line(f)}" for f in sorted(reminders, key=lambda f: _ORDER[f.priority])]
+        lines += [line for f in sorted(reminders, key=lambda f: _ORDER[f.priority]) for line in with_notes(f)]
     if resolved:
         lines.append("*Back to normal*")
         lines += [f"• {f.what}" for f in resolved]
