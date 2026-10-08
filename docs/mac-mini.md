@@ -2,6 +2,11 @@
 
 Any Apple Silicon Mac works. A Mac mini on the AV office network is the usual choice.
 
+Give Fleetwatch its own macOS user. The sign-in token lives in that user's login Keychain, and any program running
+as the same user can read it without a prompt. Create a standard (not admin) user in System Settings > Users &
+Groups, log in as that user, and run the steps below there. `fleetwatch doctor` shows a Keychain access line as a
+reminder.
+
 ```bash
 uv sync && uv run fleetwatch login
 deploy/install.sh

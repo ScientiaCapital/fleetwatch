@@ -19,7 +19,12 @@ from urllib.parse import urlparse
 import httpx
 
 from fleetwatch.config import Settings, reveal
-from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStoreError, make_token_store
+from fleetwatch.epiphan.token_store import (
+    FileTokenStorage,
+    KeychainTokenStorage,
+    TokenStoreError,
+    make_token_store,
+)
 from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
 
@@ -103,6 +108,24 @@ def _write_capable(s: Settings) -> Check | None:
     except (TokenStoreError, ValueError):
         return None  # the Sign-in row already reports it
     return Check("Sign-in can write", INFO, f"{advice}; granted scope: {scope}" if scope else advice)
+
+
+def _keychain_access(s: Settings) -> Check | None:
+    """The Keychain items trust /usr/bin/security, so any program running as this macOS user can read them without
+    a prompt. Only the operating-system user keeps other software out (SECURITY.md, Trust model)."""
+    if reveal(s.epiphan_token):
+        return None
+    try:
+        store = make_token_store(s.token_store, s.token_file)
+        if not isinstance(store, KeychainTokenStorage) or not store.has_tokens():
+            return None
+    except (TokenStoreError, ValueError):
+        return None  # the Sign-in row already reports it
+    return Check(
+        "Keychain access",
+        INFO,
+        "any program running as the same macOS user can read the token; give Fleetwatch its own user (docs/mac-mini.md)",
+    )
 
 
 def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
@@ -227,7 +250,7 @@ def run_checks(
         _guard(s),
         _redaction(),
         _sign_in(s),
-        *filter(None, [_write_capable(s), _token_expiry(s)]),
+        *filter(None, [_write_capable(s), _keychain_access(s), _token_expiry(s)]),
         _state_dir(s),
         _slack(s),
         _slack_commands(s),
