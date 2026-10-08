@@ -1,4 +1,4 @@
-"""Sign in to Epiphan Edge once; keep the token in ~/.fleetwatch, readable only by this user.
+"""Sign in to Epiphan Edge once; keep the token in the store `token_store.py` picks (Keychain, systemd-creds, file).
 
 The MCP SDK does the OAuth dance (discovery, PKCE, refresh). We supply where to keep the token, how to show
 the sign-in link, how to catch the redirect, and one nudge: Epiphan's server admits anonymous sessions and
@@ -10,65 +10,23 @@ Works headless (Raspberry Pi over SSH): the link is printed, and the redirect ca
 """
 
 import asyncio
-import json
 import os
 import sys
 import threading
 import webbrowser
 from collections.abc import AsyncGenerator
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx2
-from mcp.client.auth import OAuthClientProvider, TokenStorage
-from mcp.shared.auth import AuthorizationCodeResult, OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
+from mcp.client.auth import OAuthClientProvider
+from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata
+
+from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStore
+
+__all__ = ["FileTokenStorage", "LoginAuth", "TokenStore", "make_provider", "parse_callback"]
 
 LOGIN_TIMEOUT_S = 300
-
-
-class FileTokenStorage(TokenStorage):
-    """One JSON file, mode 0600, holding the token and the registered client."""
-
-    def __init__(self, path: Path):
-        self.path = path
-
-    def _read(self) -> dict:
-        try:
-            return json.loads(self.path.read_text())
-        except (OSError, ValueError):
-            return {}
-
-    def _write(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data))
-        os.chmod(tmp, 0o600)
-        tmp.replace(self.path)
-
-    async def get_tokens(self) -> OAuthToken | None:
-        raw = self._read().get("tokens")
-        return OAuthToken.model_validate(raw) if raw else None
-
-    async def set_tokens(self, tokens: OAuthToken) -> None:
-        data = self._read()
-        data["tokens"] = tokens.model_dump(mode="json", exclude_none=True)
-        self._write(data)
-
-    async def get_client_info(self) -> OAuthClientInformationFull | None:
-        raw = self._read().get("client")
-        return OAuthClientInformationFull.model_validate(raw) if raw else None
-
-    async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
-        data = self._read()
-        data["client"] = client_info.model_dump(mode="json", exclude_none=True)
-        self._write(data)
-
-    def has_tokens(self) -> bool:
-        return bool(self._read().get("tokens"))
-
-    def clear(self) -> None:
-        self.path.unlink(missing_ok=True)
 
 
 def parse_callback(url_or_query: str) -> AuthorizationCodeResult | None:
@@ -161,7 +119,7 @@ def _headless() -> bool:
     return not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")
 
 
-def make_provider(server_url: str, storage: FileTokenStorage, port: int, interactive: bool) -> OAuthClientProvider:
+def make_provider(server_url: str, storage: TokenStore, port: int, interactive: bool) -> OAuthClientProvider:
     redirect = f"http://localhost:{port}/callback"
     metadata = OAuthClientMetadata(
         client_name="fleetwatch",
@@ -197,7 +155,7 @@ class LoginAuth(httpx2.Auth):
 
     requires_response_body = True
 
-    def __init__(self, provider: OAuthClientProvider, storage: FileTokenStorage):
+    def __init__(self, provider: OAuthClientProvider, storage: TokenStore):
         self.provider, self.storage = provider, storage
 
     async def async_auth_flow(self, request: httpx2.Request) -> AsyncGenerator[httpx2.Request, httpx2.Response]:

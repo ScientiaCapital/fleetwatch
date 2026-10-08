@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fleetwatch.config import Settings
-from fleetwatch.epiphan.auth import FileTokenStorage
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
+from fleetwatch.epiphan.token_store import make_token_store
 from fleetwatch.heartbeat import tick
 from fleetwatch.notify.slack import Notifier
 from fleetwatch.policy import load_policy, load_tool_policy
@@ -23,7 +23,7 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None):
         client = ReplayClient(Path(replay), tools)
         state = State(":memory:")  # a replay never touches the real history
     else:
-        storage = FileTokenStorage(settings.token_file)
+        storage = make_token_store(settings.token_store, settings.token_file)
         client = EpiphanClient(
             settings.epiphan_mcp_url,
             tools,
@@ -41,7 +41,8 @@ async def _login(settings: Settings) -> None:
     async with client:
         fleet = await client.call("get_devices_in_my_team")
     n = len(fleet.get("devices", fleet)) if isinstance(fleet, (dict, list)) else 0
-    print(f"Signed in. This team has {n} devices. Token saved to {settings.token_file}.")
+    where = make_token_store(settings.token_store, settings.token_file).where
+    print(f"Signed in. This team has {n} devices. Token saved to {where}.")
 
 
 async def _digest(settings: Settings, replay: str | None) -> None:
@@ -179,7 +180,7 @@ def main() -> None:
     if args.command == "login":
         asyncio.run(_login(settings))
     elif args.command == "logout":
-        FileTokenStorage(settings.token_file).clear()
+        make_token_store(settings.token_store, settings.token_file).clear()
         print("Signed out.")
     elif args.command == "digest":
         asyncio.run(_digest(settings, args.replay))
@@ -208,7 +209,8 @@ def main() -> None:
     else:
         state = State(settings.state_db)
         items = state.open_findings()
-        signed_in = FileTokenStorage(settings.token_file).has_tokens() or bool(settings.epiphan_token)
+        store = make_token_store(settings.token_store, settings.token_file)
+        signed_in = bool(settings.epiphan_token) or store.has_tokens()
         print(
             f"Signed in: {'yes' if signed_in else 'no (run fleetwatch login)'}\nOpen items: {len(items)}  ({datetime.now(UTC):%Y-%m-%d %H:%M} UTC)"
         )

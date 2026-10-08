@@ -23,3 +23,5 @@ class Settings(BaseSettings):
     tool_policy_file: Path = Path("tool_policy.yaml")
     state_db: Path = HOME / "state.db"
     token_file: Path = HOME / "epiphan-oauth.json"
+    # auto | file | keychain | systemd-creds. auto: Keychain on macOS, systemd-creds on systemd 256+, else the file.
+    token_store: str = "auto"

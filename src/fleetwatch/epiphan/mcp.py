@@ -14,7 +14,7 @@ from mcp.client.client import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 
-from fleetwatch.epiphan.auth import FileTokenStorage, LoginAuth, make_provider
+from fleetwatch.epiphan.auth import LoginAuth, TokenStore, make_provider
 from fleetwatch.policy import ToolPolicy
 from fleetwatch.redact import redact
 
@@ -54,7 +54,7 @@ class EpiphanClient:
         url: str,
         tools: ToolPolicy,
         *,
-        storage: FileTokenStorage | None = None,
+        storage: TokenStore | None = None,
         static_token: str | None = None,
         callback_port: int = 8765,
         interactive: bool = False,
