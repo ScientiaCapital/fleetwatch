@@ -23,7 +23,8 @@ RUN useradd --create-home --uid 10001 fleetwatch \
  && mkdir -p /home/fleetwatch/.fleetwatch && chown fleetwatch:fleetwatch /home/fleetwatch/.fleetwatch
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
-COPY policy.yaml tool_policy.yaml ./
+# tool_policy.yaml ships inside the package (src/fleetwatch/), so only policy.yaml is copied.
+COPY policy.yaml ./
 COPY tests/fixtures ./tests/fixtures
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 # No keychain or systemd-creds in a container: the token is a mode-600 file in the mounted volume.

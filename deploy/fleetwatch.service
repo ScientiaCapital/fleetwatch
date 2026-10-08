@@ -13,9 +13,20 @@ ExecStart=%h/.local/bin/uv run --frozen fleetwatch run
 Restart=on-failure
 RestartSec=30
 NoNewPrivileges=true
+# Files the agent creates (token, state, logs) are private to this user.
+UMask=0077
+# In a --user unit the namespace settings below (like ProtectSystem and PrivateTmp) imply PrivateUsers=, so they
+# need unprivileged user namespaces, which Raspberry Pi OS, Debian and Ubuntu enable by default (systemd.exec(5)).
 ProtectSystem=strict
 ReadWritePaths=%h/.fleetwatch %h/fleetwatch/.venv -%h/.cache/uv
 PrivateTmp=true
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+# seccomp-based; NoNewPrivileges= above lets an unprivileged user manager apply them.
+LockPersonality=yes
+# HTTPS to Epiphan and Slack, plus local sockets (DNS through systemd-resolved, the ask page on 127.0.0.1).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 [Install]
 WantedBy=default.target

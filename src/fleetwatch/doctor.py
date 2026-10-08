@@ -17,35 +17,13 @@ from urllib.parse import urlparse
 
 import httpx
 
-from fleetwatch.config import Settings
+from fleetwatch.config import Settings, reveal
 from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStoreError, make_token_store
-from fleetwatch.policy import load_policy, load_tool_policy
+from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 LAUNCHD_LABEL = "dev.fleetwatch.agent"
-
-# Epiphan write tools known today. Checked independently of tool_policy.yaml, so an edit that moves one onto the
-# read list is caught here even if it was also removed from the file's write list.
-KNOWN_WRITE_TOOLS = frozenset(
-    {
-        "batch_recording",
-        "batch_reboot",
-        "batch_firmware_update",
-        "apply_team_preset",
-        "switch_device_to_cms",
-        "start_stream_endpoint",
-        "stop_stream_endpoint",
-        "create_stream_endpoint",
-        "update_stream_endpoint",
-        "delete_stream_endpoint",
-        "create_cms_event",
-        "update_cms_event",
-        "delete_cms_event",
-        "cms_event_action",
-        "confirm_cms_event_on_device",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -73,9 +51,9 @@ def _policy(s: Settings) -> Check:
 
 def _guard(s: Settings) -> Check:
     try:
-        tools = load_tool_policy(s.tool_policy_file)
+        tools = load_tools(s.tool_policy_file)
     except Exception as e:  # noqa: BLE001
-        return Check("Read-only guard", FAIL, f"{s.tool_policy_file}: {e}")
+        return Check("Read-only guard", FAIL, str(e))  # the message names the file
     leaked = sorted(t for t in KNOWN_WRITE_TOOLS | tools.write | tools.disruptive if tools.is_read(t))
     if leaked:
         return Check("Read-only guard", FAIL, f"write tools on the read list: {', '.join(leaked)}")
@@ -91,7 +69,7 @@ def _redaction() -> Check:
 
 
 def _sign_in(s: Settings) -> Check:
-    if s.epiphan_token:
+    if reveal(s.epiphan_token):
         return Check("Sign-in", OK, "static token from FLEETWATCH_EPIPHAN_TOKEN")
     try:
         store = make_token_store(s.token_store, s.token_file)
@@ -124,7 +102,9 @@ def _reach(name: str, url: str, reach: Callable[[str], bool]) -> Check:
 
 
 def _slack(s: Settings) -> Check:
-    return Check("Slack", OK, f"posts to {s.slack_channel}" if s.slack_bot_token else "no token: prints to the console")
+    return Check(
+        "Slack", OK, f"posts to {s.slack_channel}" if reveal(s.slack_bot_token) else "no token: prints to the console"
+    )
 
 
 def _teams(s: Settings) -> Check:
@@ -140,15 +120,15 @@ def _teams(s: Settings) -> Check:
 def _slack_commands(s: Settings) -> Check:
     """/fleetwatch over Socket Mode. Offline: checks the token's shape (never prints it) and the allowlist."""
     name = "Slack commands"
-    if not s.slack_app_token:
+    if not reveal(s.slack_app_token):
         return Check(name, OK, "off (set FLEETWATCH_SLACK_APP_TOKEN to answer /fleetwatch)")
-    if not s.slack_app_token.startswith("xapp-"):
+    if not reveal(s.slack_app_token).startswith("xapp-"):
         return Check(name, FAIL, "FLEETWATCH_SLACK_APP_TOKEN must be an app-level token starting xapp-")
     try:
         p = load_policy(s.policy_file)
     except Exception:  # noqa: BLE001  (the Policy row already reports it)
         return Check(name, WARN, "can't read the allowlist until policy.yaml loads")
-    if p.slack_allowed_usergroup and not s.slack_bot_token:
+    if p.slack_allowed_usergroup and not reveal(s.slack_bot_token):
         return Check(name, WARN, "slack.allowed_usergroup needs FLEETWATCH_SLACK_BOT_TOKEN (usergroups:read)")
     if not p.slack_allowed_user_ids and not p.slack_allowed_usergroup:
         return Check(name, WARN, "nobody is allowed yet: add slack.allowed_user_ids in policy.yaml")
@@ -198,7 +178,8 @@ def run_checks(
     reach: Callable[[str], bool] = can_reach,
     service: Callable[[], tuple[str, str]] = service_status,
 ) -> list[Check]:
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # keep the report to one line per check
+    for name in ("httpx", "httpx2"):  # can_reach uses httpx; the MCP SDK uses its httpx2 fork
+        logging.getLogger(name).setLevel(logging.WARNING)  # keep the report to one line per check
     checks = [
         _version(),
         _policy(s),
@@ -211,7 +192,7 @@ def run_checks(
         _teams(s),
     ]
     checks.append(_reach("Epiphan reachable", s.epiphan_mcp_url, reach))
-    if s.slack_bot_token:
+    if reveal(s.slack_bot_token):
         checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))
     status, detail = service()
     checks.append(Check("Service", status, detail))

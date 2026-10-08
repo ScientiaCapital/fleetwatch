@@ -121,7 +121,13 @@ def make_handler(ask: Callable[[str], str], rooms: Callable[[], list[str]], port
             if self.path != "/ask":
                 self._send(404, "Not found", "text/plain; charset=utf-8")
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            raw = (self.headers.get("Content-Length") or "0").strip()
+            if not (
+                raw.isascii() and raw.isdigit()
+            ):  # negative, fractional or not a number: rfile.read(-1) would wait for EOF
+                self._send(400, "Bad request", "text/plain; charset=utf-8")
+                return
+            length = int(raw)
             if length > MAX_BODY:
                 self._send(413, "Too long", "text/plain; charset=utf-8")
                 return

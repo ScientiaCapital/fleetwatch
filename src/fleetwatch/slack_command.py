@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any
 
 from fleetwatch.ask import answer
-from fleetwatch.config import Settings
+from fleetwatch.config import Settings, reveal
 from fleetwatch.model import Fleet
 from fleetwatch.notify.slack import slack_escape
 from fleetwatch.policy import Policy
@@ -149,18 +149,18 @@ class Listener:
 
 async def start_listener(settings: Settings, policy: Policy, state: State, *, socket_factory=None) -> Listener | None:
     """Start answering /fleetwatch, but only when FLEETWATCH_SLACK_APP_TOKEN is set. Never raises."""
-    if not settings.slack_app_token:
+    if not reveal(settings.slack_app_token):
         return None
     try:
         if socket_factory is None:
             from slack_sdk.socket_mode.builtin import SocketModeClient as socket_factory
         members = None
-        if policy.slack_allowed_usergroup and settings.slack_bot_token:
+        if policy.slack_allowed_usergroup and reveal(settings.slack_bot_token):
             from slack_sdk import WebClient
 
-            web = WebClient(token=settings.slack_bot_token, timeout=GROUP_LOOKUP_SECONDS)
+            web = WebClient(token=reveal(settings.slack_bot_token), timeout=GROUP_LOOKUP_SECONDS, retry_handlers=[])
             members = GroupMembers(web, policy.slack_allowed_usergroup)
-        client = socket_factory(app_token=settings.slack_app_token)
+        client = socket_factory(app_token=reveal(settings.slack_app_token))
         listener = Listener(client, policy, state, members, asyncio.get_running_loop())
     except Exception as e:  # noqa: BLE001  (Slack commands are optional; the heartbeat goes on)
         log.warning("Slack commands are off: %s", redact(str(e)))

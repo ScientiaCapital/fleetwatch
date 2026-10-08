@@ -95,7 +95,7 @@ uv run fleetwatch notes --search bulb                           # list notes: al
 deploy/install.sh               # run it as a service: launchd on macOS, systemd on Linux
 ```
 
-On a headless Pi, open the sign-in link on any device. If the final `localhost` page can't load, paste its URL
+On a headless Pi, open the sign-in link on any device. If the final `127.0.0.1` page can't load, paste its URL
 back into the terminal. Europe or Australia accounts set `FLEETWATCH_EPIPHAN_MCP_URL` to `eu.` or
 `au.epiphan.cloud`.
 
@@ -152,7 +152,7 @@ Nothing broken. 2 to look at.
 
 | Symptom | Fix |
 |---|---|
-| `Sign-in` is WARN or FAIL | Run `fleetwatch login`. On a headless Pi, open the link on any device and paste the final `localhost` URL back. |
+| `Sign-in` is WARN or FAIL | Run `fleetwatch login`. On a headless Pi, open the link on any device and paste the final `127.0.0.1` URL back. |
 | `Epiphan reachable` fails | Check the network, or set `FLEETWATCH_EPIPHAN_MCP_URL` to your region (`eu.` or `au.epiphan.cloud`). |
 | Nothing posts to Slack | No token means the console only. Set `FLEETWATCH_SLACK_BOT_TOKEN` (`chat:write`) and invite the bot to the channel. |
 | A digest never repeats | That's on purpose. An open problem is reminded at most every 4 hours. `fleetwatch status` lists open items. |
