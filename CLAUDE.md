@@ -26,4 +26,5 @@ uv run --group docs zensical serve      # docs at localhost:8000
 
 ## Now
 
-Sprint 2. What's done and what's left: [planning/next-sprint.md](planning/next-sprint.md).
+Sprint 2: issues in the GitHub milestone. The sprint plan and event notes are kept on the maintainer's machine,
+not in this public repo; `planning/` is gitignored.

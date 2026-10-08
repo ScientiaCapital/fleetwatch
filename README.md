@@ -16,7 +16,6 @@
 <p align="center">
   <a href="https://scientiacapital.github.io/fleetwatch/">Docs</a> ·
   <a href="#install">Install</a> ·
-
   <a href="SECURITY.md">Security</a> ·
   <a href="README.es.md">Español</a>
 </p>
@@ -207,8 +206,7 @@ and feature requests go in [issues](https://github.com/ScientiaCapital/fleetwatc
 
 ## Status
 
-v0.1. Unit and replay tests pass. The first live run against a real team is still to do. What's next is in
-[planning/next-sprint.md](planning/next-sprint.md) and the
+v0.1. Unit and replay tests pass. The first live run against a real team is still to do. What's next is in the
 [Sprint 2 milestone](https://github.com/ScientiaCapital/fleetwatch/milestone/1). Later versions add
 proposals with Slack approval, then routine fixes on their own; the guard, the dry run and the redaction stay.
 

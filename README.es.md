@@ -8,7 +8,6 @@
 <p align="center">
   <a href="https://scientiacapital.github.io/fleetwatch/">Documentación (en inglés)</a> ·
   <a href="#instalación">Instalación</a> ·
-
   <a href="SECURITY.md">Seguridad</a> ·
   <a href="README.md">English</a>
 </p>
