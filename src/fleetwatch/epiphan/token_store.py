@@ -15,8 +15,11 @@ the new store on first use, and the file is deleted. A file found later, beside 
 token, is stale and is deleted too: the store is the copy that gets refreshed.
 """
 
+import asyncio
+import fcntl
 import itertools
 import json
+import logging
 import os
 import re
 import shutil
@@ -37,6 +40,9 @@ SERVICE = "fleetwatch-epiphan"  # Keychain service name and systemd-creds creden
 CHUNK = 1500  # bytes of JSON per Keychain item: 3000 hex chars, well inside a 4095-char `security -i` line
 NOT_FOUND = 44  # `security` exit code for "item not found"
 TIMEOUT_S = 30
+LOCK_WAIT_S = 30  # how long a refresh waits for another process's refresh before going ahead anyway
+
+log = logging.getLogger(__name__)
 
 
 class TokenStoreError(RuntimeError):
@@ -67,6 +73,51 @@ def _umask(mask: int) -> Iterator[None]:
         os.umask(old)
 
 
+class RefreshLock:
+    """One token refresh at a time across processes (`run` plus a cron `digest` or `sweep`): an flock on an empty
+    0600 file beside the token. Epiphan rotates the refresh token, so the second process to send the same one
+    gets invalid_grant; with the lock, the second waits, re-reads the store and finds the first one's new token.
+
+    Waiting polls, so the event loop stays free. A wait that runs out goes ahead with a warning: a lock must never
+    stop a heartbeat. The kernel drops the lock with its process, so none goes stale."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self._fd: int | None = None
+
+    async def acquire(self, timeout_s: float = LOCK_WAIT_S) -> bool:
+        """True once held. False after `timeout_s`, or if the lock file can't be opened: the caller carries on."""
+        try:
+            _private_dir(self.path.parent)
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        except OSError as e:
+            log.warning("Can't open the token refresh lock %s (%s); refreshing without it", self.path, e)
+            return False
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    os.close(fd)
+                    log.warning(
+                        "Another Fleetwatch process has held the token refresh lock %s for %ss; refreshing without it",
+                        self.path,
+                        timeout_s,
+                    )
+                    return False
+                await asyncio.sleep(0.2)
+            else:
+                self._fd = fd
+                return True
+
+    def release(self) -> None:
+        fd, self._fd = self._fd, None
+        if fd is not None:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
+
 @runtime_checkable
 class TokenStore(TokenStorage, Protocol):
     where: str  # for people: a path, or which keychain
@@ -87,11 +138,14 @@ class TokenStore(TokenStorage, Protocol):
 
     def clear(self) -> None: ...
 
+    def refresh_lock(self) -> RefreshLock | None: ...
+
 
 class _JsonStore(TokenStorage):
     """The SDK methods over one JSON dict; subclasses supply `_load`, `_save` and `_drop`."""
 
     legacy: Path | None = None  # the old token file, moved in on first use
+    lock_path: Path | None = None  # `<token file>.lock`: the refresh lock all stores on this machine share
 
     def _load(self) -> dict:
         raise NotImplementedError
@@ -184,12 +238,17 @@ class _JsonStore(TokenStorage):
         if self.legacy is not None:
             self.legacy.unlink(missing_ok=True)
 
+    def refresh_lock(self) -> RefreshLock | None:
+        """A fresh, unheld lock on this machine's token refresh; None when the store has no folder to put it in."""
+        return RefreshLock(self.lock_path) if self.lock_path is not None else None
+
 
 class FileTokenStorage(_JsonStore):
     """One JSON file, mode 0600, holding the token and the registered client."""
 
     def __init__(self, path: Path):
         self.path = path
+        self.lock_path = path.with_suffix(".lock")
         self.where = str(path)
 
     def _load(self) -> dict:
@@ -221,6 +280,7 @@ class KeychainTokenStorage(_JsonStore):
 
     def __init__(self, service: str = SERVICE, legacy: Path | None = None, keychain: str | None = None):
         self.service, self.legacy = service, legacy
+        self.lock_path = legacy.with_suffix(".lock") if legacy is not None else None
         self._keychain = [keychain] if keychain else []  # a test keychain file; normally the default one
         self.where = f"macOS Keychain (service {service})"
 
@@ -267,6 +327,7 @@ class SystemdCredsTokenStorage(_JsonStore):
 
     def __init__(self, path: Path, legacy: Path | None = None):
         self.path, self.legacy = path, legacy
+        self.lock_path = path.with_suffix(".lock")
         self.where = f"{path} (systemd-creds, encrypted)"
 
     def _creds(self, verb: str, src: str, dst: str, stdin: str | None = None) -> str:

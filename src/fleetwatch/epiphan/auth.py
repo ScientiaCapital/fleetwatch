@@ -24,7 +24,7 @@ from mcp.client.auth import OAuthClientProvider
 from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata, OAuthMetadata, ProtectedResourceMetadata
 from pydantic import ValidationError
 
-from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStore
+from fleetwatch.epiphan.token_store import FileTokenStorage, RefreshLock, TokenStore
 
 __all__ = ["FileTokenStorage", "LoginAuth", "TokenStore", "make_provider", "parse_callback"]
 
@@ -160,9 +160,55 @@ class _Provider(OAuthClientProvider):
       sends, so after a restart a refresh would go to a guessed `<origin>/token`.
 
     It also notices when Epiphan refuses the refresh token (HTTP 400 or 401, typically `invalid_grant`). That
-    can't fix itself, so the store is marked dead and `fleetwatch run` stops instead of restarting forever."""
+    can't fix itself, so the store is marked dead and `fleetwatch run` stops instead of restarting forever.
+
+    And it refreshes one process at a time. `run` and a cron `digest` can wake with the same expired token, and
+    Epiphan rotates the refresh token, so the second to send it would get invalid_grant (and could then save a
+    stale token over the first one's). Before a refresh it takes the store's lock and re-reads the store: if the
+    other process got there first, its token is used and no refresh goes out."""
 
     dead = False  # Epiphan refused the refresh token; only `fleetwatch login` helps
+    _refresh_lock: RefreshLock | None = None  # held from just before a refresh until its response is saved
+
+    async def _auth_flow(self, request: httpx2.Request) -> AsyncGenerator[httpx2.Request, httpx2.Response]:
+        """The SDK's flow, with the cross-process lock and the re-read in front of a refresh."""
+        if not self._initialized:
+            await self._initialize()
+        if not self.context.is_token_valid() and self.context.can_refresh_token():
+            lock = _ask(self.context.storage, "refresh_lock")
+            if lock is not None:
+                await lock.acquire()
+                self._refresh_lock = lock
+            await self._adopt_newer_token()
+        flow = super()._auth_flow(request)
+        try:
+            req = await flow.__anext__()
+            while True:
+                req = await flow.asend((yield req))
+        except StopAsyncIteration:
+            return
+        finally:
+            self._unlock()  # a flow closed mid-refresh (network error) must not keep the other process waiting
+            await flow.aclose()
+
+    async def _adopt_newer_token(self) -> None:
+        """Another process may have refreshed while we waited for the lock: its token is in the store, ours is
+        spent. Take it; if its access token is still good the SDK then skips the refresh altogether."""
+        storage = self.context.storage
+        fresh = await storage.get_tokens()
+        mine = self.context.current_tokens
+        if fresh is None or mine is None or fresh.refresh_token == mine.refresh_token:
+            return
+        self.context.current_tokens = fresh
+        when = _ask(storage, "expires_at")
+        self.context.token_expiry_time = when.timestamp() if when is not None else None
+        self.dead = bool(_ask(storage, "is_dead"))
+        log.info("Another Fleetwatch process refreshed the Epiphan token first; using it")
+
+    def _unlock(self) -> None:
+        lock, self._refresh_lock = self._refresh_lock, None
+        if lock is not None:
+            lock.release()
 
     async def _initialize(self) -> None:
         await super()._initialize()
@@ -212,7 +258,10 @@ class _Provider(OAuthClientProvider):
         self._save_endpoints()
 
     async def _handle_refresh_response(self, response: httpx2.Response) -> bool:
-        ok = await super()._handle_refresh_response(response)
+        try:
+            ok = await super()._handle_refresh_response(response)
+        finally:
+            self._unlock()  # the new token is saved (or the refresh failed): the lock covers no more than that
         if ok:
             self.dead = False
             self._save_endpoints()

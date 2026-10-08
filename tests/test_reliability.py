@@ -495,6 +495,55 @@ async def test_refresh_after_restart_uses_the_stored_token_endpoint(tmp_path: Pa
     await flow.aclose()
 
 
+async def test_two_processes_refreshing_at_once_rotate_the_token_once(tmp_path: Path):
+    """`run` and a cron `digest` wake with the same expired token. Epiphan rotates the refresh token, so only one
+    of them may send it: the other waits, re-reads the store and uses the token the first one saved."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    b = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)  # the other process
+    flow_a, flow_b = a._auth_flow(httpx2.Request("POST", URL)), b._auth_flow(httpx2.Request("POST", URL))
+    refresh_a = await flow_a.__anext__()
+    assert str(refresh_a.url) == TOKEN_URL and b"FAKEREFRESH" in refresh_a.content
+
+    async def run_b() -> httpx2.Request:  # one task drives B's whole flow, as httpx would
+        first = await flow_b.__anext__()
+        await flow_b.aclose()
+        return first
+
+    task_b = asyncio.create_task(run_b())  # B wakes while A's refresh is in flight
+    await asyncio.sleep(0.5)
+    assert not task_b.done(), "B waits for A's refresh instead of sending the same refresh token"
+
+    body = {"access_token": "FAKENEW", "token_type": "Bearer", "expires_in": 3600, "refresh_token": "FAKER2"}
+    main_a = await flow_a.asend(httpx2.Response(200, json=body, request=refresh_a))
+    assert str(main_a.url) == URL and main_a.headers["Authorization"] == "Bearer FAKENEW"
+
+    main_b = await asyncio.wait_for(task_b, 5)
+    assert str(main_b.url) == URL, "no second refresh went out"
+    assert main_b.headers["Authorization"] == "Bearer FAKENEW", "B uses the token A saved"
+    assert json.loads((tmp_path / "t.json").read_text())["tokens"]["refresh_token"] == "FAKER2"
+    assert not a.dead and not b.dead
+    await flow_a.aclose()
+
+
+async def test_refresh_lock_is_released_after_the_refresh(tmp_path: Path):
+    """The lock covers the refresh only, not the request after it: a slow read must not hold up another process."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    flow_a = a._auth_flow(httpx2.Request("POST", URL))
+    refresh_a = await flow_a.__anext__()
+    body = {"access_token": "FAKENEW", "token_type": "Bearer", "expires_in": 3600, "refresh_token": "FAKER2"}
+    await flow_a.asend(httpx2.Response(200, json=body, request=refresh_a))  # A's main request is now in flight
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await other.acquire(timeout_s=1), "free as soon as the new token is saved"
+    other.release()
+    await flow_a.aclose()
+
+
 async def test_no_stored_metadata_falls_back_to_the_guess_with_a_warning(tmp_path: Path, caplog):
     from fleetwatch.epiphan.auth import make_provider
 

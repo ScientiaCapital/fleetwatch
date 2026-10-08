@@ -17,7 +17,8 @@ the team to watch. Fleetwatch sees only what your account sees in that team.
   encrypted with `systemd-creds`; anywhere else (Docker included) it is `~/.fleetwatch/epiphan-oauth.json` with mode
   `600`. Set `FLEETWATCH_TOKEN_STORE` to `file`, `keychain` or `systemd-creds` to choose; `fleetwatch doctor` shows
   which one is in use. A Mac that runs Fleetwatch while nobody is logged in can't open the login Keychain;
-  use `FLEETWATCH_TOKEN_STORE=file` there.
+  use `FLEETWATCH_TOKEN_STORE=file` there. Whichever store is in use, `~/.fleetwatch/epiphan-oauth.lock` is an
+  empty file the processes on one machine (`run`, a cron `digest`) take turns on, so only one refreshes at a time.
 - `uv run fleetwatch status` shows whether you are signed in. `uv run fleetwatch logout` deletes the token.
 - The sign-in redirect goes to `http://127.0.0.1:8765/callback` (the loopback address, not `localhost`). If a
   version before this change signed you in and `login` now fails with a redirect error, run `fleetwatch logout`
