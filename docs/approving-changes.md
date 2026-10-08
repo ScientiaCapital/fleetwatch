@@ -21,8 +21,16 @@ sends nothing to Epiphan.
 
 ## The page secret
 
-On start, the console prints a page secret once. Type it on the first screen. It is never put in a URL or a log.
-After five wrong tries the form locks for a minute. The browser then keeps a random session ID, not the secret.
+On start, the page makes a secret. In a terminal, it prints once on the console. With no terminal (launchd or
+systemd), it goes to a file named `approve-page-secret` in the state folder, readable only by you, and only the path
+is printed. The file is deleted when the page stops. Type the secret on the first screen. It is never put in a URL
+or a log. The browser then keeps a random session ID, not the secret.
+
+Wrong entries slow down. Each address gets three wrong entries free. Every wrong entry after that starts a wait: 2
+seconds, then 4, 8 and so on up to a minute. Entries made during a wait aren't checked. A correct secret is not accepted during a wait,
+because that would make guessing unlimited. On your own computer every program shares one address, so a program that
+keeps guessing can still take the slot after each wait. The secret is long and random, so guessing it is not
+realistic. If you're ever unsure, stop the page and start it again: it makes a new secret.
 
 ## What a card shows
 
@@ -56,7 +64,11 @@ match its schema, the fresh read failed, a target is missing, or the device stat
 - An approval works once, expires after five minutes, and is bound to the exact tool and arguments.
 - Changes run only on the sandbox team. Every other team stays read-only.
 - A write never retries. If the result is unknown, the page says "may or may not have run" so you can check the device.
-- After five approvals in one session, the page suggests a break.
+- After five approvals in one session, the page suggests a break. That's a warning, not a limit.
+- At most 3 proposals wait at once and 10 can be made per hour. When the queue is full, the page says "Proposal
+  queue full", and `fleetwatch doctor` shows the counts under "Proposal queue". A proposal a person denied doesn't
+  count toward the hourly 10. After three denials of the same change on the same devices, it's paused for an hour.
+- "Deny all pending" clears the queue in one step. There is no approve-all: every approval is one card, one click.
 - Browsers send cookies to every port on the same host. Don't browse other local web servers, such as a dev server
   on `localhost:3000`, while the approval page is open, and use `127.0.0.1` rather than `localhost`.
 
