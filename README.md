@@ -27,8 +27,9 @@ An always-on, read-only watcher for your Epiphan Edge fleet. It checks every roo
 Slack or Microsoft Teams digest when something changes, and says Ready or Not ready 30 minutes before each scheduled
 event.
 
-Version 0.1 is observe-only. It can't change a device: the client refuses write tools before any request
-leaves the machine, and `policy.yaml` accepts only `autonomy: observe`.
+Version 0.1 is observe-only. Fleetwatch never calls a write tool: its client refuses them before any request
+leaves the machine, and `policy.yaml` accepts only `autonomy: observe`. The Epiphan sign-in it stores can write, so
+use a least-access account.
 
 <p align="center">
   <img alt="A Fleetwatch digest and two before-event checks, from the offline replay demo" src="docs/assets/digest-replay.svg" width="720">
@@ -42,7 +43,7 @@ leaves the machine, and `policy.yaml` accepts only `autonomy: observe`.
 |---|---|
 | Calm digest | Posts only when something changes. Each problem is posted once, reminded at most every four hours, and closed with Back to normal. |
 | Ready or Not ready | 30 minutes before each scheduled event, one line per room: Ready, Ready with notes, or Not ready. Is the picture there, is the unit online? Posted again if that changes before the start. |
-| Read-only by construction | The client refuses write tools before any request leaves the machine. Epiphan Edge has no read-only sign-in, so use a least-access account. |
+| Refuses write tools in code | The client refuses write tools before any request leaves the machine. The stored sign-in can still write, because Epiphan Edge has no read-only sign-in, so use a least-access account. |
 | Built for a Pi or a Mac mini | One-line install as a systemd or launchd service, or Docker. |
 | `fleetwatch doctor` | One line per check: version, policy, guard, redaction, sign-in, state folder, Slack and Teams, network, and service. |
 | Offline demo | A full heartbeat against a saved sample fleet, or a calm one for a screen in a quiet room. No account, no network. |
@@ -167,7 +168,7 @@ checks, a diff against SQLite, and a template message. It makes no large languag
 | `src/fleetwatch/epiphan/` | OAuth sign-in, read-only MCP client with the guard, parsers, replay |
 | `src/fleetwatch/agents/` | What needs attention, Ready / Not ready, room state |
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
-| `src/fleetwatch/redact.py` | Stream keys and credentialed URLs never reach a log or a message |
+| `src/fleetwatch/redact.py` | Masks known secret shapes (stream keys, credentialed URLs, tokens) before anything is parsed, stored, logged, or posted. New shapes get a test in `tests/test_redact.py` |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
 
 ## Troubleshooting
@@ -204,7 +205,9 @@ Still stuck? Open an [issue](https://github.com/ScientiaCapital/fleetwatch/issue
 
 Fleetwatch only reads. It listens on no network port except `127.0.0.1`, and only during `fleetwatch login` or while
 you run `fleetwatch ask --serve`. It talks only outward, to your Epiphan region and to Slack or Teams. It redacts every tool result before it parses,
-stores, logs, or posts it. It treats device and event names as untrusted data. The OAuth token refreshes itself and
+stores, logs, or posts it. Redaction is a real boundary: some read tools (`get_stream_endpoint`,
+`get_stream_endpoints`, `get_channel_image`) can return secrets, and it only catches the shapes it knows. It treats
+device and event names as untrusted data. The OAuth token refreshes itself and
 is kept in the macOS Keychain, encrypted with `systemd-creds`, or in a mode `600` file.
 
 Epiphan Edge has no read-only sign-in: the token can do whatever the Edge account can in that team. Fleetwatch never
@@ -252,8 +255,9 @@ Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has only
 so far: the first live run against a real team is still to do. What's next is in the
 [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) and
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2) milestones, including a voice interface that
-isn't built yet. Later versions are planned to add proposals with Slack approval, then routine fixes on their own;
-the guard, the dry run, and the redaction stay.
+isn't built yet. The plan after that is an optional assistant that answers questions and proposes changes for a
+person to approve on a local page. It won't run disruptive actions unattended. The guard, the dry run, and the
+redaction stay.
 
 ## Thanks
 

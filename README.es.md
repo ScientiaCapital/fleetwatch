@@ -19,8 +19,9 @@ Un vigilante de solo lectura, siempre activo, para tu flota de Epiphan Edge. Rev
 publica un resumen tranquilo en Slack o Microsoft Teams cuando algo cambia y dice Ready (listo) o Not ready
 (no listo) 30 minutos antes de cada evento programado.
 
-La versión 0.1 solo observa. No puede cambiar ningún equipo: el cliente rechaza las herramientas de escritura antes
-de que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe`.
+La versión 0.1 solo observa. Fleetwatch nunca llama a una herramienta de escritura: su cliente las rechaza antes de
+que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe`. El inicio de sesión de Epiphan que
+guarda sí puede escribir, así que usa una cuenta con el mínimo acceso.
 
 <p align="center">
   <img alt="Un resumen de Fleetwatch y dos revisiones antes de un evento, de la demo sin conexión" src="docs/assets/digest-replay.svg" width="720">
@@ -34,7 +35,7 @@ de que salga cualquier solicitud, y `policy.yaml` solo acepta `autonomy: observe
 |---|---|
 | Resumen tranquilo | Publica solo cuando algo cambia. Cada problema se publica una vez, se recuerda como máximo cada cuatro horas y se cierra con Back to normal. |
 | Ready o Not ready | 30 minutos antes de cada evento, una línea por sala: Ready, Ready with notes o Not ready. ¿Hay imagen?, ¿el equipo está en línea? Si cambia antes de que empiece, se vuelve a publicar. |
-| Solo lectura por diseño | El cliente rechaza las herramientas de escritura antes de que salga cualquier solicitud. Epiphan Edge no tiene un inicio de sesión de solo lectura, así que usa una cuenta con el mínimo acceso. |
+| Rechaza la escritura en el código | El cliente rechaza las herramientas de escritura antes de que salga cualquier solicitud. El inicio de sesión guardado sí puede escribir, porque Epiphan Edge no tiene uno de solo lectura, así que usa una cuenta con el mínimo acceso. |
 | Hecho para una Pi o una Mac mini | Instalación en una línea como servicio systemd o launchd, o con Docker. |
 | `fleetwatch doctor` | Una línea por revisión: versión, política, protección, ocultación de secretos, inicio de sesión, carpeta de estado, Slack y Teams, red y servicio. |
 | Demo sin conexión | Un ciclo completo contra una flota de ejemplo guardada, o una tranquila para una pantalla en una sala silenciosa. Sin cuenta y sin red. |
@@ -184,7 +185,9 @@ Nothing broken. 2 to look at.
 
 Fleetwatch solo lee. No escucha en ningún puerto de red salvo `127.0.0.1`, y solo durante `fleetwatch login` o
 mientras ejecutas `fleetwatch ask --serve`. Solo se conecta hacia afuera, a tu región de Epiphan y a Slack o Teams.
-Oculta los secretos de cada resultado antes de procesarlo, guardarlo, registrarlo o publicarlo. Trata los nombres de
+Oculta los secretos de cada resultado antes de procesarlo, guardarlo, registrarlo o publicarlo. La ocultación de
+secretos es una barrera real: algunas herramientas de lectura (`get_stream_endpoint`, `get_stream_endpoints`,
+`get_channel_image`) pueden devolver secretos, y solo detecta los formatos que conoce. Trata los nombres de
 equipos y eventos como datos no confiables. El token de OAuth se renueva solo y se guarda en el Llavero de macOS,
 cifrado con `systemd-creds` o en un archivo con permisos `600`.
 
@@ -216,8 +219,9 @@ Versión 0.1.0, todavía sin publicar. Las pruebas unitarias y de replay pasan. 
 ejecutado contra la flota de ejemplo guardada: falta la primera ejecución contra un equipo real. Lo que sigue está
 en los hitos [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) y
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2), incluida una interfaz de voz que aún no
-existe. Las versiones futuras planean agregar propuestas con aprobación en Slack y luego correcciones de rutina por
-su cuenta; la protección, la ejecución en seco y la ocultación de secretos se quedan.
+existe. Después, el plan es un asistente opcional que responda preguntas y proponga cambios para que una persona
+los apruebe en una página local. No ejecutará acciones disruptivas sin supervisión. La protección, la ejecución en
+seco y la ocultación de secretos se quedan.
 
 ## Agradecimientos
 
