@@ -64,7 +64,8 @@ refuse anything wider.
 
   A token already in the file moves to the Keychain or systemd-creds the first time it's used, and the file is
   deleted. The Keychain items trust `/usr/bin/security`, so another program running as the same macOS user can
-  read them without a prompt; on a shared Mac, run Fleetwatch as its own user. `fleetwatch logout` deletes the token from whichever store holds it. `fleetwatch doctor` says which
+  read them without a prompt; on a shared Mac, run Fleetwatch as its own user. `fleetwatch logout` asks Epiphan to revoke the token (RFC 7009, https only) when Epiphan's sign-in settings
+  list a revocation endpoint, then deletes the token from whichever store holds it, even if revocation fails. `fleetwatch doctor` says which
   store is in use, and on a Mac it adds a Keychain access line as a reminder.
 - Service hardening. The systemd unit sets `NoNewPrivileges`, `ProtectSystem=strict`, and `PrivateTmp`, with
   write access only to its own state folder and virtual environment.
