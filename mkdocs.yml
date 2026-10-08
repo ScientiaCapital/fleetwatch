@@ -47,6 +47,7 @@ nav:
       - On a Raspberry Pi: raspberry-pi.md
       - With Docker: docker.md
   - Reference:
+      - "Approving changes (v0.2)": approving-changes.md
       - Policy: policy.md
       - What it posts: what-it-posts.md
       - Slack commands: slack-commands.md
