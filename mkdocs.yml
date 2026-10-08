@@ -51,4 +51,6 @@ nav:
       - What it posts: what-it-posts.md
       - Slack commands: slack-commands.md
       - Security model: security.md
+  - Design:
+      - "v0.2: approved changes": design/approved-writes.md
   - Contributing: contributing.md
