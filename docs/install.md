@@ -30,15 +30,22 @@ deploy/install.sh             # run it as a service
 
 ## Updating
 
-Run the install line again. It fetches the latest Fleetwatch into `~/fleetwatch`, keeps your `.env`, sign-in and
-history, and restarts the service so the new version is running.
+Run the install line again. It moves `~/fleetwatch` to the newest release, installs its dependencies, and restarts
+the service. Your `.env`, sign-in, and history stay put: the SQLite state lives in `~/.fleetwatch`, and the sign-in
+token in the macOS Keychain or that same folder, all outside the code folder.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 ```
 
-On Docker: `docker compose pull && docker compose up -d`. Either way, `fleetwatch doctor` shows the version on
-its first line. Each [release](https://github.com/ScientiaCapital/fleetwatch/releases) lists what changed.
+To pick a version, add `-s -- --ref v0.1.0` (any release tag, or `main` for the development branch). If you
+cloned the repo yourself, as in the steps above, run `git pull && uv sync` in its folder, then `deploy/install.sh`
+to restart the service.
+
+On Docker, see [Updating the image](docker.md#updating-the-image).
+
+Afterwards, `fleetwatch doctor` shows the version on its first line. Each release on
+[GitHub Releases](https://github.com/ScientiaCapital/fleetwatch/releases) lists what changed.
 
 ## Slack
 

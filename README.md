@@ -73,6 +73,28 @@ Continuous integration (CI) tests the Tier 1 targets on every pull request. Step
 [Raspberry Pi](https://scientiacapital.github.io/fleetwatch/raspberry-pi/),
 [Docker](https://scientiacapital.github.io/fleetwatch/docker/).
 
+## Updating
+
+Run the install line again. It moves `~/fleetwatch` to the newest release, installs its dependencies, and restarts
+the service. Your `.env`, sign-in, and history stay put: the SQLite state lives in `~/.fleetwatch`, and the sign-in
+token in the macOS Keychain or that same folder, all outside the code folder.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
+```
+
+To pick a version, add `-s -- --ref v0.1.0` (any release tag, or `main` for the development branch). If you
+cloned the repo yourself, run `git pull && uv sync` in its folder, then `deploy/install.sh` to restart the service.
+
+On Docker, `docker compose pull && docker compose up -d` fetches the newest image from the GitHub Container
+Registry and restarts the container. The `fleetwatch-state` volume keeps the sign-in and history. To stay on one
+version, set `image:` in `compose.yaml` to a release tag, such as `ghcr.io/scientiacapital/fleetwatch:0.1.0`, or
+`:0.1` for its patch updates. Until the first release is out there's no image to pull, so run
+`docker compose up -d --build` instead.
+
+Afterwards, `fleetwatch doctor` shows the version on its first line. Each release on
+[GitHub Releases](https://github.com/ScientiaCapital/fleetwatch/releases) lists what changed.
+
 ## Quick start
 
 No account handy? Run a full heartbeat against a saved, redacted fleet sample:
