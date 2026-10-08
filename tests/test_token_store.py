@@ -213,6 +213,27 @@ async def test_file_token_moves_into_the_keychain_once(security, tmp_path):
     assert (await KeychainTokenStorage().get_tokens()).access_token == "FROMFILE"
 
 
+async def test_legacy_file_is_removed_once_the_keychain_holds_a_token(security, tmp_path):
+    """Both hold a token (say the file came back from a backup): the keychain wins and the plain file goes."""
+    legacy = tmp_path / "t.json"
+    await FileTokenStorage(legacy).set_tokens(token("STALE"))
+    await KeychainTokenStorage().set_tokens(token("CURRENT"))
+    s = KeychainTokenStorage(legacy=legacy)
+    assert s.has_tokens() and legacy.exists(), "has_tokens only looks; it doesn't remove anything"
+    assert (await s.get_tokens()).access_token == "CURRENT", "the new store wins, never the file"
+    assert not legacy.exists(), "the plain file is gone once the keychain is known to hold a token"
+
+
+async def test_legacy_file_stays_until_the_new_store_holds_a_token(security, tmp_path):
+    """The new store holds the client registration but no token yet: the file is not ours to remove."""
+    legacy = tmp_path / "t.json"
+    await FileTokenStorage(legacy).set_tokens(token("FROMFILE"))
+    await KeychainTokenStorage().set_client_info(client())
+    s = KeychainTokenStorage(legacy=legacy)
+    assert await s.get_tokens() is None
+    assert legacy.exists()
+
+
 # --- systemd-creds -----------------------------------------------------------------------------------------------
 
 
