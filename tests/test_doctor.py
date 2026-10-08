@@ -248,12 +248,13 @@ def test_no_keychain_row_when_signed_out_or_on_another_store(tmp_path, monkeypat
     assert "Keychain access" not in by_name(run(settings(tmp_path, token_store="keychain")))
 
 
-def test_propose_mode_loads_and_says_nothing_proposes_yet(tmp_path):
+def test_propose_mode_says_a_person_approves_every_change(tmp_path):
     signed_in(tmp_path)
     p = tmp_path / "policy.yaml"
     p.write_text("autonomy: propose\n")
     c = by_name(run(settings(tmp_path, policy_file=p)))["Policy"]
-    assert c.status == OK and "propose" in c.detail and "observe-only" in c.detail
+    assert c.status == OK and "propose" in c.detail and "approv" in c.detail
+    assert "aren't built" not in c.detail
 
 
 def test_doctor_never_prints_the_anthropic_key(tmp_path, capsys):
@@ -281,3 +282,17 @@ def test_a_sandbox_sign_in_is_shown_without_the_token(tmp_path):
 def test_a_sandbox_slot_that_is_the_normal_file_fails(tmp_path):
     c = by_name(run(settings(tmp_path, sandbox_token_file=tmp_path / "epiphan-oauth.json")))["Sandbox sign-in"]
     assert c.status == FAIL and "different file" in c.detail
+
+
+def test_assistant_off_without_a_key(tmp_path):
+    c = by_name(run(settings(tmp_path, anthropic_api_key=None)))["Assistant"]
+    assert c.status == INFO and c.detail == "off (no API key)"
+
+
+def test_assistant_on_names_the_model_and_the_data_and_masks_the_key(tmp_path):
+    key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz-WXYZ"
+    c = by_name(run(settings(tmp_path, anthropic_api_key=key)))["Assistant"]
+    assert c.status == INFO
+    assert c.detail.startswith("on, model claude-haiku-5-5, sends redacted fleet data to the Anthropic API")
+    assert key not in c.detail and "abcdefghij" not in c.detail
+    assert "…WXYZ" in c.detail

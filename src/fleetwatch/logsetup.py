@@ -11,8 +11,9 @@ import logging
 from fleetwatch.redact import redact
 
 FORMAT = "%(asctime)s %(levelname)s %(message)s"
-# The MCP SDK, the httpx2 fork it bundles (and its httpcore2), plus plain httpx and httpcore (doctor, slack_sdk).
-QUIET_LOGGERS = ("mcp", "httpx", "httpx2", "httpcore", "httpcore2")
+# The MCP SDK, the httpx2 fork it bundles (and its httpcore2), plus plain httpx and httpcore (doctor, slack_sdk), and
+# the Anthropic SDK, whose DEBUG lines carry request bodies: the question and redacted fleet data.
+QUIET_LOGGERS = ("mcp", "httpx", "httpx2", "httpcore", "httpcore2", "anthropic")
 
 
 class RedactFilter(logging.Filter):

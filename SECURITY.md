@@ -26,7 +26,8 @@ titles, and on-screen text can be typed by anyone with access to a room or a CMS
 never as instructions. In Slack they are escaped, so a device named `<!channel>` can't ping anyone or post a link. It listens on no network port except `127.0.0.1`: for the few seconds of `fleetwatch
 login`, and while you run `fleetwatch ask --serve` (opt-in, answers only requests addressed to localhost, reads
 the local state and never calls Epiphan). It talks only outward: to your Epiphan region and, if configured, to
-Slack or Teams. Questions typed into `ask` are untrusted text too: they pick a fixed answer and a known room, nothing more.
+Slack or Teams, and to the Anthropic API when `FLEETWATCH_ANTHROPIC_API_KEY` is set (see
+[Data sent to the model](#data-sent-to-the-model-v02-in-progress)). Questions typed into `ask` are untrusted text too: they pick a fixed answer and a known room, nothing more.
 
 Where the real boundary is. The read-only guard and redaction run inside the Fleetwatch process. They stop
 Fleetwatch's own code from writing or leaking, but they don't contain someone who controls that process or its
@@ -52,8 +53,9 @@ refuse anything wider.
 - Redaction first. Every tool result passes through `src/fleetwatch/redact.py` before it's parsed, stored,
   logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
   `[redacted]`.
-- No model call. v0.1 builds every message from fixed templates and has no AI model dependency. A later
-  feature that uses a model will get its own section here first.
+- No model call by default. Every digest, readiness post and keyword answer is built from fixed templates. Only
+  `fleetwatch ask` with `FLEETWATCH_ANTHROPIC_API_KEY` set calls a model (v0.2, in progress); see
+  [Data sent to the model](#data-sent-to-the-model-v02-in-progress).
 - Token at rest. The Epiphan OAuth token refreshes itself, so it lives in a store Fleetwatch can write
   (`FLEETWATCH_TOKEN_STORE`, default `auto`):
   - macOS: the login Keychain, service `fleetwatch-epiphan`. Fleetwatch writes it with `security -i`, sending
@@ -73,6 +75,40 @@ refuse anything wider.
   write access only to its own state folder and virtual environment.
 - CI. The redaction and guard suites run as their own job on every PR, alongside CodeQL, pip-audit,
   dependency review, actionlint, and zizmor.
+
+## Data sent to the model (v0.2, in progress)
+
+The v0.2 assistant (docs/design/approved-writes.md) is optional and off by default. It's tested only against a
+mocked model so far, not the live Anthropic API or a real team.
+
+- When. Only `fleetwatch ask` (not `--serve`, not `--no-ai`), and only when `FLEETWATCH_ANTHROPIC_API_KEY` is set.
+  The heartbeat, digests, readiness posts and Slack commands never call a model. `fleetwatch doctor` shows
+  "Assistant: off (no API key)", or "on", the model, and a masked key.
+- What goes to Anthropic. The question, and the results of the read tools the model asks for, after `redact()`.
+  Those results include device, channel, source and event names, models, groups, firmware, and online, recording
+  and event status. Pictures from `get_channel_image` are never sent. Each string, list and result is capped, and a
+  cut result says so.
+- Names are data. Fleet text goes to the model inside one `<fleet_data>` block per result, as JSON with `<`, `>` and
+  `&` escaped, so a name can't close the block or pose as a tag. The system prompt says the block's contents are
+  data, never instructions. That's a mitigation, not the boundary: the model is untrusted.
+- What the model can do. Call the read tools, through the same `guard()`, and `propose_change`. It never sees a
+  write tool, and a tool name it invents is answered with an error, never called. `propose_change` only stores a
+  pending proposal, and only when `policy.yaml` says `autonomy: propose`. Code refuses it unless the tool is listed
+  under `propose` with a reviewed schema, the arguments pass the same `check_arguments()` the executor uses, there
+  are no more targets than `max_targets`, and every target (a device ID, or a channel ID for `batch_recording`) is
+  on a fresh read of the sandbox team, through the sandbox sign-in (`fleetwatch login --sandbox`). The state
+  fingerprint comes from that same read, so it matches what the executor checks again before a change runs. With no
+  sandbox sign-in, every proposal is refused, and questions are still answered through the normal sign-in.
+  The assistant itself never approves or runs a proposal.
+- Limits. At most 6 model calls and 120,000 tokens per question, and a 60-second timeout.
+- If it fails. No key, an API error, a refusal or a timeout: `ask` gives the keyword answer, with a note that says
+  why (for example "the API returned an error"). The audit row records the error's class name. A question that fails
+  partway expires any proposal it made.
+- What's kept. Prompts and responses aren't logged or written to disk. The audit table gets one row per question:
+  its length, the tool names called, proposal IDs, and token counts. The Anthropic SDK's logger stays at WARNING,
+  even with `-v`, because its debug lines carry request bodies.
+- Turning it off. Leave `FLEETWATCH_ANTHROPIC_API_KEY` empty. Anthropic's own data handling for API traffic applies
+  to what is sent.
 
 ## In scope
 

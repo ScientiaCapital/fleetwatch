@@ -129,11 +129,52 @@ class _Quiet:
         return True
 
 
-async def _ask(settings: Settings, question: str, replay: str | None, serve: bool) -> None:
+def _sandbox_opener(settings: Settings):
+    """Opens a read-only client on the sandbox sign-in (#93's slot), for the fresh read a proposal is checked and
+    fingerprinted against, the same read the executor repeats. None when there is no usable sandbox sign-in: the
+    assistant still answers, and refuses every proposal."""
+    from fleetwatch.epiphan.token_store import TokenStoreError
+
+    try:
+        store = _sandbox_store(settings)
+        if not store.has_tokens() or store.is_dead():
+            return None
+    except (TokenStoreError, ValueError, OSError):
+        return None
+    tools = load_tools(settings.tool_policy_file)
+    return lambda: EpiphanClient(
+        settings.epiphan_mcp_url, tools, storage=store, callback_port=settings.oauth_callback_port
+    )
+
+
+async def _assistant_answer(
+    settings: Settings, key: str, question: str, state: State, policy, reader, fleet, sandbox=None
+) -> str:
+    from fleetwatch import assistant
+
+    reply = await assistant.answer(
+        question,
+        state=state,
+        policy=policy,
+        tools=load_tools(settings.tool_policy_file),
+        reader=reader,
+        api_key=key,
+        model=settings.ai_model,
+        sandbox=sandbox,
+        fleet=fleet,
+    )
+    return reply.text
+
+
+async def _ask(settings: Settings, question: str, replay: str | None, serve: bool, no_ai: bool = False) -> None:
+    """With FLEETWATCH_ANTHROPIC_API_KEY set, the assistant answers (reads through the guarded client, or the replay
+    files with --replay, so the model call is the only network use). Without a key, or with --no-ai, the keyword
+    answer, exactly as before. The --serve page stays keyword-only for now."""
     from fleetwatch.ask import answer, last_checked
     from fleetwatch.heartbeat import snapshot
 
     policy = load_policy(settings.policy_file)
+    key = "" if no_ai or serve else reveal(settings.anthropic_api_key)
     fleet = None
     if replay:
         policy = dataclasses.replace(policy, quiet_start=None, quiet_end=None)
@@ -141,8 +182,15 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         async with client:
             await tick(client, state, policy, _Quiet(), first_run=True)
             fleet = await snapshot(client, datetime.now(UTC))
+            if key:  # no sandbox here: a replay answers questions, and refuses every proposal
+                text = await _assistant_answer(settings, key, question, state, policy, client, fleet)
+                print(f"{text}\n\n{last_checked(state)}")
+                return
     else:
-        state = State(settings.state_db)  # reads what the heartbeat saved; never signs in or calls Epiphan
+        state = State(settings.state_db)  # reads what the heartbeat saved
+        if key:  # the assistant reads the fleet through the guarded, read-only client; never an interactive sign-in
+            print(f"{await _live_assistant(settings, key, question, state, policy)}\n\n{last_checked(state)}")
+            return
 
     def ask(q: str) -> str:
         return answer(q, state, policy, fleet)
@@ -158,6 +206,19 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         return (with_events or [d.name for d in state.devices() if d.online])[:8]
 
     serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state))
+
+
+async def _live_assistant(settings: Settings, key: str, question: str, state: State, policy) -> str:
+    from fleetwatch import assistant
+    from fleetwatch.redact import redact
+
+    try:
+        async with _make_client(settings) as reader:
+            sandbox = _sandbox_opener(settings)
+            return await _assistant_answer(settings, key, question, state, policy, reader, None, sandbox)
+    except Exception as e:  # noqa: BLE001  (no sign-in, or Epiphan unreachable: the keyword answer still works)
+        logging.getLogger(__name__).warning("assistant couldn't read the fleet: %s", redact(type(e).__name__))
+        return assistant.fallback(question, state, policy, None, None, "no_fleet").text
 
 
 async def _maybe_sweep(client, state: State, policy, notifier) -> None:
@@ -267,6 +328,9 @@ def main() -> None:
         help="digest: also save every tool result, redacted, to DIR as replay files (keep DIR outside the repo)",
     )
     p.add_argument("--serve", action="store_true", help="ask: open a local page with buttons on 127.0.0.1")
+    p.add_argument(
+        "--no-ai", action="store_true", help="ask: keyword answers only, even with FLEETWATCH_ANTHROPIC_API_KEY set"
+    )
     p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
     p.add_argument("--author", help="note: who left it (default: your login name)")
     p.add_argument("--search", metavar="TEXT", help="notes: only notes containing TEXT")
@@ -289,7 +353,7 @@ def main() -> None:
     elif args.command == "ask":
         if not args.question and not args.serve:
             p.error('ask needs a question, e.g. fleetwatch ask "what needs attention", or --serve for the page')
-        asyncio.run(_ask(settings, " ".join(args.question), args.replay, args.serve))
+        asyncio.run(_ask(settings, " ".join(args.question), args.replay, args.serve, args.no_ai))
     elif args.command == "sweep":
         asyncio.run(_sweep(settings, args.replay))
     elif args.command == "history":

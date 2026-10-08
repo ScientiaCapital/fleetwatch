@@ -24,3 +24,15 @@ def fleet(device_list):
 @pytest.fixture
 def policy():
     return Policy()
+
+
+@pytest.fixture(autouse=True)
+def _no_anthropic(monkeypatch):
+    """No test reaches Anthropic: the key is empty whatever the shell or a .env says, and building a real client
+    fails. A test that needs the assistant passes a scripted fake as `client=`."""
+    monkeypatch.setenv("FLEETWATCH_ANTHROPIC_API_KEY", "")
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a test tried to build a real Anthropic client")
+
+    monkeypatch.setattr("fleetwatch.assistant.make_client", refuse, raising=False)
