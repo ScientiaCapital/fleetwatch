@@ -1,0 +1,444 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. A calm fleet: nothing to fix. Times like {{now+20m}} are resolved when the replay runs.",
+  "devices": [
+    {
+      "Id": "1f000000013",
+      "Name": "Main Stage Pearl Nano",
+      "Model": "Pearl Nano",
+      "GroupId": "00000000-0000-4000-8000-000000000004",
+      "GroupName": "Booth",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Streamer Sessions",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279328",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000017",
+      "Name": "Breakout A Pearl-2",
+      "Model": "Pearl-2",
+      "GroupId": "00000000-0000-4000-8000-000000000001",
+      "GroupName": "Booth",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Main Camera",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Host Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Panelist Camera",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "4",
+          "name": "Zoom Guest",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "5",
+          "name": "Media Playback",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "6",
+          "name": "Program",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279290",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f00000000b",
+      "Name": "Lobby EC20",
+      "Model": "EC20",
+      "GroupId": "00000000-0000-4000-8000-000000000003",
+      "GroupName": "Booth",
+      "Firmware": "3.6.44",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Channel 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "rtmp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTMP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "1",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "SRT stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "2",
+              "type": "rtsp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTSP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "3",
+              "type": "rtp-udp",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "RTP-UDP stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "id": "4",
+              "type": "ndi",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "NDI stream"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1787169607",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1f000000005",
+      "Name": "Demo Pod Pearl Mini",
+      "Model": "Pearl Mini",
+      "GroupId": "00000000-0000-4000-8000-000000000001",
+      "GroupName": "Booth",
+      "Firmware": "4.24.6",
+      "Status": "online",
+      "StateTime": "2026-10-03T15:49Z",
+      "Channels": [
+        {
+          "channel_id": "1",
+          "name": "Camera 1",
+          "Publishers": [
+            {
+              "id": "0",
+              "type": "srt",
+              "status": {
+                "since": 0,
+                "state": "stopped",
+                "started": false,
+                "description": ""
+              },
+              "settings": [
+                {
+                  "id": "name",
+                  "type": {
+                    "name": "string"
+                  },
+                  "title": "Name",
+                  "value": "Stream 1"
+                },
+                {
+                  "id": "single-touch",
+                  "type": {
+                    "name": "bool"
+                  },
+                  "title": "Single touch control",
+                  "value": true
+                }
+              ]
+            }
+          ],
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790349800",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "2",
+          "name": "Camera 2",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279345",
+            "description": "recording is not started"
+          }
+        },
+        {
+          "channel_id": "3",
+          "name": "Camera 3",
+          "recording_status": {
+            "state": "stopped",
+            "timestamp": "1790279345",
+            "description": "recording is not started"
+          }
+        }
+      ]
+    }
+  ]
+}

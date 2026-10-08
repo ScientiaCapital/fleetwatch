@@ -1,0 +1,87 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. A calm fleet: nothing to fix. Times like {{now+20m}} are resolved when the replay runs.",
+  "devices": {
+    "1f000000013": {
+      "channels": {
+        "1": {
+          "name": "Streamer Sessions",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000017": {
+      "channels": {
+        "1": {
+          "name": "Main Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Host Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Panelist Camera",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "4": {
+          "name": "Zoom Guest",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "5": {
+          "name": "Media Playback",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "6": {
+          "name": "Program",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f00000000b": {
+      "channels": {
+        "1": {
+          "name": "Channel 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    },
+    "1f000000005": {
+      "channels": {
+        "1": {
+          "name": "Camera 1",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "2": {
+          "name": "Camera 2",
+          "recording_status": {
+            "state": "stopped"
+          }
+        },
+        "3": {
+          "name": "Camera 3",
+          "recording_status": {
+            "state": "stopped"
+          }
+        }
+      }
+    }
+  }
+}

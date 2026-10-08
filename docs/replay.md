@@ -13,6 +13,9 @@ product: rooms offline, a channel with no picture, a unit working hard, one runn
 storage FYI, and two checks before an event, one *Ready* and one *Not ready*. The device list is a real fleet, renamed
 and with IDs replaced; the recorder, system and schedule files are synthetic.
 
+There is also a calm sample for a screen in a quiet room: `uv run fleetwatch digest --replay tests/fixtures/calm`
+shows *All clear* and one event coming up, *Ready*. Four rooms, nothing to fix.
+
 ## Your own sample
 
 Save each tool's JSON result as `<tool name>.json` in a folder, for example `get_devices_in_my_team.json`. Tools
