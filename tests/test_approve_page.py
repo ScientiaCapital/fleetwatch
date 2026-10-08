@@ -163,15 +163,64 @@ def test_right_secret_sets_a_strict_http_only_session_cookie_that_isnt_the_secre
     assert SECRET not in cookie
 
 
-def test_wrong_secret_then_lockout_for_a_minute(harness):
-    for _ in range(5):
+def test_wrong_secrets_slow_down_instead_of_locking_for_good(harness):
+    # Three free tries, then a growing wait. Entries made during the wait aren't checked and don't extend it.
+    for _ in range(3):
         status, body, _ = _req(harness.port, "POST", "/login", {"secret": "nope"})
         assert status == 403 and "isn't right" in body
-    # Locked: even the right secret is refused now.
+    status, _, _ = _req(harness.port, "POST", "/login", {"secret": "nope"})
+    assert status == 403  # the 4th wrong one starts a 2 second wait
     status, body, headers = _req(harness.port, "POST", "/login", {"secret": SECRET})
-    assert status == 429 and "minute" in body and not _header(headers, "Set-Cookie")
-    harness.clock[0] += 61
+    assert status == 429 and "wait" in body.lower() and not _header(headers, "Set-Cookie")
+    harness.clock[0] += 2.5
     assert _login(harness)
+
+
+def test_a_guesser_hammering_the_form_cannot_extend_the_wait(harness):
+    for _ in range(4):
+        _req(harness.port, "POST", "/login", {"secret": "nope"})
+    for _ in range(50):  # all during the wait: refused, not counted
+        assert _req(harness.port, "POST", "/login", {"secret": "nope"})[0] == 429
+        harness.clock[0] += 0.03
+    harness.clock[0] += 1.0  # the 2 second wait is over
+    assert _login(harness)
+
+
+def test_the_wait_is_capped_so_a_correct_secret_always_works_later(harness):
+    page = harness.page
+    for _ in range(40):
+        harness.clock[0] += 120  # always past the wait
+        assert page.login("nope")[0] == 403
+    harness.clock[0] += approve_page.LOCKOUT_SECONDS + 1
+    assert page.login(SECRET)[0] == 303
+
+
+def test_lockout_is_per_client_address(harness):
+    page = harness.page
+    for _ in range(8):
+        harness.clock[0] += 120
+        page.login("nope", client="10.0.0.9")
+    page.login("nope", client="10.0.0.9")
+    assert page.login(SECRET, client="10.0.0.9")[0] == 429
+    assert page.login(SECRET, client="10.0.0.10")[0] == 303  # another address isn't slowed by it
+
+
+def test_a_global_ceiling_slows_every_address_but_only_for_a_while(harness):
+    page = harness.page
+    for i in range(approve_page.GLOBAL_WRONG):  # many addresses, one wrong try each: none is slowed alone
+        assert page.login("nope", client=f"10.1.0.{i}")[0] == 403
+    assert page.login(SECRET, client="10.2.0.1")[0] == 429
+    harness.clock[0] += approve_page.LOCKOUT_SECONDS + 1
+    assert page.login(SECRET, client="10.2.0.1")[0] == 303
+
+
+def test_a_right_secret_resets_that_addresses_count(harness):
+    page = harness.page
+    for _ in range(3):
+        page.login("nope")
+    assert page.login(SECRET)[0] == 303
+    for _ in range(3):
+        assert page.login("nope")[0] == 403  # free tries again, no wait
 
 
 def test_login_needs_same_origin_too(harness):
@@ -562,6 +611,88 @@ def test_deny_records_a_denial_and_runs_nothing(harness):
     assert harness.executor.calls == []
 
 
+def _three(h):
+    return [h.add(targets=(ROOM,), args={"device_ids": [ROOM]}, reason=f"r{i}") for i in range(3)]
+
+
+def test_deny_all_button_shows_only_with_two_or_more_waiting(harness):
+    harness.add()
+    _, body = _card(harness)
+    assert "/deny_all" not in _forms(body)
+    harness.add(tool="batch_reboot", args={"device_ids": [ROOM]}, reason="again")
+    _, body = _card(harness)
+    form = _forms(body)["/deny_all"]
+    assert set(form) == {"token"} and "Deny all pending" in body
+
+
+def test_deny_all_denies_everything_waiting_and_runs_nothing(harness):
+    ids = _three(harness)
+    cookie, body = _card(harness)
+    status, page, _ = _req(harness.port, "POST", "/deny_all", _forms(body)["/deny_all"], cookie=cookie)
+    assert status == 200 and "3" in page
+    rows = harness.state.db.execute("SELECT status FROM proposals WHERE id IN (?,?,?)", ids).fetchall()
+    assert [r[0] for r in rows] == ["denied"] * 3
+    assert harness.executor.calls == [] and _rows(harness.state, "approvals") == []
+
+
+def test_deny_all_needs_session_same_origin_and_its_own_token(harness):
+    _three(harness)
+    cookie, body = _card(harness)
+    form = _forms(body)["/deny_all"]
+    assert _req(harness.port, "POST", "/deny_all", form)[0] == 403  # no session
+    assert _req(harness.port, "POST", "/deny_all", form, cookie=cookie, site="cross-site")[0] == 403
+    assert _req(harness.port, "POST", "/deny_all", {"token": "x"}, cookie=cookie)[0] == 403
+    deny_token = _forms(body)["/deny"]["token"]  # a per-proposal token is not a deny-all token
+    assert _req(harness.port, "POST", "/deny_all", {"token": deny_token}, cookie=cookie)[0] == 403
+    assert len(harness.state.pending_proposals()) == 3
+    other = _login(harness)  # another session's token doesn't work either
+    assert _req(harness.port, "POST", "/deny_all", form, cookie=other)[0] == 403
+    assert _req(harness.port, "POST", "/deny_all", form, cookie=cookie)[0] == 200
+
+
+def test_there_is_no_approve_all_and_one_approve_request_approves_exactly_one(harness, monkeypatch):
+    _three(harness)
+    cookie, body = _card(harness)
+    for path in ("/approve_all", "/approve-all", "/approve_all_pending"):
+        assert _req(harness.port, "POST", path, _forms(body)["/deny_all"], cookie=cookie)[0] == 404
+    calls = []
+    real = harness.state.approve
+    monkeypatch.setattr(harness.state, "approve", lambda *a, **k: calls.append(a) or real(*a, **k))
+    status, page, _ = _req(harness.port, "POST", "/approve", _forms(body)["/approve"], cookie=cookie)
+    assert status == 200 and calls == []  # a disruptive change asks for the second step first
+    status, _, _ = _req(harness.port, "POST", "/confirm", _forms(page)["/confirm"], cookie=cookie)
+    assert status == 200 and len(calls) == 1 and len(harness.executor.calls) == 1
+    left = harness.state.db.execute("SELECT COUNT(*) FROM proposals WHERE status='pending'").fetchone()[0]
+    assert left == 2
+
+
+def test_the_page_says_when_the_proposal_queue_is_full_in_english_and_spanish(harness):
+    harness.add()
+    _, body = _card(harness)
+    assert "Proposal queue full" not in body
+    harness.add(tool="batch_reboot", args={"device_ids": [ROOM]}, reason="b")
+    harness.add(tool="batch_recording", args={"device_ids": [ROOM], "action": "start"}, reason="c")
+    cookie, body = _card(harness)
+    assert "Proposal queue full" in body and "3 waiting" in body
+    c = http.client.HTTPConnection("127.0.0.1", harness.port, timeout=5)
+    headers = {"Host": f"127.0.0.1:{harness.port}", "Cookie": cookie, "Accept-Language": "es"}
+    c.request("GET", "/", headers=headers)
+    assert "Cola de propuestas llena" in c.getresponse().read().decode()
+
+
+def test_the_page_says_when_the_hourly_cap_is_reached(harness):
+    from fleetwatch.state import PROPOSALS_PER_HOUR
+
+    for i in range(PROPOSALS_PER_HOUR):
+        harness.state.db.execute(
+            "INSERT INTO proposals (created_at, tool, arguments, targets, fingerprint, schema_version, slot, status)"
+            " VALUES (CAST(strftime('%s','now') AS INTEGER), 'batch_reboot', '{}', '[]', '{}', 1, 'sandbox', 'expired')"
+        )
+    harness.state.db.commit()
+    _, body = _card(harness)
+    assert "Proposal queue full" in body and f"{PROPOSALS_PER_HOUR} in the last hour" in body
+
+
 def test_card_that_cant_be_shown_cant_be_approved_even_with_a_token(harness):
     pid = harness.add("confirm_cms_event_on_device", {"device_id": ROOM, "event_id": "ok-id", "note": "a\u200bb"})
     cookie, body = _card(harness)
@@ -669,11 +800,77 @@ def test_serve_prints_the_secret_once_and_the_url_without_it(monkeypatch, capsys
             pass
 
     monkeypatch.setattr(approve_page, "HTTPServer", NoServer)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True, raising=False)
     approve_page.serve(page)
     out = capsys.readouterr().out
     assert out.count(SECRET) == 1
     url = re.search(r"http://\S+", out).group(0)
     assert SECRET not in url and url.startswith("http://127.0.0.1:")
+
+
+def _serve_page(monkeypatch, tmp_path, tty: bool, **kw):
+    state = State(":memory:", check_same_thread=False)
+
+    async def read_fleet():
+        return _fleet()
+
+    page = ApprovePage(state, read_fleet, FakeExecutor(state), TOOLS, _free_port(), secret=SECRET)
+    seen = {}
+
+    class NoServer:
+        def __init__(self, *a, **k):
+            pass
+
+        def serve_forever(self):
+            f = tmp_path / approve_page.SECRET_FILE
+            seen["exists"] = f.exists()
+            seen["mode"] = f.stat().st_mode & 0o777 if f.exists() else None
+            seen["text"] = f.read_text() if f.exists() else None
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(approve_page, "HTTPServer", NoServer)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: tty, raising=False)
+    approve_page.serve(page, state_dir=tmp_path, **kw)
+    return seen
+
+
+def test_without_a_terminal_the_secret_goes_to_a_private_file_and_not_to_stdout(monkeypatch, tmp_path, capsys):
+    seen = _serve_page(monkeypatch, tmp_path, tty=False)
+    out = capsys.readouterr().out
+    assert SECRET not in out and str(tmp_path / approve_page.SECRET_FILE) in out
+    assert seen["exists"] and seen["mode"] == 0o600 and seen["text"].strip() == SECRET
+    assert not (tmp_path / approve_page.SECRET_FILE).exists(), "deleted on a clean shutdown"
+
+
+def test_on_a_terminal_the_secret_prints_and_no_file_is_made(monkeypatch, tmp_path, capsys):
+    seen = _serve_page(monkeypatch, tmp_path, tty=True)
+    assert capsys.readouterr().out.count(SECRET) == 1
+    assert not seen["exists"]
+
+
+def test_a_stale_secret_file_is_replaced_at_start_and_never_world_readable(monkeypatch, tmp_path):
+    old = tmp_path / approve_page.SECRET_FILE
+    old.write_text("old-secret")
+    old.chmod(0o666)
+    seen = _serve_page(monkeypatch, tmp_path, tty=False)
+    assert seen["text"].strip() == SECRET and seen["mode"] == 0o600
+
+
+def test_the_secret_file_is_created_exclusively_with_mode_600(monkeypatch, tmp_path):
+    calls = []
+    real = approve_page.os.open
+
+    def spy(path, flags, mode=0o777, **k):
+        calls.append((str(path), flags, mode))
+        return real(path, flags, mode, **k)
+
+    monkeypatch.setattr(approve_page.os, "open", spy)
+    _serve_page(monkeypatch, tmp_path, tty=False)
+    ((_, flags, mode),) = [c for c in calls if c[0].endswith(approve_page.SECRET_FILE)]
+    assert flags & approve_page.os.O_EXCL and flags & approve_page.os.O_CREAT and mode == 0o600
 
 
 def test_generated_secret_is_long_and_random():

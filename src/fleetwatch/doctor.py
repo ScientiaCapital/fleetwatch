@@ -27,6 +27,7 @@ from fleetwatch.epiphan.token_store import (
 )
 from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
+from fleetwatch.state import MAX_PENDING, PROPOSALS_PER_HOUR, State
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 INFO = "INFO"  # always worth knowing, never something to fix: not counted in the summary
@@ -244,6 +245,28 @@ def _audit_log(s: Settings) -> Check:
     return Check("Audit log", FAIL, f"row {bad} doesn't match the one before it: the log was edited or damaged")
 
 
+def _proposal_queue(s: Settings) -> Check:
+    """Offline: how full the v0.2 proposal queue is, from the same limits State enforces. Warns when the assistant
+    can't add a proposal, so a refused one isn't a mystery."""
+    name = "Proposal queue"
+    pending, hour, max_pending, max_hour = 0, 0, MAX_PENDING, PROPOSALS_PER_HOUR
+    if s.state_db.exists():
+        try:
+            state = State(s.state_db)
+            try:
+                pending, hour, max_pending, max_hour = state.queue_status()
+            finally:
+                state.db.close()
+        except Exception as e:  # noqa: BLE001  (a locked or unreadable file is a finding, not a crash)
+            return Check(name, WARN, f"couldn't read the proposal queue ({type(e).__name__})")
+    counts = f"{pending} of {max_pending} waiting, {hour} of {max_hour} in the last hour"
+    if pending >= max_pending:
+        return Check(name, WARN, f"full: {counts}. The assistant can't propose more until you approve or deny one")
+    if hour >= max_hour:
+        return Check(name, WARN, f"full: {counts}. The assistant can't propose more until the hour passes")
+    return Check(name, INFO, counts)
+
+
 def _reach(name: str, url: str, reach: Callable[[str], bool]) -> Check:
     host = urlparse(url).netloc or url
     if reach(url):
@@ -359,6 +382,7 @@ def run_checks(
         _fence(s),
         _state_dir(s),
         _audit_log(s),
+        _proposal_queue(s),
         _slack(s),
         _slack_commands(s),
         _teams(s),

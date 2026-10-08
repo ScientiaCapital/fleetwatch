@@ -165,14 +165,53 @@ def test_at_most_three_pending():
 
 def test_hourly_cap():
     s = State()
-    for i in range(3):
-        s.deny(_propose(s, targets=(f"dev-{i}",)))
+    for i in range(3):  # nobody reviewed these, so they count
+        _propose(s, targets=(f"dev-{i}",))
+    s.expire_all_pending()
     with pytest.raises(ProposalRefused, match="hour"):
         _propose(s, targets=("dev-9",), per_hour=3)
     # Proposals older than an hour no longer count (backdate on the database's own clock).
     s.db.execute("UPDATE proposals SET created_at = created_at - 3601")
     s.db.commit()
     _propose(s, targets=("dev-9",), per_hour=3)
+
+
+def test_a_proposal_a_person_denied_does_not_count_toward_the_hourly_cap():
+    s = State()
+    for i in range(3):
+        assert s.deny(_propose(s, targets=(f"dev-{i}",)))
+    _propose(s, targets=("dev-9",), per_hour=3)  # three denials are a person's choice, not the model's budget
+
+
+def test_expired_and_unreviewed_proposals_still_count_toward_the_hourly_cap():
+    s = State()
+    _propose(s, targets=("dev-1",))
+    _propose(s, targets=("dev-2",))
+    s.expire_all_pending()  # nobody looked at them
+    _propose(s, targets=("dev-3",))  # still pending
+    with pytest.raises(ProposalRefused, match="hour"):
+        _propose(s, targets=("dev-4",), per_hour=3)
+
+
+def test_queue_status_counts_pending_and_the_hour_with_the_same_limits():
+    from fleetwatch.state import MAX_PENDING, PROPOSALS_PER_HOUR
+
+    s = State()
+    assert s.queue_status() == (0, 0, MAX_PENDING, PROPOSALS_PER_HOUR)
+    _propose(s, targets=("dev-1",))
+    s.deny(_propose(s, targets=("dev-2",)))
+    assert s.queue_status() == (1, 1, MAX_PENDING, PROPOSALS_PER_HOUR)  # the denied one isn't in the hour count
+
+
+def test_deny_all_denies_every_pending_proposal_and_nothing_else():
+    s = State()
+    for i in range(3):
+        _propose(s, targets=(f"dev-{i}",))
+    assert s.deny_all("session-a") == 3
+    assert s.pending_proposals() == []
+    assert len(s.recent_audit("denial")) == 3
+    assert s.deny_all("session-a") == 0
+    assert not s.db.execute("SELECT 1 FROM approvals").fetchall(), "deny-all never approves anything"
 
 
 def test_deny_circuit_breaker():

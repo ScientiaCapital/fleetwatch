@@ -71,8 +71,15 @@ Lo que impide que un cambio se ejecute sin esa aprobación:
 La página de aprobación:
 
 - Escucha solo en `127.0.0.1`, en su propio puerto, y revisa el encabezado Host.
-- Un secreto de página, que se imprime una vez en la consola y nunca va en una URL, la protege. Cinco intentos
-  fallidos bloquean el formulario por un minuto.
+- Un secreto de página, que nunca va en una URL, la protege. En una terminal se imprime una vez. Con launchd o
+  systemd, donde la consola es un registro, se guarda en un archivo que solo tú puedes leer (modo 0600) en la carpeta
+  de estado, y solo se imprime la ruta. El archivo se borra cuando la página se detiene con normalidad y se reemplaza
+  en el siguiente arranque.
+- Los secretos incorrectos hacen más lento el formulario en lugar de bloquearlo: tres intentos libres y luego una
+  espera que se duplica hasta un minuto, por dirección de cliente, más un límite mucho más alto para todas las
+  direcciones. Los intentos hechos durante una espera no se revisan y no la alargan, así que quien adivina no puede
+  dejarte fuera. La página y `fleetwatch doctor` avisan cuando la cola de propuestas está llena, y "Rechazar todo lo
+  pendiente" rechaza todo lo que espera. No existe aprobar todo.
 - Cada POST necesita un token ligado a la propuesta y un encabezado de mismo origen. Nada cambia con un GET.
 - Approve nunca es el botón con el foco, y el asistente no puede definir etiquetas, colores ni foco.
 
@@ -84,6 +91,12 @@ Límites conocidos:
 - La página sugiere un descanso tras cinco aprobaciones en una sesión. Es una advertencia, no un límite estricto, y
   una persona puede seguir aprobando. El registro de auditoría cuenta las aprobaciones para que se note un patrón de
   aprobar sin leer.
+- Todos los procesos locales llegan a la página desde la misma dirección, 127.0.0.1, así que la espera por dirección no
+  distingue entre tú y un programa que adivina. Limita los intentos, pero no impide que un programa local haga más
+  lenta tu entrada. La espera nunca pasa de un minuto, y reiniciar la página crea un secreto nuevo y la borra.
+- Las verificaciones antes de un cambio se hacen y luego se envía la escritura. Son el mejor esfuerzo en un solo
+  instante: una persona puede iniciar la grabación entre la última lectura y la escritura. Fleetwatch reduce ese
+  intervalo a lo que dura una llamada y no hace otro trabajo en él, pero no puede cerrarlo.
 - El OAuth de Epiphan no tiene un alcance de solo lectura. El token del inicio de sesión de pruebas puede escribir en
   el equipo de pruebas, y el token del inicio de sesión normal puede escribir en su equipo. El cerco es código de
   Fleetwatch, no la credencial. Si alguien controla el proceso o sus archivos, tiene un token que puede escribir.

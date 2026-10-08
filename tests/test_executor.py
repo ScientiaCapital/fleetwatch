@@ -366,6 +366,27 @@ async def test_a_stream_on_the_teams_list_runs_and_the_list_was_read_through_the
     assert [c[0] for c in edge.writes] == ["start_stream_endpoint"]
 
 
+async def test_nothing_slow_sits_between_the_last_check_and_the_write(edge, sandbox, tools, monkeypatch):
+    """The checks are best effort at one instant, so the gap before the write is kept to nothing: the slow list reads
+    come first, the recorder and event reads come last, and no audit row is written between them and the write."""
+    state = State()
+    real_audit = state.audit
+
+    def audit(kind, detail):
+        edge.calls.append((f"AUDIT {kind}", {}))
+        return real_audit(kind, detail)
+
+    monkeypatch.setattr(state, "audit", audit)
+    args = {"stream_id": STREAM, "device_id": ROOM, "channel_id": "1"}
+    record, _ = _approved(state, tool="start_stream_endpoint", args=args)
+    assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
+    names = [c[0] for c in edge.calls]
+    write = names.index("start_stream_endpoint")
+    assert names[write - 1] in ("get_current_or_next_cms_events_for_devices", "get_recorder_status_for_devices")
+    assert names.index("get_stream_endpoints") < names.index("get_recorder_status_for_devices")
+    assert not [n for n in names[names.index("get_recorder_status_for_devices") : write] if n.startswith("AUDIT")]
+
+
 async def test_an_unreadable_stream_list_fails_closed(edge, sandbox, tools):
     edge.fail_reads = {"get_stream_endpoints"}
     state = State()
