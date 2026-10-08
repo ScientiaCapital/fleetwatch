@@ -14,7 +14,8 @@ fleetwatch approve --serve
 ```
 
 It listens on `127.0.0.1` at port 8767 (`FLEETWATCH_APPROVE_PORT`) and nowhere else. It won't start unless
-`policy.yaml` says `autonomy: propose` and a sandbox sign-in exists (`fleetwatch login --sandbox`). To try it
+`policy.yaml` says `autonomy: propose`, a sandbox sign-in exists (`fleetwatch login --sandbox`), and the write
+fence is set: the sandbox devices in `FLEETWATCH_WRITE_DEVICE_IDS`, or `FLEETWATCH_WRITE_TEAM_ID`. To try it
 without signing in to anything, add `--replay tests/fixtures`. A replay run records the change in memory and
 sends nothing to Epiphan.
 

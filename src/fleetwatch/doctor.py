@@ -178,6 +178,33 @@ def _sandbox(s: Settings) -> Check:
     return Check(name, INFO, f"signed in, token in {store.where}; only changes a person approves (v0.2) use it")
 
 
+def _fence(s: Settings) -> Check:
+    """v0.2: with autonomy: propose, a change needs a fence (docs/design/approved-writes.md, "Fence"). Offline."""
+    from fleetwatch.fence import Fence
+
+    name = "Write fence"
+    try:
+        p = load_policy(s.policy_file)
+    except (OSError, ValueError):
+        return Check(name, WARN, "can't tell until policy.yaml loads")
+    if not p.proposes:
+        return Check(name, INFO, "not needed: autonomy is observe, so no change can be proposed")
+    fence = Fence.from_settings(s)
+    if not fence.is_set:
+        return Check(
+            name,
+            FAIL,
+            "autonomy: propose needs a fence, or every change is refused: list the sandbox devices in "
+            "FLEETWATCH_WRITE_DEVICE_IDS (or set FLEETWATCH_WRITE_TEAM_ID)",
+        )
+    parts = []
+    if fence.device_ids:
+        parts.append(f"{len(fence.device_ids)} sandbox device(s) on the allowlist")
+    if fence.team_id:
+        parts.append("a team ID is set (Epiphan may not report one, so the allowlist is the stronger fence)")
+    return Check(name, OK, "; ".join(parts))
+
+
 def _state_dir(s: Settings) -> Check:
     d = s.state_db.parent
     if d.exists() and not os.access(d, os.W_OK):
@@ -297,6 +324,7 @@ def run_checks(
         _sign_in(s),
         *filter(None, [_write_capable(s), _keychain_access(s), _token_expiry(s)]),
         _sandbox(s),
+        _fence(s),
         _state_dir(s),
         _slack(s),
         _slack_commands(s),

@@ -62,6 +62,46 @@ def test_refuses_to_start_in_observe_mode(tmp_path, capsys):
     assert "autonomy: propose" in capsys.readouterr().out
 
 
+def test_refuses_to_start_without_a_write_fence(tmp_path, capsys):
+    s = _settings(tmp_path, "propose")  # signed in below, but no team ID and no device allowlist
+    _sign_in_sandbox(s)
+    with pytest.raises(SystemExit) as e:
+        cli._approve_page(s, None)
+    assert e.value.code != 0
+    assert "FLEETWATCH_WRITE_DEVICE_IDS" in capsys.readouterr().out
+
+
+def test_sandbox_login_overlapping_the_normal_sign_in_is_refused_and_forgotten(tmp_path, capsys):
+    from datetime import UTC, datetime
+
+    from fleetwatch.epiphan.parse import parse_devices
+    from fleetwatch.state import State
+
+    s = _settings(tmp_path, "propose")
+    _sign_in_sandbox(s)
+    both = {"devices": [{"Id": "0a1b2c3d", "Name": "Room 204 Pearl Mini", "Status": "online"}]}
+    State(s.state_db).record_devices(parse_devices(both, datetime.now(UTC)), datetime.now(UTC))
+    with pytest.raises(SystemExit) as e:
+        cli._refuse_overlapping_sandbox(s, both)
+    assert e.value.code != 0
+    assert "same team" in capsys.readouterr().out
+    assert not s.sandbox_token_file.exists(), "a refused sandbox sign-in is forgotten"
+
+
+def test_sandbox_login_with_different_devices_is_kept(tmp_path):
+    from datetime import UTC, datetime
+
+    from fleetwatch.epiphan.parse import parse_devices
+    from fleetwatch.state import State
+
+    s = _settings(tmp_path, "propose")
+    _sign_in_sandbox(s)
+    normal = {"devices": [{"Id": "0a1b2c3d", "Name": "Room 204 Pearl Mini", "Status": "online"}]}
+    State(s.state_db).record_devices(parse_devices(normal, datetime.now(UTC)), datetime.now(UTC))
+    cli._refuse_overlapping_sandbox(s, {"devices": [{"Id": "0e0f1a2b", "Name": "Lab Pearl-2", "Status": "online"}]})
+    assert s.sandbox_token_file.exists()
+
+
 def test_refuses_to_start_without_a_sandbox_sign_in(tmp_path, capsys):
     s = _settings(tmp_path, "propose")
     with pytest.raises(SystemExit) as e:
@@ -70,8 +110,8 @@ def test_refuses_to_start_without_a_sandbox_sign_in(tmp_path, capsys):
     assert "fleetwatch login --sandbox" in capsys.readouterr().out
 
 
-def test_starts_in_propose_mode_with_a_sandbox_sign_in(tmp_path):
-    s = _settings(tmp_path, "propose")
+def test_starts_in_propose_mode_with_a_sandbox_sign_in_and_a_fence(tmp_path):
+    s = _settings(tmp_path, "propose", write_device_ids="0a1b2c3d")
     _sign_in_sandbox(s)
     page = cli._approve_page(s, None)
     assert isinstance(page.executor, executor_module.WriteExecutor)

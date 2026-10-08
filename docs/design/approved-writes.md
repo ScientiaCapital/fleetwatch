@@ -90,7 +90,9 @@ recording, stopping a stream, or updating firmware. A person approves each chang
 - Writes use a second sign-in, stored in its own token slot, made by signing in to the sandbox team only. The heartbeat and the
   read-only assistant keep using the normal sign-in and never load the sandbox token.
 - Before each write, the executor checks that every target device ID is on the sandbox sign-in's own device list, freshly read.
+- Fail closed: a change needs `FLEETWATCH_WRITE_DEVICE_IDS` (an allowlist of sandbox device IDs, which doesn't depend on Epiphan reporting anything), `FLEETWATCH_WRITE_TEAM_ID`, or both. With neither, the assistant proposes nothing, the executor refuses, `approve --serve` won't start, and `doctor` fails. The assistant checks the allowlist when it proposes and the executor checks it again when it runs.
 - If Epiphan exposes a team ID (to confirm on the first live run), the executor also checks it against `FLEETWATCH_WRITE_TEAM_ID`.
+- `login --sandbox` refuses, and forgets the sign-in, when the sandbox's device list overlaps the devices the normal sign-in has already saved.
 - With no sandbox sign-in, Fleetwatch can't run any write.
 
 ## The approval page

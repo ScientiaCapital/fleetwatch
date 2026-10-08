@@ -6,6 +6,7 @@ import dataclasses
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from fleetwatch.config import Settings, reveal
 from fleetwatch.epiphan.capture import CapturingClient
@@ -68,12 +69,33 @@ async def _login(settings: Settings, sandbox: bool = False) -> None:
         fleet = await client.call("get_devices_in_my_team")
     n = len(fleet.get("devices", fleet)) if isinstance(fleet, (dict, list)) else 0
     if sandbox:
+        _refuse_overlapping_sandbox(settings, fleet)
         print(
             f"Signed in to the sandbox team. It has {n} devices. Token saved to {store.where}.\n"
             "Only v0.2 changes a person approves use this sign-in; the heartbeat never loads it."
         )
     else:
         print(f"Signed in. This team has {n} devices. Token saved to {store.where}.")
+
+
+def _refuse_overlapping_sandbox(settings: Settings, raw: Any) -> None:
+    """The sandbox must be a different team from the one the heartbeat watches. If any device it can see is one the
+    normal sign-in already saw, the two sign-ins reach the same team: forget the sandbox sign-in and stop. (With no
+    heartbeat history there's nothing to compare, so doctor and the fence are what's left; sign in normally and run
+    one digest first.)"""
+    from fleetwatch.epiphan.parse import parse_devices
+
+    sandbox_ids = {i.lower() for i in parse_devices(raw, datetime.now(UTC)).devices}
+    known = {d.id.lower() for d in State(settings.state_db).devices()}
+    shared = sorted(sandbox_ids & known)
+    if shared:
+        _sandbox_store(settings).clear()
+        print(
+            f"Sandbox sign-in refused and forgotten: it can see {len(shared)} device(s) the normal sign-in watches "
+            "(for example "
+            f"{shared[0]}), so it reaches the same team. Sign in with an account for the sandbox team only."
+        )
+        raise SystemExit(2)
 
 
 def _logout(settings: Settings, sandbox: bool = False) -> str:
@@ -152,7 +174,9 @@ async def _assistant_answer(
 ) -> str:
     """`extra` is `slot` (what a proposal is bound to) and `client` (a stand-in model, for tests)."""
     from fleetwatch import assistant
+    from fleetwatch.fence import Fence
 
+    extra.setdefault("fence", Fence.from_settings(settings))  # replay passes its own: the fixtures' devices
     reply = await assistant.answer(
         question,
         state=state,
@@ -237,7 +261,13 @@ def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str
     replay_policy = dataclasses.replace(policy, autonomy="propose")  # a replay proposes; only a RecordingExecutor runs
 
     async def ask(q: str) -> str:
+        from fleetwatch.fence import Fence
+        from fleetwatch.heartbeat import snapshot
+
         async with ReplayClient(Path(replay), tools) as reader:
+            # A replay's fence is the fixtures' own devices: nothing real exists to reach, and only a
+            # RecordingExecutor runs what's approved.
+            fence = Fence(device_ids=frozenset((await snapshot(reader, datetime.now(UTC))).devices))
             return await _assistant_answer(
                 settings,
                 key,
@@ -248,6 +278,7 @@ def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str
                 None,
                 lambda: ReplayClient(Path(replay), tools),
                 slot="replay",
+                fence=fence,
                 client=model_client,
             )
 
@@ -291,6 +322,14 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
         print(
             "The approval page didn't start: there's no sandbox sign-in, so no change could run. "
             "Sign in to the sandbox team first: fleetwatch login --sandbox"
+        )
+        raise SystemExit(2)
+    from fleetwatch.fence import Fence
+
+    if not Fence.from_settings(settings).is_set:
+        print(
+            "The approval page didn't start: no sandbox fence is set, so every change would be refused. "
+            "List the sandbox devices in FLEETWATCH_WRITE_DEVICE_IDS (or set FLEETWATCH_WRITE_TEAM_ID)."
         )
         raise SystemExit(2)
     state = State(settings.state_db, check_same_thread=False)
