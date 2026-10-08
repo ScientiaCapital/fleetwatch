@@ -26,6 +26,18 @@ and saves every tool result it read, redacted, as replay files in that folder (p
 not for commit). Keep the folder outside the repo: the files come from your real fleet. `--replay DIR --capture DIR2`
 works too, and is what the tests use.
 
+To turn a capture into something you can share, anonymize it:
+
+```
+uv run python -m fleetwatch.epiphan.anonymize ~/fleetwatch-capture ~/fleetwatch-capture-shareable
+```
+
+It keeps only the four tools Fleetwatch reads for a digest, and only the fields it needs. Every device name, ID, group,
+address, serial and event title is replaced with a neutral one, the same everywhere, so the files still agree with
+each other. Times become the relative tokens below. Before it writes anything it checks that no original name, ID,
+address, serial or title survives, and it refuses if one does. Read the result yourself before you commit it: it
+can't know that a firmware build is unreleased, or that the size and mix of a fleet is itself private.
+
 Times can be written relative to when the replay runs, so a sample stays current:
 
 | Token | Becomes |
