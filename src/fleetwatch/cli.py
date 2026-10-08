@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fleetwatch.config import Settings, reveal
+from fleetwatch.epiphan.capture import CapturingClient
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
 from fleetwatch.epiphan.token_store import make_token_store
@@ -29,7 +30,7 @@ def _make_client(settings: Settings, interactive: bool = False) -> EpiphanClient
     )
 
 
-def _build(settings: Settings, interactive: bool, replay: str | None = None):
+def _build(settings: Settings, interactive: bool, replay: str | None = None, capture: str | None = None):
     tools = load_tools(settings.tool_policy_file)
     if replay:
         client = ReplayClient(Path(replay), tools)
@@ -37,6 +38,8 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None):
     else:
         client = _make_client(settings, interactive)
         state = State(settings.state_db)
+    if capture:  # every result the heartbeat reads, redacted, saved as replay files
+        client = CapturingClient(client, Path(capture))
     return client, state, from_settings(settings)
 
 
@@ -49,8 +52,8 @@ async def _login(settings: Settings) -> None:
     print(f"Signed in. This team has {n} devices. Token saved to {where}.")
 
 
-async def _digest(settings: Settings, replay: str | None) -> None:
-    client, state, notifier = _build(settings, interactive=False, replay=replay)
+async def _digest(settings: Settings, replay: str | None, capture: str | None = None) -> None:
+    client, state, notifier = _build(settings, interactive=False, replay=replay, capture=capture)
     policy = load_policy(settings.policy_file)
     if replay:  # a demo shows the whole digest at any hour; quiet hours protect real people, not a sample
         policy = dataclasses.replace(policy, quiet_start=None, quiet_end=None)
@@ -203,6 +206,11 @@ def main() -> None:
         metavar="DIR",
         help="digest, ask, sweep: use saved tool results from DIR instead of Epiphan (no sign-in)",
     )
+    p.add_argument(
+        "--capture",
+        metavar="DIR",
+        help="digest: also save every tool result, redacted, to DIR as replay files (keep DIR outside the repo)",
+    )
     p.add_argument("--serve", action="store_true", help="ask: open a local page with buttons on 127.0.0.1")
     p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
     p.add_argument("--author", help="note: who left it (default: your login name)")
@@ -216,7 +224,7 @@ def main() -> None:
         make_token_store(settings.token_store, settings.token_file).clear()
         print("Signed out.")
     elif args.command == "digest":
-        asyncio.run(_digest(settings, args.replay))
+        asyncio.run(_digest(settings, args.replay, args.capture))
     elif args.command == "ask":
         if not args.question and not args.serve:
             p.error('ask needs a question, e.g. fleetwatch ask "what needs attention", or --serve for the page')

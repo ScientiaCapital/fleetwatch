@@ -18,6 +18,11 @@ and with IDs replaced; the recorder, system and schedule files are synthetic.
 Save each tool's JSON result as `<tool name>.json` in a folder, for example `get_devices_in_my_team.json`. Tools
 with no saved file are reported and skipped.
 
+Or let a signed-in Fleetwatch write them: `fleetwatch digest --capture ~/fleetwatch-capture` runs one heartbeat
+and saves every tool result it read, redacted, as replay files in that folder (private, with a note saying it is
+not for commit). Keep the folder outside the repo: the files come from your real fleet. `--replay DIR --capture DIR2`
+works too, and is what the tests use.
+
 Times can be written relative to when the replay runs, so a sample stays current:
 
 | Token | Becomes |
