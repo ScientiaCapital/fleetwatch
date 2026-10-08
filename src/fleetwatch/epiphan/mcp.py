@@ -96,6 +96,7 @@ class EpiphanClient:
         http = create_mcp_http_client(auth=self._auth, timeout=httpx.Timeout(self._timeout, read=self._timeout))
         self._client = Client(_HttpTransport(self.url, http), read_timeout_seconds=self._timeout)
         await self._client.__aenter__()
+        tolerate_schema_mismatch(self._client.session)
         return self
 
     async def __aexit__(self, *exc) -> None:
@@ -147,6 +148,28 @@ class EpiphanClient:
                 f"{tool}: Epiphan says the sign-in expired ({safe[:200]}). If it keeps happening, run `fleetwatch login`."
             )
         raise AssertionError("unreachable")  # pragma: no cover
+
+
+def tolerate_schema_mismatch(session: Any) -> None:
+    """Epiphan's tool output schemas don't always match its data (a live read had `null` where the schema said
+    object), and the SDK raises on that before Fleetwatch sees anything. Results are untrusted and parsed
+    defensively here anyway, so a mismatch is logged (the tool name only: the SDK's message can carry data) and the
+    result is read. Any other validation error, such as an invalid schema, still raises. Not part of guard()."""
+    original = session.validate_tool_result
+
+    async def validate(name: str, result: Any) -> None:
+        try:
+            await original(name, result)
+        except RuntimeError as e:
+            message = str(e)
+            mismatch = message.startswith("Invalid structured content returned by tool") or (
+                message.startswith("Tool ") and "did not return structured content" in message
+            )
+            if not mismatch:
+                raise
+            log.warning("%s: Epiphan's result doesn't match its own output schema; reading it anyway", name)
+
+    session.validate_tool_result = validate
 
 
 class _Bearer(httpx.Auth):
