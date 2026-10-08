@@ -1,6 +1,7 @@
 """One heartbeat: read the fleet, work out what changed, say it once. No LLM, no writes."""
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from fleetwatch.agents.readiness.rules import check as readiness_check
@@ -59,9 +60,12 @@ async def tick(
     *,
     first_run: bool = False,
     now: datetime | None = None,
+    on_fleet: Callable[[Fleet], None] | None = None,
 ) -> str | None:
     now = now or datetime.now(UTC)
     fleet = await snapshot(client, now)
+    if on_fleet is not None:  # lets /fleetwatch answer from this beat's fleet without reading it again
+        on_fleet(fleet)
     state.snapshot(now, len(fleet.devices), sum(d.online for d in fleet.devices.values()))
     state.record_devices(fleet, now)
 

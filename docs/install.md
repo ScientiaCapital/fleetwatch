@@ -46,6 +46,8 @@ Create a Slack app with the `chat:write` scope, install it to your workspace, in
 its bot token in `.env` as `FLEETWATCH_SLACK_BOT_TOKEN`. Set `FLEETWATCH_SLACK_CHANNEL` (default `#av-ops`).
 Pick a channel whose members may see room and device names.
 
+To ask about a room from Slack (`/fleetwatch check Main Stage`), see [Slack commands](slack-commands.md).
+
 ## Microsoft Teams
 
 Fleetwatch can post the same digest to a Teams channel, alongside Slack or instead of it. It uses a Power

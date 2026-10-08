@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     slack_channel: str = "#av-ops"
     # Power Automate Workflows webhook for a Teams channel. A secret: the URL alone lets anyone post.
     teams_webhook_url: SecretStr | None = None
+    # Socket Mode app-level token (xapp-, connections:write). Set it to answer /fleetwatch in Slack.
+    slack_app_token: str | None = None
 
     policy_file: Path = Path("policy.yaml")
     tool_policy_file: Path = Path("tool_policy.yaml")

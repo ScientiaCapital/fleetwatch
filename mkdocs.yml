@@ -50,5 +50,6 @@ nav:
   - Reference:
       - Policy: policy.md
       - What it posts: what-it-posts.md
+      - Slack commands: slack-commands.md
       - Security model: security.md
   - Contributing: contributing.md

@@ -17,6 +17,8 @@ Two files control behaviour. Both are plain YAML in the repo folder.
 | `thresholds.cpu_load_pct` | `90` | CPU load that counts as busy |
 | `thresholds.cpu_temp_c` | `80` | Temperature that counts as running hot |
 | `thresholds.recent_reboot_minutes` | `30` | Uptime below this counts as a recent restart |
+| `slack.allowed_user_ids` | `[]` | Slack member IDs that may use `/fleetwatch` ([Slack commands](slack-commands.md)); empty with no group means nobody |
+| `slack.allowed_usergroup` | none | A Slack user group ID whose members may use `/fleetwatch`; needs `usergroups:read` |
 | `autonomy` | `observe` | v0.1 accepts only `observe`; any other value stops start-up |
 | `dry_run` | `true` | Forced to `true` in v0.1 |
 
