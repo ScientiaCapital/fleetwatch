@@ -11,12 +11,22 @@ from fleetwatch.config import Settings, reveal
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
 from fleetwatch.epiphan.token_store import make_token_store
-from fleetwatch.heartbeat import tick
+from fleetwatch.heartbeat import FailedRead, tick
 from fleetwatch.logsetup import configure_logging
 from fleetwatch.notify import from_settings
 from fleetwatch.policy import load_policy, load_tools
-from fleetwatch.redact import redact
 from fleetwatch.state import State
+
+
+def _make_client(settings: Settings, interactive: bool = False) -> EpiphanClient:
+    return EpiphanClient(
+        settings.epiphan_mcp_url,
+        load_tools(settings.tool_policy_file),
+        storage=make_token_store(settings.token_store, settings.token_file),
+        static_token=reveal(settings.epiphan_token) or None,
+        callback_port=settings.oauth_callback_port,
+        interactive=interactive,
+    )
 
 
 def _build(settings: Settings, interactive: bool, replay: str | None = None):
@@ -25,15 +35,7 @@ def _build(settings: Settings, interactive: bool, replay: str | None = None):
         client = ReplayClient(Path(replay), tools)
         state = State(":memory:")  # a replay never touches the real history
     else:
-        storage = make_token_store(settings.token_store, settings.token_file)
-        client = EpiphanClient(
-            settings.epiphan_mcp_url,
-            tools,
-            storage=storage,
-            static_token=reveal(settings.epiphan_token) or None,
-            callback_port=settings.oauth_callback_port,
-            interactive=interactive,
-        )
+        client = _make_client(settings, interactive)
         state = State(settings.state_db)
     return client, state, from_settings(settings)
 
@@ -53,7 +55,11 @@ async def _digest(settings: Settings, replay: str | None) -> None:
     if replay:  # a demo shows the whole digest at any hour; quiet hours protect real people, not a sample
         policy = dataclasses.replace(policy, quiet_start=None, quiet_end=None)
     async with client:
-        text = await tick(client, state, policy, notifier, first_run=True)
+        try:
+            text = await tick(client, state, policy, notifier, first_run=True)
+        except FailedRead as e:
+            print(f"Couldn't read the fleet, so nothing was posted: {e}")
+            raise SystemExit(1) from None
     if text is None:
         print("Nothing new to post.")
 
@@ -66,7 +72,7 @@ class _Quiet:
 
 
 async def _ask(settings: Settings, question: str, replay: str | None, serve: bool) -> None:
-    from fleetwatch.ask import answer
+    from fleetwatch.ask import answer, last_checked
     from fleetwatch.heartbeat import snapshot
 
     policy = load_policy(settings.policy_file)
@@ -84,7 +90,7 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         return answer(q, state, policy, fleet)
 
     if not serve:
-        print(ask(question))
+        print(f"{ask(question)}\n\n{last_checked(state)}")
         return
 
     from fleetwatch.ask_page import serve as serve_page
@@ -93,7 +99,7 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         with_events = [fleet.devices[i].name for i in fleet.events if i in fleet.devices] if fleet else []
         return (with_events or [d.name for d in state.devices() if d.online])[:8]
 
-    serve_page(ask, rooms, settings.ask_port)
+    serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state))
 
 
 async def _maybe_sweep(client, state: State, policy, notifier) -> None:
@@ -142,27 +148,27 @@ def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Setti
 
 
 async def _run(settings: Settings) -> None:
+    from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
+    from fleetwatch.runner import EXIT_CONFIG, run_loop
     from fleetwatch.slack_command import start_listener
 
-    client, state, notifier = _build(settings, interactive=False)
+    if not reveal(settings.epiphan_token) and make_token_store(settings.token_store, settings.token_file).is_dead():
+        # Epiphan refused the refresh token last time. Don't call it again; a restart loop only adds noise.
+        logging.getLogger("fleetwatch").error(SIGN_IN_EXPIRED)
+        raise SystemExit(EXIT_CONFIG)
+    state, notifier = State(settings.state_db), from_settings(settings)
     policy = load_policy(settings.policy_file)
-    first = not state.open_findings()
     slash = await start_listener(settings, policy, state)  # None unless FLEETWATCH_SLACK_APP_TOKEN is set
     try:
-        async with client:
-            while True:
-                try:
-                    await tick(client, state, policy, notifier, first_run=first, on_fleet=slash and slash.see)
-                except Exception as e:  # noqa: BLE001  (keep the loop alive; the next beat retries)
-                    logging.getLogger("fleetwatch").warning("heartbeat failed: %s", redact(str(e)))
-                first = False
-                try:
-                    await _maybe_sweep(client, state, policy, notifier)
-                except Exception as e:  # noqa: BLE001  (a failed sweep retries on the next beat)
-                    logging.getLogger("fleetwatch").warning("sweep failed: %s", redact(str(e)))
-                if slash:
-                    slash.keep_alive()
-                await asyncio.sleep(policy.heartbeat_seconds)
+        await run_loop(
+            lambda: _make_client(settings),  # a fresh session after any failed beat
+            state,
+            policy,
+            notifier,
+            first_run=not state.open_findings(),
+            slash=slash,
+            after_beat=lambda client: _maybe_sweep(client, state, policy, notifier),
+        )
     finally:
         if slash:
             slash.close()

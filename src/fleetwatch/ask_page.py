@@ -43,7 +43,7 @@ footer {{ color: var(--muted); font-size: 14px; margin-top: 28px; }}
 </style></head>
 <body><main>
 <h1>Ask Fleetwatch</h1>
-<p class="sub">Read-only. Answers come from the last heartbeat; nothing here changes a device.</p>
+<p class="sub">Read-only. Answers come from the last heartbeat; nothing here changes a device. {checked}</p>
 <form class="row" method="post" action="/ask">
   <button name="q" value="What needs attention?">What needs attention?</button>
   <button name="q" value="What's offline?">What's offline?</button>
@@ -61,7 +61,9 @@ footer {{ color: var(--muted); font-size: 14px; margin-top: 28px; }}
 """
 
 
-def render(answer: str | None = None, question: str | None = None, rooms: list[str] | None = None) -> str:
+def render(
+    answer: str | None = None, question: str | None = None, rooms: list[str] | None = None, checked: str = ""
+) -> str:
     room_buttons = ""
     if rooms:
         buttons = "".join(
@@ -75,10 +77,12 @@ def render(answer: str | None = None, question: str | None = None, rooms: list[s
             '<section class="answer" aria-live="polite">'
             f"<h2>{html.escape(question or '')}</h2><pre>{html.escape(answer)}</pre></section>"
         )
-    return _PAGE.format(rooms=room_buttons, answer=block, max_q=MAX_QUESTION)
+    return _PAGE.format(rooms=room_buttons, answer=block, max_q=MAX_QUESTION, checked=html.escape(checked))
 
 
-def make_handler(ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int):
+def make_handler(
+    ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int, checked: Callable[[], str] = lambda: ""
+):
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     class Handler(BaseHTTPRequestHandler):
@@ -113,7 +117,7 @@ def make_handler(ask: Callable[[str], str], rooms: Callable[[], list[str]], port
             if self.path != "/":
                 self._send(404, "Not found", "text/plain; charset=utf-8")
                 return
-            self._send(200, render(rooms=rooms()))
+            self._send(200, render(rooms=rooms(), checked=checked()))
 
         def do_POST(self):
             if not self._host_ok():
@@ -133,13 +137,15 @@ def make_handler(ask: Callable[[str], str], rooms: Callable[[], list[str]], port
                 return
             form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
             q = (form.get("q") or [""])[0][:MAX_QUESTION]
-            self._send(200, render(ask(q), q, rooms()))
+            self._send(200, render(ask(q), q, rooms(), checked()))
 
     return Handler
 
 
-def serve(ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int) -> None:
-    httpd = HTTPServer(("127.0.0.1", port), make_handler(ask, rooms, port))
+def serve(
+    ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int, checked: Callable[[], str] = lambda: ""
+) -> None:
+    httpd = HTTPServer(("127.0.0.1", port), make_handler(ask, rooms, port, checked))
     print(f"Ask Fleetwatch: http://127.0.0.1:{port}/  (Ctrl+C to stop)")
     try:
         httpd.serve_forever()

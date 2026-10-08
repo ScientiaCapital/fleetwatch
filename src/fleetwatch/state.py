@@ -82,6 +82,10 @@ class State:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(str(path))
         self.db.row_factory = sqlite3.Row
+        # `ask --serve`, `status` and the heartbeat may open the same file at once: wait for a lock, don't fail.
+        self.db.execute("PRAGMA busy_timeout=5000")
+        if path != ":memory:":
+            self.db.execute("PRAGMA journal_mode=WAL")  # readers don't block the heartbeat's writes
         self.db.executescript(_SCHEMA)
         self._upgrade()
 
@@ -256,6 +260,11 @@ class State:
         """When the last heartbeat read the fleet successfully."""
         row = self.db.execute("SELECT at FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
         return _dt(row["at"]) if row else None
+
+    def last_snapshot_count(self) -> int | None:
+        """How many devices the last successful heartbeat read, or None before the first."""
+        row = self.db.execute("SELECT devices FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
+        return int(row["devices"]) if row else None
 
     def audit_since(self, since: datetime) -> list[tuple[datetime, str, dict]]:
         rows = self.db.execute("SELECT at, kind, detail FROM audit WHERE at >= ? ORDER BY id", (_iso(since),))

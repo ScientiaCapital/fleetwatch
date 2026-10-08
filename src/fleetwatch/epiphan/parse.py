@@ -1,12 +1,44 @@
 """Turn Epiphan MCP tool results into the shared data model. Tolerant of missing keys: the agent must keep
 running when a field is absent, and must never invent state it didn't read."""
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from fleetwatch.model import Channel, Device, Event, Fleet, SystemStatus
 
+log = logging.getLogger(__name__)
+
 STORAGE_WARNINGS = frozenset({"disk_space_error", "no_storage_detected"})
+_ID_KEYS = frozenset({"device_id", "id", "Id", "deviceId"})
+_warned: set[str] = set()
+
+
+def _unread(tool: str) -> None:
+    """A non-empty result that parsed to nothing: say so once per tool, naming the tool and never the content."""
+    if tool not in _warned:
+        _warned.add(tool)
+        log.warning("%s: got a result in a shape Fleetwatch doesn't know; ignoring it (warned once)", tool)
+
+
+def reset_warnings() -> None:
+    _warned.clear()
+
+
+def _has_content(d: Any) -> bool:
+    """True when an entry carries anything besides its id: an empty or all-null entry means "nothing here"."""
+    return isinstance(d, dict) and any(v not in (None, "", [], {}) for k, v in d.items() if k not in _ID_KEYS)
+
+
+def device_items(raw: Any) -> list | None:
+    """The device list in a `get_devices_in_my_team` result, or None when the result isn't one: text instead of
+    JSON, a shape we don't know, or entries none of which has an `Id`. None is a failed read, never 0 devices."""
+    items = raw.get("devices") if isinstance(raw, dict) else raw
+    if not isinstance(items, list):
+        return None
+    if items and not any(isinstance(d, dict) and d.get("Id") for d in items):
+        return None
+    return items
 
 
 def _warning_ids(items: Any) -> list[str]:
@@ -56,6 +88,12 @@ def parse_devices(raw: Any, taken_at: datetime | None = None) -> Fleet:
 def apply_recorder_status(fleet: Fleet, raw: Any) -> None:
     """`get_recorder_status_for_devices` → per-channel recording flags (fresher than the device list)."""
     items = raw.get("devices", raw) if isinstance(raw, dict) else raw
+    tool = "get_recorder_status_for_devices"
+    if not isinstance(items, (dict, list)):
+        if items:
+            _unread(tool)
+        return
+    read = 0
     pairs = (
         items.items()
         if isinstance(items, dict)
@@ -65,6 +103,7 @@ def apply_recorder_status(fleet: Fleet, raw: Any) -> None:
         dev = fleet.devices.get(str(dev_id))
         if dev is None or not isinstance(d, dict):
             continue
+        read += 1
         channels = d.get("channels") or d.get("Channels") or {}
         chan_pairs = (
             channels.items()
@@ -76,6 +115,8 @@ def apply_recorder_status(fleet: Fleet, raw: Any) -> None:
                 continue
             ch = dev.channels.setdefault(str(cid), Channel(id=str(cid), name=str(c.get("name") or f"Channel {cid}")))
             ch.recording = _is_recording(c.get("recording_status") or c.get("status") or c)
+    if items and not read:
+        _unread(tool)
 
 
 def _num(value: Any) -> float | None:
@@ -114,28 +155,66 @@ def _when(value: Any) -> datetime | None:
 def apply_system_status(fleet: Fleet, raw: Any) -> None:
     """`get_system_status_for_devices` → CPU load, temperature, uptime start."""
     items = raw.get("devices", raw) if isinstance(raw, dict) else raw
+    tool = "get_system_status_for_devices"
+    if not isinstance(items, (dict, list)):
+        if items:
+            _unread(tool)
+        return
     pairs = (
         items.items()
         if isinstance(items, dict)
         else ((d.get("device_id") or d.get("Id") or d.get("id"), d) for d in items or () if isinstance(d, dict))
     )
+    read = 0
     for dev_id, d in pairs:
         if str(dev_id) not in fleet.devices:
             continue
-        uptime_s = _num(_find(d, "uptime"))
-        up_since = _when(_find(d, "up_since", "boot", "started"))
-        if up_since is None and uptime_s is not None:
-            up_since = datetime.fromtimestamp(fleet.taken_at.timestamp() - uptime_s, UTC)
-        fleet.system[str(dev_id)] = SystemStatus(
+        status = SystemStatus(
             cpu_load_pct=_num(_find(d, "cpu_load", "cpuload", "load")),
             cpu_temp_c=_num(_find(d, "temp")),
-            up_since=up_since,
+            up_since=_up_since(d, fleet.taken_at),
         )
+        fleet.system[str(dev_id)] = status
+        read += status != SystemStatus()
+    if items and not read:
+        _unread(tool)
+
+
+def _uptime_values(d: Any) -> list[Any]:
+    """Every scalar under a key containing `uptime`, nested dicts included."""
+    out: list[Any] = []
+    if isinstance(d, dict):
+        for k, v in d.items():
+            if isinstance(v, dict):
+                out += _uptime_values(v)
+            elif "uptime" in str(k).lower() and v not in (None, ""):
+                out.append(v)
+    return out
+
+
+def _up_since(d: Any, taken_at: datetime) -> datetime | None:
+    """When the device last started. Epiphan describes it as an "uptime start time (RFC3339)"; older shapes give
+    seconds of uptime, or a start time under up_since / boot / started."""
+    named = _when(_find(d, "up_since", "boot", "started"))
+    if named is not None:
+        return named
+    for v in _uptime_values(d):
+        seconds = _num(v)
+        if seconds is not None:
+            return datetime.fromtimestamp(taken_at.timestamp() - seconds, UTC)
+        if isinstance(v, str) and (when := _when(v)) is not None:
+            return when
+    return None
 
 
 def apply_events(fleet: Fleet, raw: Any) -> None:
     """`get_current_or_next_cms_events_for_devices` → the next or current event per device."""
     items = raw.get("devices", raw.get("events", raw)) if isinstance(raw, dict) else raw
+    tool = "get_current_or_next_cms_events_for_devices"
+    if not isinstance(items, (dict, list)):
+        if items:
+            _unread(tool)
+        return
     pairs = (
         items.items()
         if isinstance(items, dict)
@@ -146,9 +225,12 @@ def apply_events(fleet: Fleet, raw: Any) -> None:
             continue
         ev = d.get("event") or d.get("occurrence") or (d if "start" in d or "start_time" in d else None)
         if not isinstance(ev, dict):
-            continue  # no `event` key means nothing scheduled
+            if "event" not in d and "occurrence" not in d and _has_content(d):
+                _unread(tool)  # something is there, but not an event we can read
+            continue  # an empty or null `event` means nothing scheduled
         start = _when(ev.get("start") or ev.get("start_time") or ev.get("starts_at") or _find(ev, "start"))
         if start is None:
+            _unread(tool)
             continue
         fleet.events[str(dev_id)] = Event(
             device_id=str(dev_id),
