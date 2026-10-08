@@ -20,6 +20,7 @@ uv run python -m pytest -q tests/test_redact.py   # redaction suite
 uv run fleetwatch digest --replay tests/fixtures  # full heartbeat offline
 uv run ruff check . && uv run ruff format --check .
 shellcheck deploy/install.sh && deploy/install.sh --dry-run
+tests/install_update.sh                           # install.sh updates: main, tags, fast-forward (offline)
 ```
 
 ## Hard rules
