@@ -163,6 +163,65 @@ class ToolPolicy:
         return tool in self.disruptive or rule is None or rule.pending or rule.disruptive
 
 
+def _check_value(spec: FieldSpec, value, where: str) -> None:
+    kind = spec.type
+    if kind in ("string", "enum"):
+        if not isinstance(value, str):
+            raise ValueError(f"{where} must be text, not {type(value).__name__}")
+        if kind == "enum" and value not in spec.values:
+            raise ValueError(f"{where} must be one of {', '.join(spec.values)}, not {value!r}")
+        if spec.max_length is not None and len(value) > spec.max_length:
+            raise ValueError(f"{where} is longer than {spec.max_length} characters")
+        if spec.pattern is not None and not re.fullmatch(spec.pattern, value):  # fullmatch: no trailing newline
+            raise ValueError(f"{where} isn't in the expected format: {value!r}")
+    elif kind == "integer":
+        if type(value) is not int:  # bool is an int subclass: refused
+            raise ValueError(f"{where} must be a whole number, not {value!r}")
+        if spec.minimum is not None and value < spec.minimum:
+            raise ValueError(f"{where} must be at least {spec.minimum}")
+        if spec.maximum is not None and value > spec.maximum:
+            raise ValueError(f"{where} must be at most {spec.maximum}")
+    elif kind == "boolean":
+        if type(value) is not bool:
+            raise ValueError(f"{where} must be true or false, not {value!r}")
+    elif kind == "list":
+        if not isinstance(value, list):
+            raise ValueError(f"{where} must be a list, not {type(value).__name__}")
+        if spec.max_items is not None and len(value) > spec.max_items:
+            raise ValueError(f"{where} may hold at most {spec.max_items}, not {len(value)}")
+        assert spec.items is not None  # the loader requires items on every list
+        for i, item in enumerate(value):
+            _check_value(spec.items, item, f"{where}[{i}]")
+
+
+def check_arguments(tool: str, rule: ProposeRule, arguments) -> tuple[str, ...]:
+    """Check proposed arguments against the tool's reviewed schema and return the target device IDs.
+
+    Refuses (ValueError, in plain words) a pending schema, anything that isn't a mapping, a missing required field,
+    a field the schema doesn't name, a wrong type or format, an empty target, and more targets than max_targets.
+    Checks only: it never runs anything, and guard() still refuses every write tool."""
+    if rule.schema is None:
+        raise ValueError(f"{tool}: its schema is still {PENDING}, so it can't be proposed")
+    schema = rule.schema
+    if not isinstance(arguments, dict):
+        raise ValueError(f"{tool}: the arguments must be a mapping of name to value")  # noqa: TRY004
+    if extra := sorted(map(str, set(arguments) - set(schema.fields))):
+        raise ValueError(f"{tool}: arguments it doesn't take: {', '.join(extra)}")
+    for name, spec in schema.fields.items():
+        if name not in arguments:
+            if spec.required:
+                raise ValueError(f"{tool}: {name} is required")
+            continue
+        _check_value(spec, arguments[name], f"{tool}: {name}")
+    value = arguments[schema.target]
+    targets = tuple(value) if isinstance(value, list) else (value,)
+    if not targets:
+        raise ValueError(f"{tool}: {schema.target} must name at least one device")
+    if len(targets) > rule.max_targets:
+        raise ValueError(f"{tool}: one proposal may touch at most {rule.max_targets} device(s), not {len(targets)}")
+    return targets
+
+
 def _hhmm(value: str | None) -> time | None:
     if not value:
         return None

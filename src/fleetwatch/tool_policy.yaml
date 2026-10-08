@@ -68,7 +68,8 @@ disruptive:
 #   disruptive   true or false; left out means true. A tool on the disruptive list above can't say false.
 #   schema       the arguments, or pending-live-run. A pending tool loads but can't be proposed.
 #
-# A reviewed schema looks like this:
+# A reviewed schema looks like this. version starts at 1; raise it whenever that schema's fields change, because
+# an approval is bound to the schema version it was made under.
 #   schema:
 #     version: 1
 #     target: device_ids            # the field that names the devices; must be required, with an ID pattern
@@ -76,11 +77,21 @@ disruptive:
 #       device_ids: {type: list, required: true, max_items: 1, items: {type: string, pattern: "^[0-9a-f]+$"}}
 #       action: {type: enum, required: true, values: [start, stop]}
 # Field types: string (pattern, max_length), integer (minimum, maximum), boolean, enum (values),
-# list (items, max_items). Unknown keys fail the load.
+# list (items, max_items). Unknown keys fail the load. check_arguments() in policy.py refuses a missing required
+# field, a field the schema doesn't list, a wrong type, a value that doesn't fully match its pattern, and more
+# targets than max_targets.
 #
-# Every schema below is pending: Epiphan's write tools publish their argument names only to a signed-in client,
-# and nothing in this repo has called one. The batch read tools take `device_ids` (src/fleetwatch/heartbeat.py),
-# so the batch write tools probably do too; confirm on the first live run, against the sandbox team, then fill in.
+# The schemas below come from the Epiphan MCP server's own tool definitions: argument names, types, and which are
+# required. The first live run, against the sandbox team, confirms them before v0.2 runs anything.
+#
+# Device IDs come in two kinds, and the patterns keep them apart, so one can't be passed where the other belongs:
+#   master   one device, as in the tool docs' example 19012341234         ^[0-9a-f]{8,32}$
+#   channel  one channel on a device: master ID, hyphen, channel number   ^[0-9a-f]{8,32}-[1-9][0-9]{0,2}$
+# Real master IDs are all digits. The replay fixtures use renamed IDs such as 1f000000001, which have hex letters,
+# so the master pattern takes lower-case hex: wide enough for both, and never a hyphen, so a channel ID can't pass
+# as a master ID and a master ID can't pass as a channel ID.
+# stream_id is the endpoint's ID, a UUID, not its stream key. redact() keeps a UUID stream_id and masks any other,
+# so the pattern only takes a UUID, and the approval card can always show it in full.
 #
 # Not listed, so never proposed: create_/update_stream_endpoint (their arguments carry stream keys, which a card
 # can't show in full); create_/update_/delete_cms_event, cms_event_action, delete_stream_endpoint,
@@ -92,25 +103,71 @@ disruptive:
 propose:
   batch_recording:
     max_targets: 1
-    disruptive: true  # stopping a recording ends a class's capture
-    schema: pending-live-run
+    # Stopping a recording ends a class's capture. The format has one disruptive flag per tool, not one per action,
+    # so the whole tool counts as disruptive (it's on the disruptive list too), start included. pause and resume
+    # are left out: not every device supports them, and the card can't tell in advance whether this one does.
+    # Errors come back as a map of device ID to error; no entry means that device worked.
+    disruptive: true
+    schema:
+      version: 1
+      target: device_ids
+      fields:
+        action: {type: enum, required: true, values: [start, stop]}
+        device_ids:  # channel IDs, as in 19012341234-1
+          type: list
+          required: true
+          max_items: 1
+          items: {type: string, pattern: "^[0-9a-f]{8,32}-[1-9][0-9]{0,2}$"}
   start_stream_endpoint:
     max_targets: 1
     disruptive: false
-    schema: pending-live-run
+    schema:
+      version: 1
+      target: device_id
+      fields:
+        stream_id: {type: string, required: true, pattern: "^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"}
+        device_id: {type: string, required: true, pattern: "^[0-9a-f]{8,32}$"}  # master ID
+        channel_id: {type: string, required: true, pattern: "^[1-9][0-9]{0,2}$"}  # the channel's number on it
   stop_stream_endpoint:
     max_targets: 1
     disruptive: true
-    schema: pending-live-run
+    schema:
+      version: 1
+      target: device_id
+      fields:
+        stream_id: {type: string, required: true, pattern: "^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"}
+        device_id: {type: string, required: true, pattern: "^[0-9a-f]{8,32}$"}  # master ID
+        channel_id: {type: string, required: true, pattern: "^[1-9][0-9]{0,2}$"}  # the channel's number on it
   confirm_cms_event_on_device:
     max_targets: 1
     disruptive: false
-    schema: pending-live-run
+    schema:
+      version: 1
+      target: device_id
+      fields:
+        device_id: {type: string, required: true, pattern: "^[0-9a-f]{8,32}$"}  # master ID
+        event_id: {type: string, required: true, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"}
   batch_reboot:
     max_targets: 1
-    disruptive: true
-    schema: pending-live-run
+    disruptive: true  # offline for a couple of minutes; recording and streaming stop
+    schema:
+      version: 1
+      target: device_ids
+      fields:
+        device_ids:  # master IDs, as in 19012341234
+          type: list
+          required: true
+          max_items: 1
+          items: {type: string, pattern: "^[0-9a-f]{8,32}$"}
   batch_firmware_update:
     max_targets: 1
-    disruptive: true
-    schema: pending-live-run
+    disruptive: true  # the device reboots as part of the update and is offline for a few minutes
+    schema:
+      version: 1
+      target: device_ids
+      fields:
+        device_ids:  # master IDs, as in 19012341234
+          type: list
+          required: true
+          max_items: 1
+          items: {type: string, pattern: "^[0-9a-f]{8,32}$"}

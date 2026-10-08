@@ -4,6 +4,7 @@ Configuration and validation only: nothing here can run a write. Loading refuses
 proposed that isn't a reviewed write tool with a well-formed argument schema.
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -55,13 +56,13 @@ def test_shipped_propose_section_loads_and_only_names_write_tools():
     assert not set(tp.propose) & tp.read
 
 
-def test_shipped_pending_schemas_are_not_proposable():
+def test_shipped_schemas_are_reviewed_and_a_pending_one_would_not_be_proposable():
     tp = load_tools()
-    pending = [t for t, rule in tp.propose.items() if rule.pending]
-    assert pending, "argument names stay pending until the first live run"
-    for tool in pending:
-        assert not tp.proposable(tool)
-        assert tp.is_disruptive(tool), "a tool that hasn't been reviewed counts as disruptive"
+    assert not [t for t, rule in tp.propose.items() if rule.pending], "schemas come from the tool definitions"
+    tool = "batch_reboot"
+    pending = policy_mod.ToolPolicy(tp.read, tp.write, tp.disruptive, {tool: replace(tp.propose[tool], schema=None)})
+    assert not pending.proposable(tool)
+    assert pending.is_disruptive(tool), "a tool that hasn't been reviewed counts as disruptive"
 
 
 def test_unreviewed_tools_are_on_the_disruptive_list():

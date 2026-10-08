@@ -154,5 +154,6 @@ The keyword `ask` stays read-only and can't create a proposal. If the model call
 ## Open until the first live run
 
 - Whether Epiphan returns a team ID.
-- Which arguments each write tool takes.
+- That each proposable tool takes the arguments in its `tool_policy.yaml` schema. The schemas come from the Epiphan MCP
+  server's tool definitions; the live run confirms them.
 - How a firmware update reports progress and finishes.
