@@ -61,6 +61,7 @@ All optional, read from `.env` (see `.env.example`).
 | `FLEETWATCH_OAUTH_CALLBACK_PORT` | `8765` | Login callback on 127.0.0.1 |
 | `FLEETWATCH_ASK_PORT` | `8766` | `fleetwatch ask --serve` page on 127.0.0.1 |
 | `FLEETWATCH_STATE_DB`, `FLEETWATCH_TOKEN_FILE` | `~/.fleetwatch/...` | State and token paths |
+| `FLEETWATCH_TOKEN_STORE` | `auto` | `auto`, `file`, `keychain`, `systemd-creds` (auto: Keychain on macOS, systemd-creds on systemd 256+, else file) |
 
 ## Rules
 

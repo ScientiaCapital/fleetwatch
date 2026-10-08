@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 import httpx
 
 from fleetwatch.config import Settings
-from fleetwatch.epiphan.auth import FileTokenStorage
+from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStoreError, make_token_store
 from fleetwatch.policy import load_policy, load_tool_policy
 from fleetwatch.redact import redact
 
@@ -93,9 +93,16 @@ def _redaction() -> Check:
 def _sign_in(s: Settings) -> Check:
     if s.epiphan_token:
         return Check("Sign-in", OK, "static token from FLEETWATCH_EPIPHAN_TOKEN")
-    f = s.token_file
-    if not FileTokenStorage(f).has_tokens():
+    try:
+        store = make_token_store(s.token_store, s.token_file)
+        signed_in = store.has_tokens()
+    except (TokenStoreError, ValueError) as e:
+        return Check("Sign-in", FAIL, str(e))
+    if not signed_in:
         return Check("Sign-in", WARN, "not signed in: run  fleetwatch login")
+    if not isinstance(store, FileTokenStorage):  # the file-mode check below is for the plain file only
+        return Check("Sign-in", OK, f"token in {store.where}")
+    f = s.token_file
     mode = stat.S_IMODE(os.stat(f).st_mode)
     if mode & 0o077:
         return Check("Sign-in", FAIL, f"{f} is readable by other users (mode {mode:o}): run  chmod 600 {f}")
