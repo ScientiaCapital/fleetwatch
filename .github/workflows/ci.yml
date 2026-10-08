@@ -45,6 +45,21 @@ jobs:
       - run: uv sync --frozen
       - run: uv run --frozen python -m pytest -q
 
+  test-newest-python:
+    # Backs the "Python 3.12+" badge. A separate job, so the required "Tests (...)" names stay the same.
+    name: Tests (Python 3.13)
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.13" # overrides .python-version (3.12)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - run: uv run --frozen python -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
+      - run: uv run --frozen python -m pytest -q
+
   redaction:
     # Its own job so a redaction regression is visible at a glance on every PR.
     name: Redaction suite
