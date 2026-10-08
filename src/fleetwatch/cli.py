@@ -148,8 +148,9 @@ def _sandbox_opener(settings: Settings):
 
 
 async def _assistant_answer(
-    settings: Settings, key: str, question: str, state: State, policy, reader, fleet, sandbox=None
+    settings: Settings, key: str, question: str, state: State, policy, reader, fleet, sandbox=None, **extra
 ) -> str:
+    """`extra` is `slot` (what a proposal is bound to) and `client` (a stand-in model, for tests)."""
     from fleetwatch import assistant
 
     reply = await assistant.answer(
@@ -162,6 +163,7 @@ async def _assistant_answer(
         model=settings.ai_model,
         sandbox=sandbox,
         fleet=fleet,
+        **extra,
     )
     return reply.text
 
@@ -221,7 +223,38 @@ async def _live_assistant(settings: Settings, key: str, question: str, state: St
         return assistant.fallback(question, state, policy, None, None, "no_fleet").text
 
 
-def _approve_page(settings: Settings, replay: str | None):
+def _approve_ask(settings: Settings, state: State, policy, key: str, replay: str | None, model_client=None):
+    """The approval page's chat box. Sync, because the page's server is single-threaded: one question at a time, each
+    in its own event loop. Replay reads the fixtures for both the model's reads and the proposal check, and binds
+    proposals to the replay slot. With no key (or --no-ai) it's the keyword answer, with the note that says so."""
+    from fleetwatch import assistant
+
+    if not key:
+        return lambda q: assistant.fallback(q, state, policy, None, None, "no_key").text
+    if not replay:
+        return lambda q: asyncio.run(_live_assistant(settings, key, q, state, policy))
+    tools = load_tools(settings.tool_policy_file)
+    replay_policy = dataclasses.replace(policy, autonomy="propose")  # a replay proposes; only a RecordingExecutor runs
+
+    async def ask(q: str) -> str:
+        async with ReplayClient(Path(replay), tools) as reader:
+            return await _assistant_answer(
+                settings,
+                key,
+                q,
+                state,
+                replay_policy,
+                reader,
+                None,
+                lambda: ReplayClient(Path(replay), tools),
+                slot="replay",
+                client=model_client,
+            )
+
+    return lambda q: asyncio.run(ask(q))
+
+
+def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, model_client=None):
     """Build the v0.2 approval page. Replay: fake reads from DIR and a RecordingExecutor; the real executor is never
     imported or built. Otherwise it refuses to start unless policy.yaml says autonomy: propose and a sandbox
     sign-in exists."""
@@ -229,6 +262,7 @@ def _approve_page(settings: Settings, replay: str | None):
     from fleetwatch.heartbeat import snapshot
 
     tools = load_tools(settings.tool_policy_file)
+    key = "" if no_ai else reveal(settings.anthropic_api_key)
     if replay:
         client = ReplayClient(Path(replay), tools)
 
@@ -237,7 +271,8 @@ def _approve_page(settings: Settings, replay: str | None):
                 return await snapshot(client, datetime.now(UTC))
 
         state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
-        page = ApprovePage(state, read_replay, RecordingExecutor(state), tools, settings.approve_port)
+        ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client)
+        page = ApprovePage(state, read_replay, RecordingExecutor(state), tools, settings.approve_port, ask_fn=ask_fn)
         seed_replay_sample(state, tools, asyncio.run(read_replay()))
         return page
 
@@ -268,7 +303,8 @@ def _approve_page(settings: Settings, replay: str | None):
         async with client:
             return await snapshot(client, datetime.now(UTC))
 
-    return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port)
+    ask_fn = _approve_ask(settings, state, policy, key, None)
+    return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn)
 
 
 async def _maybe_sweep(client, state: State, policy, notifier) -> None:
@@ -392,7 +428,9 @@ def main() -> None:
     )
     p.add_argument("--serve", action="store_true", help="ask, approve: open a local page on 127.0.0.1")
     p.add_argument(
-        "--no-ai", action="store_true", help="ask: keyword answers only, even with FLEETWATCH_ANTHROPIC_API_KEY set"
+        "--no-ai",
+        action="store_true",
+        help="ask, approve: keyword answers only, even with FLEETWATCH_ANTHROPIC_API_KEY set",
     )
     p.add_argument("--days", type=int, default=7, help="history: how many days back (default 7)")
     p.add_argument("--author", help="note: who left it (default: your login name)")
@@ -422,7 +460,7 @@ def main() -> None:
             p.error("approve needs --serve, e.g. fleetwatch approve --serve (add --replay tests/fixtures for a demo)")
         from fleetwatch.approve_page import serve as serve_approve
 
-        serve_approve(_approve_page(settings, args.replay))
+        serve_approve(_approve_page(settings, args.replay, args.no_ai))
     elif args.command == "sweep":
         asyncio.run(_sweep(settings, args.replay))
     elif args.command == "history":

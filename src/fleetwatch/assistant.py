@@ -329,6 +329,7 @@ class _Turn:
     reader: Any
     now: datetime | None
     sandbox: Callable[[], Any] | None = None  # opens a client on the sandbox sign-in; None: there isn't one
+    slot: str = SLOT  # what a proposal is bound to; the replay page passes "replay", which no real executor runs
     called: list[str] = field(default_factory=list)
     proposals: list[int] = field(default_factory=list)
     model_calls: int = 0
@@ -395,7 +396,7 @@ class _Turn:
             raise ProposalRefused("a target isn't on the sandbox team's device list (or that channel isn't on it).")
         fingerprint = state_fingerprint(fleet, targets)  # the executor's own function: same keys, same format
         reason = (reason if isinstance(reason, str) else "")[:MAX_REASON]
-        return self.state.add_proposal(tool, args, targets, fingerprint, rule.schema.version, SLOT, reason)
+        return self.state.add_proposal(tool, args, targets, fingerprint, rule.schema.version, self.slot, reason)
 
 
 def resolve_targets(fleet: Fleet, target_field: str, args: dict[str, Any]) -> list[str] | None:
@@ -496,6 +497,7 @@ async def answer(
     model: str,
     sandbox: Callable[[], Any] | None = None,
     fleet: Fleet | None = None,
+    slot: str = SLOT,
     client: Any = None,
     now: datetime | None = None,
     max_turns: int = MAX_TURNS,
@@ -510,7 +512,7 @@ async def answer(
     if not api_key:
         return fallback(question, state, policy, fleet, now, "no_key")
     client = client if client is not None else make_client(api_key, timeout_s)
-    turn = _Turn(state, policy, tools, reader, now, sandbox)
+    turn = _Turn(state, policy, tools, reader, now, sandbox, slot)
     totals = dict.fromkeys(("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens"), 0)
     try:
         text = await asyncio.wait_for(
