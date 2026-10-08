@@ -1,13 +1,27 @@
 """What the agent remembers between heartbeats: open findings, what was posted when, and an audit log.
 SQLite, one file. Without this every heartbeat would re-post the same items."""
 
+import hashlib
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from fleetwatch.model import Finding, Fleet, Readiness, SweepResult
+from fleetwatch.proposals import (
+    BoundRecord,
+    ProposalRefused,
+    canonical,
+    normalize_fingerprint,
+    parse_canonical,
+    sign,
+    verify,
+)
+from fleetwatch.redact import redact
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS findings (
@@ -23,7 +37,27 @@ CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, name TEXT, model TEXT, group_name TEXT, online INTEGER, firmware TEXT, recording INTEGER,
   last_seen TEXT);
 CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, device_id TEXT, note TEXT, author TEXT, at TEXT);
+CREATE TABLE IF NOT EXISTS proposals (
+  id INTEGER PRIMARY KEY, created_at INTEGER NOT NULL, tool TEXT NOT NULL, arguments TEXT NOT NULL,
+  targets TEXT NOT NULL, fingerprint TEXT NOT NULL, schema_version INTEGER NOT NULL, slot TEXT NOT NULL,
+  reason TEXT, mac TEXT, status TEXT NOT NULL DEFAULT 'pending', decided_at INTEGER);
+CREATE INDEX IF NOT EXISTS proposals_status ON proposals (status);
+CREATE INDEX IF NOT EXISTS proposals_pair ON proposals (tool, targets, status);
+CREATE TABLE IF NOT EXISTS approvals (
+  id INTEGER PRIMARY KEY, proposal_id INTEGER NOT NULL REFERENCES proposals (id), session TEXT,
+  created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0, consumed_at INTEGER,
+  outcome TEXT, outcome_detail TEXT, outcome_at INTEGER);
 """
+
+# Proposal times are whole seconds on SQLite's own clock, never Python's, so the process can't move expiry.
+_DB_NOW = "CAST(strftime('%s','now') AS INTEGER)"
+APPROVAL_SECONDS = 5 * 60
+MAX_PENDING = 3
+PROPOSALS_PER_HOUR = 10
+DENIALS_TO_PAUSE = 3
+PAUSE_SECONDS = 60 * 60
+OUTCOMES = ("ok", "error", "unknown")
+_TEXT_CAP = 500
 
 # Columns added after v0.1's first schema. Old databases get them on open; new ones go through the same path.
 _ADDED_COLUMNS = {
@@ -244,6 +278,248 @@ class State:
                 out[n.device_id].append(n)
         return {k: v for k, v in out.items() if v}
 
+    # --- proposals and approvals (v0.2: storage and binding only; nothing here runs a write) ---------
+    @contextmanager
+    def _immediate(self) -> Iterator[None]:
+        """One write transaction that takes the lock up front, so a check and the write after it can't
+        interleave with another process doing the same."""
+        if self.db.in_transaction:
+            self.db.commit()
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            self.db.rollback()
+            raise
+        self.db.commit()
+
+    def _db_now(self) -> int:
+        return int(self.db.execute(f"SELECT {_DB_NOW}").fetchone()[0])
+
+    def add_proposal(
+        self,
+        tool: str,
+        arguments: dict[str, Any],
+        targets: list[str],
+        fingerprint: dict[str, Any],
+        schema_version: int,
+        slot: str,
+        reason: str = "",
+        per_hour: int = PROPOSALS_PER_HOUR,
+    ) -> int:
+        """Store a pending proposal and return its ID. Raises ProposalRefused with a plain reason when the
+        arguments can't be bound or a limit says no: three already pending, `per_hour` made in the last hour, or
+        the same tool and targets denied three times within an hour (paused for an hour after the third denial).
+        Callers have already checked the tool against the propose policy and resolved targets to device IDs."""
+        unique = tuple(sorted(set(targets)))
+        target_key = json.dumps(list(unique))
+        try:
+            if not isinstance(tool, str) or not tool:
+                raise ProposalRefused("No tool was named.")
+            if not unique or not all(isinstance(t, str) and t for t in unique):
+                raise ProposalRefused("A change needs at least one target device ID.")
+            if not isinstance(slot, str) or not slot:
+                raise ProposalRefused("No sign-in slot was named.")
+            if not isinstance(schema_version, int) or isinstance(schema_version, bool):
+                raise ProposalRefused("The schema version must be a whole number.")
+            try:
+                args = canonical(arguments)
+                fp = normalize_fingerprint(unique, fingerprint)
+            except ValueError as e:  # NotCanonical, or bad UTF-8 / JSON text
+                raise ProposalRefused(f"The arguments can't be bound: {e}") from None
+            with self._immediate():
+                now = self._db_now()
+                pending = self.db.execute("SELECT COUNT(*) FROM proposals WHERE status='pending'").fetchone()[0]
+                if pending >= MAX_PENDING:
+                    raise ProposalRefused("There are already three changes waiting. Approve or deny one first.")
+                recent = self.db.execute(
+                    "SELECT COUNT(*) FROM proposals WHERE created_at > ?", (now - 3600,)
+                ).fetchone()[0]
+                if recent >= per_hour:
+                    raise ProposalRefused(f"That's {recent} proposals in the last hour, the most allowed.")
+                denials = [
+                    r[0]
+                    for r in self.db.execute(
+                        "SELECT decided_at FROM proposals WHERE status='denied' AND tool=? AND targets=?"
+                        " ORDER BY decided_at DESC LIMIT ?",
+                        (tool, target_key, DENIALS_TO_PAUSE),
+                    )
+                ]
+                if (
+                    len(denials) == DENIALS_TO_PAUSE
+                    and denials[0] - denials[-1] <= PAUSE_SECONDS
+                    and now - denials[0] < PAUSE_SECONDS
+                ):
+                    raise ProposalRefused("This change was denied three times. It can't be proposed again for an hour.")
+                cur = self.db.execute(
+                    "INSERT INTO proposals (created_at, tool, arguments, targets, fingerprint, schema_version, slot,"
+                    " reason) VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        now,
+                        tool,
+                        args.decode("utf-8"),
+                        target_key,
+                        canonical(fp).decode("utf-8"),
+                        schema_version,
+                        slot,
+                        _clean_text(reason),
+                    ),
+                )
+                pid = int(cur.lastrowid)
+                record = BoundRecord(pid, tool, args, unique, fp, schema_version, slot)
+                self.db.execute("UPDATE proposals SET mac=? WHERE id=?", (sign(record), pid))
+        except ProposalRefused as e:
+            self.audit("proposal_refused", {"tool": str(tool), "targets": list(unique), "why": e.reason})
+            raise
+        self.audit("proposal", {**_audit_record(record), "reason": _clean_text(reason)})
+        return pid
+
+    def _record_from_row(self, row: sqlite3.Row) -> BoundRecord:
+        return BoundRecord(
+            proposal_id=int(row["id"]),
+            tool=row["tool"],
+            arguments=row["arguments"].encode("utf-8"),
+            targets=tuple(json.loads(row["targets"])),
+            fingerprint=parse_canonical(row["fingerprint"]),
+            schema_version=int(row["schema_version"]),
+            slot=row["slot"],
+        )
+
+    def _checked_record(self, row: sqlite3.Row) -> BoundRecord | None:
+        """The row's bound record if it still parses and its keyed hash matches; None if it was edited or was
+        signed by another process."""
+        try:
+            record = self._record_from_row(row)
+        except (ValueError, TypeError, KeyError):
+            return None
+        return record if verify(record, row["mac"]) else None
+
+    def bound_record(self, proposal_id: int) -> BoundRecord | None:
+        """The stored record for a proposal, whatever its status, for showing a card. An executor uses
+        consume(), never this."""
+        row = self.db.execute("SELECT * FROM proposals WHERE id=?", (proposal_id,)).fetchone()
+        return None if row is None else self._record_from_row(row)
+
+    def approve(self, proposal_id: int, page_session: str) -> int:
+        """A person approved this pending proposal. Returns a single-use approval ID that expires five minutes
+        from now on the database clock. Raises ProposalRefused if the proposal isn't pending or fails its check."""
+        session = _session_tag(page_session)
+        try:
+            with self._immediate():
+                row = self.db.execute("SELECT * FROM proposals WHERE id=?", (proposal_id,)).fetchone()
+                if row is None or row["status"] != "pending":
+                    raise ProposalRefused("This change isn't waiting for approval.")
+                if self._checked_record(row) is None:
+                    raise ProposalRefused("binding check failed")
+                self.db.execute(
+                    f"UPDATE proposals SET status='approved', decided_at={_DB_NOW} WHERE id=? AND status='pending'",
+                    (proposal_id,),
+                )
+                cur = self.db.execute(
+                    "INSERT INTO approvals (proposal_id, session, created_at, expires_at, used)"
+                    f" VALUES (?, ?, {_DB_NOW}, {_DB_NOW} + ?, 0)",
+                    (proposal_id, session, APPROVAL_SECONDS),
+                )
+                aid = int(cur.lastrowid)
+                count = self.db.execute("SELECT COUNT(*) FROM approvals WHERE session=?", (session,)).fetchone()[0]
+        except ProposalRefused as e:
+            self.audit("approval_refused", {"proposal_id": proposal_id, "session": session, "why": e.reason})
+            raise
+        self.audit(
+            "approval",
+            {"proposal_id": proposal_id, "approval_id": aid, "session": session, "approvals_this_session": count},
+        )
+        return aid
+
+    def deny(self, proposal_id: int, page_session: str | None = None) -> bool:
+        """A person denied this pending proposal. False if it wasn't pending."""
+        changed = self.db.execute(
+            f"UPDATE proposals SET status='denied', decided_at={_DB_NOW} WHERE id=? AND status='pending'",
+            (proposal_id,),
+        ).rowcount
+        self.db.commit()
+        if changed == 1:
+            row = self.db.execute("SELECT tool, targets FROM proposals WHERE id=?", (proposal_id,)).fetchone()
+            self.audit(
+                "denial",
+                {
+                    "proposal_id": proposal_id,
+                    "tool": row["tool"],
+                    "targets": json.loads(row["targets"]),
+                    "session": _session_tag(page_session) if page_session else None,
+                },
+            )
+        return changed == 1
+
+    def consume(self, approval_id: int) -> BoundRecord | None:
+        """Use an approval, once. One UPDATE marks it used only if it is unused, unexpired on the database clock,
+        and its proposal is approved; in any other case no row changes and this returns None. Then the keyed
+        hash is checked again, so a row edited on disk, or one signed by an earlier process, is refused."""
+        changed = self.db.execute(
+            f"UPDATE approvals SET used=1, consumed_at={_DB_NOW} WHERE id=? AND used=0 AND expires_at > {_DB_NOW}"
+            " AND proposal_id IN (SELECT id FROM proposals WHERE status='approved')",
+            (approval_id,),
+        ).rowcount
+        self.db.commit()
+        if changed != 1:
+            self.audit("consume_refused", {"approval_id": approval_id, "why": "already used, expired or unknown"})
+            return None
+        row = self.db.execute(
+            "SELECT p.* FROM proposals p JOIN approvals a ON a.proposal_id = p.id WHERE a.id=?", (approval_id,)
+        ).fetchone()
+        record = self._checked_record(row)
+        if record is None:
+            self.db.execute("UPDATE proposals SET status='refused' WHERE id=?", (row["id"],))
+            self.db.execute(
+                f"UPDATE approvals SET outcome='error', outcome_detail=?, outcome_at={_DB_NOW} WHERE id=?",
+                ("binding check failed; nothing ran", approval_id),
+            )
+            self.db.commit()
+            self.audit(
+                "consume_refused",
+                {"approval_id": approval_id, "proposal_id": row["id"], "why": "binding check failed"},
+            )
+            return None
+        self.db.execute("UPDATE proposals SET status='consumed' WHERE id=?", (record.proposal_id,))
+        self.db.commit()
+        self.audit("consumed", {"approval_id": approval_id, **_audit_record(record)})
+        return record
+
+    def record_outcome(self, approval_id: int, outcome: str, detail: str = "") -> bool:
+        """What happened after a consumed approval: ok, error or unknown. Recorded once, and final. `unknown`
+        means the write may or may not have happened; it is never retried. False if an outcome is already
+        recorded or the approval was never consumed."""
+        if outcome not in OUTCOMES:
+            raise ValueError(f"outcome must be one of {', '.join(OUTCOMES)}")
+        changed = self.db.execute(
+            f"UPDATE approvals SET outcome=?, outcome_detail=?, outcome_at={_DB_NOW}"
+            " WHERE id=? AND consumed_at IS NOT NULL AND outcome IS NULL",
+            (outcome, _clean_text(detail), approval_id),
+        ).rowcount
+        self.db.commit()
+        if changed == 1:
+            self.audit("outcome", {"approval_id": approval_id, "outcome": outcome, "detail": _clean_text(detail)})
+        return changed == 1
+
+    def outcome(self, approval_id: int) -> str | None:
+        """None until the approval is consumed. Consumed with nothing recorded reads as `unknown`."""
+        row = self.db.execute("SELECT consumed_at, outcome FROM approvals WHERE id=?", (approval_id,)).fetchone()
+        if row is None or row["consumed_at"] is None:
+            return None
+        return row["outcome"] or "unknown"
+
+    def expire_all_pending(self) -> int:
+        """Expire every pending or approved-but-unused proposal and every unused approval. The process that
+        shows the approval page calls this when it starts. It isn't called on open: the heartbeat and `status`
+        open the same file and must not expire another process's cards. Returns how many proposals expired."""
+        with self._immediate():
+            proposals = self.db.execute(
+                f"UPDATE proposals SET status='expired', decided_at={_DB_NOW} WHERE status IN ('pending','approved')"
+            ).rowcount
+            approvals = self.db.execute("UPDATE approvals SET used=1 WHERE used=0").rowcount
+        self.audit("expiry", {"proposals": proposals, "approvals": approvals})
+        return proposals
+
     # --- audit --------------------------------------------------------------------------------------
     def audit(self, kind: str, detail: dict, now: datetime | None = None) -> None:
         self.db.execute(
@@ -322,6 +598,30 @@ class State:
             "SELECT at, devices, online FROM snapshots WHERE at >= ? ORDER BY at", (_iso(since),)
         ).fetchall()
         return [(_dt(r["at"]), r["devices"], r["online"]) for r in rows]
+
+
+def _clean_text(text: str | None) -> str:
+    """Untrusted free text (the model's reason, an error message): redacted, then capped."""
+    cleaned = redact(str(text or ""))
+    return cleaned if len(cleaned) <= _TEXT_CAP else cleaned[: _TEXT_CAP - 1] + "…"
+
+
+def _session_tag(page_session: str) -> str:
+    """The approval page's session value may be a secret: store and log only a short hash of it."""
+    return hashlib.sha256(str(page_session).encode("utf-8")).hexdigest()[:16]
+
+
+def _audit_record(record: BoundRecord) -> dict[str, Any]:
+    """A bound record for the audit log, with the arguments redacted. The proposals table keeps them exact."""
+    return {
+        "proposal_id": record.proposal_id,
+        "tool": record.tool,
+        "arguments": redact(parse_canonical(record.arguments)),
+        "targets": list(record.targets),
+        "fingerprint": record.fingerprint,
+        "schema_version": record.schema_version,
+        "slot": record.slot,
+    }
 
 
 def _finding_from_row(row: sqlite3.Row) -> Finding:
