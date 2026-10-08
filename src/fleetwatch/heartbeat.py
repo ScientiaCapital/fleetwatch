@@ -113,16 +113,22 @@ async def tick(
             now,
         )
 
+    # Readiness before an event: posted once, then again only when the verdict changes, until the event starts.
+    # Like Fix first, these get through quiet hours: an early event has people on it. No damping: one heartbeat
+    # checks each event once, so a room posts at most once per heartbeat, and every post is true when sent.
     lead = timedelta(minutes=policy.lead_minutes)
     for dev_id, event in fleet.events.items():
         dev = fleet.devices.get(dev_id)
-        if dev is None or state.readiness_posted(event.key):
+        if dev is None:
             continue
         if room_state(dev, event, now, lead) is RoomState.PRE_CLASS or (
             not dev.online and now < event.start <= now + lead
         ):
+            was = state.readiness_verdict(event.key)
             r = readiness_check(dev, event, policy)
-            if notifier.post(render_readiness(r)):
+            if r.verdict == was:  # the same verdict never reposts, even with different reasons
+                continue
+            if notifier.post(render_readiness(r, was)):
                 state.record_readiness(r, now)
-                state.audit("readiness", {"event": event.key, "verdict": r.verdict}, now)
+                state.audit("readiness", {"event": event.key, "verdict": r.verdict, "was": was}, now)
     return text
