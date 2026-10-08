@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     epiphan_token: SecretStr | None = None
     oauth_callback_port: int = 8765
     ask_port: int = 8766  # fleetwatch ask --serve, on 127.0.0.1 only
+    approve_port: int = 8767  # fleetwatch approve --serve (v0.2), on 127.0.0.1 only; never the ask page's port
 
     slack_bot_token: SecretStr | None = None
     slack_channel: str = "#av-ops"
