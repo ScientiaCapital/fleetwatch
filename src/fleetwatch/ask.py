@@ -64,6 +64,15 @@ def answer(question: str, state: State, policy: Policy, fleet: Fleet | None = No
     return HELP
 
 
+def last_checked(state: State, now: datetime | None = None) -> str:
+    """How fresh the answers are: when the last heartbeat read the fleet, in local time."""
+    at = state.last_snapshot()
+    if at is None:
+        return "Not checked yet."
+    local, today = at.astimezone(), (now or datetime.now(UTC)).astimezone()
+    return f"Last checked {local:%H:%M}." if local.date() == today.date() else f"Last checked {local:%b %-d %H:%M}."
+
+
 # --- which room ---------------------------------------------------------------------------------------------
 def _named_in(q: str, devices: list[KnownDevice]) -> list[KnownDevice]:
     """Devices whose whole name appears in the question. A name inside a longer matched name doesn't count."""

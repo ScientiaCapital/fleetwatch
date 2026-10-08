@@ -21,8 +21,10 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -70,6 +72,8 @@ class TokenStore(TokenStorage, Protocol):
 
     def has_tokens(self) -> bool: ...
 
+    def expires_at(self) -> datetime | None: ...
+
     def clear(self) -> None: ...
 
 
@@ -103,7 +107,21 @@ class _JsonStore(TokenStorage):
     async def set_tokens(self, tokens: OAuthToken) -> None:
         data = self._read()
         data["tokens"] = tokens.model_dump(mode="json", exclude_none=True)
+        # `expires_in` is relative to when the token was issued, so it means nothing after a restart. Keep the
+        # absolute time too: the provider (auth.py) restores it, and the SDK then refreshes before it runs out.
+        data.pop("expires_at", None)
+        if tokens.expires_in is not None:
+            at = datetime.fromtimestamp(time.time() + int(tokens.expires_in), UTC)
+            data["expires_at"] = at.strftime("%Y-%m-%dT%H:%M:%SZ")
         self._save(data)
+
+    def expires_at(self) -> datetime | None:
+        """When the stored access token runs out (UTC), or None if unknown. Only looks; never migrates."""
+        raw = self._read(migrate=False).get("expires_at")
+        try:
+            return datetime.fromisoformat(raw).astimezone(UTC) if isinstance(raw, str) else None
+        except ValueError:
+            return None
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
         raw = self._read().get("client")

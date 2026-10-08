@@ -8,7 +8,13 @@ from fleetwatch.agents.readiness.rules import check as readiness_check
 from fleetwatch.agents.room_state.rules import room_state
 from fleetwatch.agents.scanner.rules import scan
 from fleetwatch.epiphan.mcp import EpiphanClient
-from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, apply_system_status, parse_devices
+from fleetwatch.epiphan.parse import (
+    apply_events,
+    apply_recorder_status,
+    apply_system_status,
+    device_items,
+    parse_devices,
+)
 from fleetwatch.model import Fleet, Priority, RoomState
 from fleetwatch.notify import Notifier
 from fleetwatch.notify.digest import render_digest, render_readiness
@@ -19,8 +25,17 @@ from fleetwatch.state import State
 log = logging.getLogger(__name__)
 
 
+class FailedRead(RuntimeError):
+    """The device list couldn't be read. Never treat it as an empty fleet: that would mark everything fixed."""
+
+
 async def snapshot(client: EpiphanClient, now: datetime) -> Fleet:
-    fleet = parse_devices(await client.call("get_devices_in_my_team"), now)
+    """Read the fleet. Raises FailedRead when the device list is text, or a shape we don't know."""
+    raw = await client.call("get_devices_in_my_team")
+    if device_items(raw) is None:
+        kind = "text instead of JSON" if isinstance(raw, str) else "a shape Fleetwatch doesn't know"
+        raise FailedRead(f"get_devices_in_my_team returned {kind}")
+    fleet = parse_devices(raw, now)
     online = [d.id for d in fleet.devices.values() if d.online]
     if online:
         for tool, apply in (
@@ -63,7 +78,16 @@ async def tick(
     on_fleet: Callable[[Fleet], None] | None = None,
 ) -> str | None:
     now = now or datetime.now(UTC)
-    fleet = await snapshot(client, now)
+    try:
+        fleet = await snapshot(client, now)
+        last = state.last_snapshot_count()
+        if not fleet.devices and last:
+            raise FailedRead(f"get_devices_in_my_team returned 0 devices; the last read had {last}")
+    except FailedRead as e:
+        # Nothing below runs: no diff, no "Back to normal", no post, and no snapshot that `status --check`
+        # would count as a healthy heartbeat.
+        log.warning("failed read, skipping this heartbeat: %s", e)
+        raise
     if on_fleet is not None:  # lets /fleetwatch answer from this beat's fleet without reading it again
         on_fleet(fleet)
     state.snapshot(now, len(fleet.devices), sum(d.online for d in fleet.devices.values()))

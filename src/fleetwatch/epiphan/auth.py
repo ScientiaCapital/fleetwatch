@@ -144,6 +144,30 @@ def _headless() -> bool:
     return not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")
 
 
+class _Provider(OAuthClientProvider):
+    """The SDK provider, plus one thing it forgets across a restart: when the stored token expires.
+
+    The SDK computes the expiry from `expires_in` only when it receives a token, so a token loaded from storage
+    looks valid forever and is never refreshed early. The store keeps the absolute expiry next to the token
+    (`token_store.py`); here it goes back into the SDK's context, which then refreshes on its own schedule."""
+
+    async def _initialize(self) -> None:
+        await super()._initialize()
+        expires_at = getattr(self.context.storage, "expires_at", None)
+        when = expires_at() if callable(expires_at) else None
+        if self.context.current_tokens is not None and when is not None:
+            self.context.token_expiry_time = when.timestamp()
+
+    async def mark_expired(self) -> bool:
+        """Make the next request refresh first, through the SDK's own refresh path. False if it can't refresh."""
+        if not self._initialized:  # never sent a request yet, or a failed refresh dropped the tokens: reload
+            await self._initialize()
+        if not self.context.can_refresh_token():
+            return False
+        self.context.token_expiry_time = 1.0  # in the past; 0 or None would mean "never expires" to the SDK
+        return True
+
+
 def make_provider(server_url: str, storage: TokenStore, port: int, interactive: bool) -> OAuthClientProvider:
     # RFC 8252 §7.3: the loopback IP literal, not "localhost", which a resolver could point elsewhere. The callback
     # server binds the same 127.0.0.1.
@@ -166,7 +190,7 @@ def make_provider(server_url: str, storage: TokenStore, port: int, interactive: 
     async def wait_for_code() -> AuthorizationCodeResult:
         return await _Redirect(port, prompt=interactive and sys.stdin.isatty()).wait()
 
-    return OAuthClientProvider(
+    return _Provider(
         server_url=server_url,
         client_metadata=metadata,
         storage=storage,

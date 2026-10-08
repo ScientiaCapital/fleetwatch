@@ -23,3 +23,7 @@ the team to watch. Fleetwatch sees only what your account sees in that team.
 
 Epiphan's MCP server reports an expired or missing sign-in inside the tool result rather than as an HTTP 401, so
 `login` starts the OAuth flow itself.
+
+The token refreshes before it runs out, across restarts too: its expiry is saved next to it, and
+`fleetwatch doctor` shows it (never the token). If Epiphan still says the sign-in expired, Fleetwatch refreshes
+once and retries the read once. If that fails too, run `fleetwatch login` again.
