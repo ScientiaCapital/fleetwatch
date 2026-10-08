@@ -89,6 +89,11 @@ lugar. Cada `WARN` o `FAIL` indica el comando que lo arregla.
 
 La documentación completa está en inglés: [scientiacapital.github.io/fleetwatch](https://scientiacapital.github.io/fleetwatch/).
 
+## Agradecimientos
+
+Muchas gracias al **equipo de ingeniería de Epiphan** por construir Epiphan Edge y el servidor MCP de Epiphan.
+Fleetwatch se apoya por completo en lo que construyeron, y solo va a seguir mejorando.
+
 ## Licencia
 
 Copyright 2026 Epiphan Systems Inc. Licencia [Apache-2.0](LICENSE); las atribuciones están en [NOTICE](NOTICE).

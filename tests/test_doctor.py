@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fleetwatch.config import Settings
-from fleetwatch.doctor import FAIL, OK, WARN, exit_code, run_checks
+from fleetwatch.doctor import FAIL, INFO, OK, WARN, exit_code, run_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,7 +43,7 @@ def by_name(checks):
 def test_healthy_setup_passes(tmp_path):
     signed_in(tmp_path)
     checks = run(settings(tmp_path))
-    assert not [c for c in checks if c.status != OK], [c for c in checks if c.status != OK]
+    assert not [c for c in checks if c.status not in (OK, INFO)], [c for c in checks if c.status not in (OK, INFO)]
     assert exit_code(checks) == 0
     names = by_name(checks)
     for expected in ("Version", "Policy", "Read-only guard", "Redaction", "Sign-in", "Epiphan reachable", "Service"):
@@ -185,3 +185,29 @@ def test_slack_usergroup_needs_the_bot_token(tmp_path):
     p.write_text("slack:\n  allowed_usergroup: S0GROUP\n")
     c = by_name(run(settings(tmp_path, policy_file=p, slack_app_token="xapp-1-test")))["Slack commands"]
     assert c.status == WARN and "FLEETWATCH_SLACK_BOT_TOKEN" in c.detail
+
+
+def test_sign_in_can_write_warns_whenever_signed_in(tmp_path):
+    # Epiphan Edge has no read-only OAuth scope, so the stored token can do what the account can.
+    signed_in(tmp_path)
+    row = by_name(run(settings(tmp_path)))["Sign-in can write"]
+    assert row.status == INFO and "least-access" in row.detail
+
+
+def test_sign_in_can_write_shows_the_granted_scope(tmp_path):
+    f = tmp_path / "epiphan-oauth.json"
+    f.write_text(
+        json.dumps({"tokens": {"access_token": "x", "token_type": "Bearer", "scope": "devices offline_access"}})
+    )
+    os.chmod(f, 0o600)
+    row = by_name(run(settings(tmp_path)))["Sign-in can write"]
+    assert row.status == INFO and "granted scope: devices offline_access" in row.detail
+
+
+def test_sign_in_can_write_also_covers_a_static_token(tmp_path):
+    row = by_name(run(settings(tmp_path, epiphan_token="FAKESTATIC")))["Sign-in can write"]
+    assert row.status == INFO and "FAKESTATIC" not in row.detail
+
+
+def test_no_sign_in_no_write_warning(tmp_path):
+    assert "Sign-in can write" not in by_name(run(settings(tmp_path)))

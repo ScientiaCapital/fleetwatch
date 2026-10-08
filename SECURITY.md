@@ -36,6 +36,13 @@ Fleetwatch and the permissions of the Edge account you signed in with. So run Fl
 machine you trust, and sign in with an Edge account that has the least access that still sees the rooms you
 watch.
 
+**No read-only sign-in.** Epiphan Edge's OAuth has no read-only scope. Fleetwatch asks for no scope, so it gets
+what Epiphan grants the account, and the token is a plain bearer token: anyone holding it, or the refresh token
+stored with it, can call write tools from anywhere until it expires or is revoked. Read-only is a promise about
+Fleetwatch's code, not about the credential. `fleetwatch doctor` shows this as an INFO line on every run, with the
+granted scope when Epiphan reports one. When Epiphan offers a read-only scope, Fleetwatch will ask for it and
+refuse anything wider.
+
 ## How that is enforced in v0.1
 
 - **Read-only by construction.** The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the
@@ -56,7 +63,8 @@ watch.
   - **Everywhere else, and in Docker:** `~/.fleetwatch/epiphan-oauth.json` with mode `600`.
 
   A token already in the file moves to the Keychain or systemd-creds the first time it is used, and the file is
-  deleted. `fleetwatch logout` deletes the token from whichever store holds it. `fleetwatch doctor` says which
+  deleted. The Keychain items trust `/usr/bin/security`, so another program running as the same macOS user can
+  read them without a prompt; on a shared Mac, run Fleetwatch as its own user. `fleetwatch logout` deletes the token from whichever store holds it. `fleetwatch doctor` says which
   store is in use.
 - **Service hardening.** The systemd unit sets `NoNewPrivileges`, `ProtectSystem=strict` and `PrivateTmp`, with
   write access only to its own state folder and virtual environment.

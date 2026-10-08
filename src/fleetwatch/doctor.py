@@ -24,6 +24,7 @@ from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
+INFO = "INFO"  # always worth knowing, never something to fix: not counted in the summary
 LAUNCHD_LABEL = "dev.fleetwatch.agent"
 
 
@@ -88,9 +89,25 @@ def _sign_in(s: Settings) -> Check:
     return Check("Sign-in", OK, f"token in {f} (mode 600)")
 
 
+def _write_capable(s: Settings) -> Check | None:
+    """Epiphan Edge has no read-only OAuth scope: whatever signed in can make changes if the account can. The guard
+    keeps Fleetwatch from writing; this row says what a stolen token could do. Offline, never shows the token."""
+    advice = "the Edge sign-in can make changes if the account can; use a least-access account (docs/sign-in.md)"
+    if reveal(s.epiphan_token):
+        return Check("Sign-in can write", INFO, advice)
+    try:
+        store = make_token_store(s.token_store, s.token_file)
+        if not store.has_tokens():
+            return None
+        scope = getattr(store, "granted_scope", lambda: None)()
+    except (TokenStoreError, ValueError):
+        return None  # the Sign-in row already reports it
+    return Check("Sign-in can write", INFO, f"{advice}; granted scope: {scope}" if scope else advice)
+
+
 def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
     """When the stored access token runs out, read offline from the store. Never shows the token itself."""
-    if s.epiphan_token:
+    if reveal(s.epiphan_token):
         return None
     try:
         store = make_token_store(s.token_store, s.token_file)
@@ -210,7 +227,7 @@ def run_checks(
         _guard(s),
         _redaction(),
         _sign_in(s),
-        *filter(None, [_token_expiry(s)]),
+        *filter(None, [_write_capable(s), _token_expiry(s)]),
         _state_dir(s),
         _slack(s),
         _slack_commands(s),
