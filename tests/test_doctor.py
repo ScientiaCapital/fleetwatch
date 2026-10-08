@@ -130,7 +130,7 @@ def test_teams_row_says_configured_without_showing_the_url_or_calling_it(tmp_pat
     )
     teams = by_name(checks)["Teams"]
     assert teams.status == OK and teams.detail == "configured"
-    assert not any("example.com" in u for u in reached)
+    assert reached == []
     assert by_name(run(settings(tmp_path)))["Teams"].detail == "not configured"
 
 
