@@ -27,7 +27,9 @@ class ConsoleNotifier:
         self.label = label
 
     def post(self, text: str) -> bool:
-        print(f"\n[{self.label}]\n{text}\n")
+        # Says "preview" so a screen showing this output never reads like a real post to the channel.
+        header = f"console preview for {self.label}" if self.label else "console preview"
+        print(f"\n[{header}]\n{text}\n")
         return True
 
 

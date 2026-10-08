@@ -26,3 +26,18 @@ def test_slack_posts_are_escaped_and_the_console_is_not(capsys):
 
     ConsoleNotifier("#av-ops").post("Lobby <b>")
     assert "Lobby <b>" in capsys.readouterr().out
+
+
+def test_console_output_says_it_is_a_preview(capsys) -> None:
+    """A booth screen shows the console notifier; its header must not read like a real Slack post."""
+    assert ConsoleNotifier("#av-ops").post("*Lobby Pearl Mini* is offline")
+    out = capsys.readouterr().out
+    assert "[console preview for #av-ops]" in out
+    assert "*Lobby Pearl Mini* is offline" in out
+
+
+def test_console_output_with_no_channel_has_no_dangling_for(capsys) -> None:
+    assert ConsoleNotifier("").post("All clear.")
+    out = capsys.readouterr().out
+    assert "[console preview]" in out
+    assert "for" not in out.split("\n")[1]
