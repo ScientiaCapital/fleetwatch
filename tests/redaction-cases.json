@@ -1,6 +1,6 @@
 {
   "about": "Shared redaction cases for Fleetwatch (src/fleetwatch/redact.py) and the Epiphan Edge Claude Kit (.claude/hooks/epiphan-redact.sh). Keep this file byte-identical in both repos. Each case: the text must not contain any of must_not_contain after redaction, must contain every must_contain, and redacting twice must give the same text as once. All values are fake.",
-  "version": 1,
+  "version": 2,
   "cases": [
     {"id": "kv-password", "input": "password=hunter2", "must_not_contain": ["hunter2"]},
     {"id": "kv-stream-key-colon", "input": "stream key: live_9f8e7d6c", "must_not_contain": ["9f8e7d6c"]},
@@ -35,8 +35,12 @@
     {"id": "urlencoded-stream-key", "input": "stream%20key=FAKEENC42", "must_not_contain": ["FAKEENC42"]},
     {"id": "quoted-value-with-space", "input": "stream_key = \"FAKE SPACE43\"", "must_not_contain": ["SPACE43"]},
 
+    {"id": "bare-anthropic-key", "input": "error: invalid x-api-key sk-ant-api03-FAKEANT44_def-456", "must_not_contain": ["FAKEANT44", "sk-ant-"]},
+    {"id": "bare-anthropic-key-in-json", "input": "{\"detail\": \"bad key sk-ant-admin01-FAKEANT45\"}", "must_not_contain": ["FAKEANT45", "sk-ant-"]},
+
     {"id": "keep-plain-text", "input": "Room 204 Pearl Mini is offline", "must_not_contain": [], "must_contain": ["Room 204 Pearl Mini is offline"]},
     {"id": "keep-docs-url", "input": "see https://kb.epiphan.com/pearl-2/firmware-upgrade", "must_not_contain": [], "must_contain": ["kb.epiphan.com/pearl-2/firmware-upgrade"]},
-    {"id": "keep-uuid-stream-id", "input": "{\"stream_id\": \"0f8fad5b-d9cb-469f-a165-70867728950e\"}", "must_not_contain": [], "must_contain": ["0f8fad5b-d9cb-469f-a165-70867728950e"]}
+    {"id": "keep-uuid-stream-id", "input": "{\"stream_id\": \"0f8fad5b-d9cb-469f-a165-70867728950e\"}", "must_not_contain": [], "must_contain": ["0f8fad5b-d9cb-469f-a165-70867728950e"]},
+    {"id": "keep-sk-ant-lookalikes", "input": "task-antenna, risk-ant-42 and the word sk-ant are not keys", "must_not_contain": [], "must_contain": ["task-antenna, risk-ant-42 and the word sk-ant are not keys"]}
   ]
 }
