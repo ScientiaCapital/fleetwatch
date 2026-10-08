@@ -251,6 +251,12 @@ def test_replay_chat_proposal_becomes_a_card_and_one_approval_records_one_write(
     assert code == 409 and len(page.executor.calls) == 1
 
 
+def test_the_no_ai_note_names_the_flag_not_a_missing_key(tmp_path, no_real_executor):
+    s = _settings(tmp_path, "observe", anthropic_api_key="sk-ant-test")
+    answer = cli._approve_page(s, str(FIXTURES), no_ai=True).ask_fn("what needs attention")
+    assert "--no-ai" in answer and "no API key" not in answer
+
+
 @pytest.mark.parametrize(("no_ai", "key"), [(False, None), (True, "sk-ant-test")])
 def test_chat_without_a_key_or_with_no_ai_uses_the_keyword_answer_and_says_so(tmp_path, no_ai, key, no_real_executor):
     s = _settings(tmp_path, "observe", anthropic_api_key=key)

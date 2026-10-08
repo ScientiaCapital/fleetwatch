@@ -208,6 +208,8 @@ TEXT: dict[str, dict[str, str]] = {
         "blocked_live": "{room} has an event on now, so this change would be blocked.",
         "blocked_soon": "{room} has an event that starts in {n} minutes, so this change would be blocked.",
         "blocked_soon_one": "{room} has an event that starts in 1 minute, so this change would be blocked.",
+        "no_schedule": "No event schedule came back for any device, so a room that is about to start can't be "
+        "ruled out. Check the room before you approve.",
         "reason": "Written by the assistant, not checked",
         "deny": "Deny",
         "approve": "Approve",
@@ -286,6 +288,8 @@ TEXT: dict[str, dict[str, str]] = {
         "blocked_live": "{room} tiene un evento en curso, así que este cambio se bloquearía.",
         "blocked_soon": "{room} tiene un evento que empieza en {n} minutos, así que este cambio se bloquearía.",
         "blocked_soon_one": "{room} tiene un evento que empieza en 1 minuto, así que este cambio se bloquearía.",
+        "no_schedule": "Ningún horario de eventos llegó para ningún dispositivo, así que no se puede descartar que una "
+        "sala esté por empezar. Revisa la sala antes de aprobar.",
         "reason": "Escrito por el asistente, sin verificar",
         "deny": "Rechazar",
         "approve": "Aprobar",
@@ -644,6 +648,10 @@ class ApprovePage:
             return ""
         lead = timedelta(minutes=self.tools.lead_minutes(record.tool, self.lead_minutes))
         now, notes, stops = datetime.now(UTC), [], self.tools.stops_recording(record.tool, args)
+        if (
+            fleet.devices and not fleet.events
+        ):  # the schedule read came back empty for everyone: the event rule is blind
+            notes.append(f'<p class="note">{_e(t["no_schedule"])}</p>')
         for target in record.targets:
             device = fleet.devices.get(target)
             block = room_block(device, fleet.events.get(target), now, lead, stops) if device else None
