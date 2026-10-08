@@ -1,3 +1,5 @@
+<p align="right"><a href="README.md">English</a> · Español</p>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
@@ -8,18 +10,17 @@
 <p align="center">
   <a href="https://scientiacapital.github.io/fleetwatch/">Documentación (en inglés)</a> ·
   <a href="#instalación">Instalación</a> ·
-  <a href="SECURITY.md">Seguridad</a> ·
-  <a href="README.md">English</a>
+  <a href="SECURITY.md">Seguridad</a>
 </p>
 
 # Fleetwatch for Epiphan Edge
 
-**Un vigilante de solo lectura, siempre activo, para tu flota de Epiphan Edge.** Revisa cada sala en cada ciclo,
-publica un resumen tranquilo en Slack cuando algo cambia y dice **Ready** (listo) o **Not ready** (no listo)
-30 minutos antes de cada evento programado.
+Un vigilante de solo lectura, siempre activo, para tu flota de Epiphan Edge. Revisa cada sala en cada ciclo,
+publica un resumen tranquilo en Slack o Microsoft Teams cuando algo cambia y dice Ready (listo) o Not ready
+(no listo) 30 minutos antes de cada evento programado.
 
-La versión 0.1 **solo observa**. No puede cambiar ningún equipo: las herramientas de escritura se rechazan dentro
-del cliente antes de que salga cualquier petición, y `policy.yaml` queda fijado en `autonomy: observe`.
+La versión 0.1 solo observa. No puede cambiar ningún equipo: el cliente rechaza las herramientas de escritura antes
+de que salga cualquier solicitud, y `policy.yaml` queda fijado en `autonomy: observe`.
 
 <p align="center">
   <img alt="Un resumen de Fleetwatch y dos revisiones antes de un evento, de la demo sin conexión" src="docs/assets/digest-replay.svg" width="720">
@@ -31,12 +32,12 @@ del cliente antes de que salga cualquier petición, y `policy.yaml` queda fijado
 
 | | |
 |---|---|
-| **Resumen tranquilo** | Publica solo cuando algo cambia. Cada problema se publica una vez, se recuerda como máximo cada 4 horas y se cierra con *Back to normal*. |
-| **Ready / Not ready** | 30 minutos antes de cada evento, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? |
-| **Solo lectura por diseño** | Las herramientas de escritura se rechazan dentro del cliente, antes de que salga ninguna petición. |
-| **Funciona en una Pi o una Mac mini** | Instalación en una línea como servicio systemd o launchd, o Docker en amd64 y arm64. |
-| **`fleetwatch doctor`** | Una línea por revisión: política, protección, ocultación de secretos, inicio de sesión, red, servicio. |
-| **Demo sin conexión** | Un ciclo completo contra una flota de ejemplo guardada. Sin cuenta y sin red. |
+| Resumen tranquilo | Publica solo cuando algo cambia. Cada problema se publica una vez, se recuerda como máximo cada 4 horas y se cierra con Back to normal. |
+| Ready o Not ready | 30 minutos antes de cada evento, una línea por sala: ¿hay imagen?, ¿el equipo está en línea? |
+| Solo lectura por diseño | El cliente rechaza las herramientas de escritura antes de que salga cualquier solicitud. |
+| Funciona en una Pi o una Mac mini | Instalación en una línea como servicio systemd o launchd, o Docker en amd64 y arm64. |
+| `fleetwatch doctor` | Una línea por revisión: política, protección, ocultación de secretos, inicio de sesión, red, servicio. |
+| Demo sin conexión | Un ciclo completo contra una flota de ejemplo guardada, o una tranquila para una pantalla en una sala silenciosa. Sin cuenta y sin red. |
 
 ## Instalación
 
@@ -60,6 +61,7 @@ la rama de desarrollo.
 git clone https://github.com/ScientiaCapital/fleetwatch.git && cd fleetwatch
 uv sync
 uv run fleetwatch digest --replay tests/fixtures
+uv run fleetwatch digest --replay tests/fixtures/calm   # una flota tranquila: All clear y una revisión Ready
 ```
 
 Con tu propio equipo:
@@ -68,6 +70,7 @@ Con tu propio equipo:
 cp .env.example .env            # token del bot de Slack y canal; sin token, imprime en la consola
 uv run fleetwatch login         # inicio de sesión único en Epiphan Edge
 uv run fleetwatch digest        # un ciclo: imprime o publica el resumen
+uv run fleetwatch digest --capture ~/fleetwatch-capture   # además guarda lo que leyó, sin secretos, como muestra de replay
 uv run fleetwatch run           # sigue ejecutándose, cada 3 minutos
 uv run fleetwatch doctor        # ¿está lista esta máquina?
 uv run fleetwatch ask "¿Está lista Courtroom?"   # pregunta en palabras simples; --serve abre una página con botones
@@ -87,13 +90,13 @@ lugar. Cada `WARN` o `FAIL` indica el comando que lo arregla.
 | `Sign-in` en WARN o FAIL | Ejecuta `fleetwatch login`. En una Pi sin pantalla, abre el enlace en otro equipo y pega la URL final de `localhost`. |
 | `Epiphan reachable` falla | Revisa la red o ajusta `FLEETWATCH_EPIPHAN_MCP_URL` a tu región. |
 | No llega nada a Slack | Sin token solo imprime en la consola. Define `FLEETWATCH_SLACK_BOT_TOKEN` (`chat:write`) e invita al bot al canal. |
-| Sin red | `fleetwatch digest --replay tests/fixtures` ejecuta el ciclo completo sin conexión. |
+| Sin red | `fleetwatch digest --replay tests/fixtures` ejecuta el ciclo completo sin conexión; `tests/fixtures/calm` es una flota tranquila. |
 
 La documentación completa está en inglés: [scientiacapital.github.io/fleetwatch](https://scientiacapital.github.io/fleetwatch/).
 
 ## Agradecimientos
 
-Muchas gracias al **equipo de ingeniería de Epiphan** por construir Epiphan Edge y el servidor MCP de Epiphan.
+Muchas gracias al equipo de ingeniería de Epiphan por construir Epiphan Edge y el servidor MCP de Epiphan.
 Fleetwatch se apoya por completo en lo que construyeron, y solo va a seguir mejorando.
 
 ## Licencia
