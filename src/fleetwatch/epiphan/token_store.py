@@ -74,6 +74,14 @@ class TokenStore(TokenStorage, Protocol):
 
     def expires_at(self) -> datetime | None: ...
 
+    def oauth_metadata(self) -> dict | None: ...
+
+    def set_oauth_metadata(self, oauth: dict) -> None: ...
+
+    def is_dead(self) -> bool: ...
+
+    def mark_dead(self) -> None: ...
+
     def clear(self) -> None: ...
 
 
@@ -110,6 +118,7 @@ class _JsonStore(TokenStorage):
         # `expires_in` is relative to when the token was issued, so it means nothing after a restart. Keep the
         # absolute time too: the provider (auth.py) restores it, and the SDK then refreshes before it runs out.
         data.pop("expires_at", None)
+        data.pop("dead", None)  # a new token (sign-in or refresh) means the sign-in works again
         if tokens.expires_in is not None:
             at = datetime.fromtimestamp(time.time() + int(tokens.expires_in), UTC)
             data["expires_at"] = at.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -122,6 +131,27 @@ class _JsonStore(TokenStorage):
             return datetime.fromisoformat(raw).astimezone(UTC) if isinstance(raw, str) else None
         except ValueError:
             return None
+
+    def oauth_metadata(self) -> dict | None:
+        """The OAuth endpoints discovered at sign-in (no secrets), so a refresh after a restart goes to the real
+        token endpoint. None before the first sign-in that saved them."""
+        raw = self._read(migrate=False).get("oauth")
+        return raw if isinstance(raw, dict) else None
+
+    def set_oauth_metadata(self, oauth: dict) -> None:
+        data = self._read()
+        if data.get("oauth") != oauth:
+            data["oauth"] = oauth
+            self._save(data)
+
+    def is_dead(self) -> bool:
+        """True when Epiphan refused the refresh token: only a new `fleetwatch login` helps."""
+        return bool(self._read(migrate=False).get("dead"))
+
+    def mark_dead(self) -> None:
+        data = self._read()
+        data["dead"] = True
+        self._save(data)
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
         raw = self._read().get("client")

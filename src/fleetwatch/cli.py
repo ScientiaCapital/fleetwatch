@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import dataclasses
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -147,9 +148,14 @@ def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Setti
 
 
 async def _run(settings: Settings) -> None:
-    from fleetwatch.runner import run_loop
+    from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
+    from fleetwatch.runner import EXIT_CONFIG, run_loop
     from fleetwatch.slack_command import start_listener
 
+    if not reveal(settings.epiphan_token) and make_token_store(settings.token_store, settings.token_file).is_dead():
+        # Epiphan refused the refresh token last time. Don't call it again; a restart loop only adds noise.
+        logging.getLogger("fleetwatch").error(SIGN_IN_EXPIRED)
+        raise SystemExit(EXIT_CONFIG)
     state, notifier = State(settings.state_db), from_settings(settings)
     policy = load_policy(settings.policy_file)
     slash = await start_listener(settings, policy, state)  # None unless FLEETWATCH_SLACK_APP_TOKEN is set

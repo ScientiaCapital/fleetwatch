@@ -4,6 +4,9 @@ A failed beat closes the MCP session and the next beat opens a fresh one, so a d
 dead session behind. After `MAX_FAILED_BEATS` failures in a row the process exits with `EXIT_TEMPFAIL`, and
 systemd (`Restart=on-failure`), launchd (`KeepAlive` on a failed exit) or Docker (`restart: unless-stopped`)
 starts it again from clean. A good beat resets the count.
+
+A refresh token Epiphan refuses is different: restarting can't fix it. The process logs "Sign-in expired: run
+fleetwatch login" and exits with `EXIT_CONFIG` (78), which the systemd unit is told not to restart.
 """
 
 import asyncio
@@ -11,6 +14,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
+from fleetwatch.epiphan.mcp import SignInDead
 from fleetwatch.heartbeat import tick
 from fleetwatch.notify import Notifier
 from fleetwatch.policy import Policy
@@ -21,6 +26,7 @@ log = logging.getLogger("fleetwatch")
 
 MAX_FAILED_BEATS = 3
 EXIT_TEMPFAIL = 75  # EX_TEMPFAIL from sysexits.h: try again later
+EXIT_CONFIG = 78  # EX_CONFIG: the sign-in is dead; systemd's RestartPreventExitStatus=78 stops the restarts
 _sleep = asyncio.sleep
 
 
@@ -59,6 +65,9 @@ async def run_loop(
                     client = fresh
                 await tick(client, state, policy, notifier, first_run=first_run, on_fleet=slash and slash.see)
                 failures = 0
+            except SignInDead:
+                log.error(SIGN_IN_EXPIRED)
+                raise SystemExit(EXIT_CONFIG) from None
             except Exception as e:  # noqa: BLE001  (counted; the next beat retries on a new session)
                 failures += 1
                 log.warning("heartbeat failed (%d in a row): %s", failures, redact(str(e)))

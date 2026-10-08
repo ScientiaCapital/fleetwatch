@@ -97,8 +97,11 @@ def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
         if not store.has_tokens():
             return None
         when = getattr(store, "expires_at", lambda: None)()  # a store without it just shows no expiry
+        dead = getattr(store, "is_dead", lambda: False)()
     except (TokenStoreError, ValueError):
         return None  # the Sign-in row already reports it
+    if dead:
+        return Check("Token expiry", FAIL, "Epiphan refused the refresh token: sign in again with  fleetwatch login")
     if when is None:
         return Check("Token expiry", OK, "not recorded yet; saved with the next refresh")
     now = now or datetime.now(UTC)

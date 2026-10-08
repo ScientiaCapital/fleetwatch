@@ -10,6 +10,7 @@ Works headless (Raspberry Pi over SSH): the link is printed, and the redirect ca
 """
 
 import asyncio
+import logging
 import os
 import sys
 import threading
@@ -20,7 +21,8 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx2
 from mcp.client.auth import OAuthClientProvider
-from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata
+from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata, OAuthMetadata, ProtectedResourceMetadata
+from pydantic import ValidationError
 
 from fleetwatch.epiphan.token_store import FileTokenStorage, TokenStore
 
@@ -40,6 +42,11 @@ def _first(params: dict[str, list[str]], key: str) -> str | None:
 def _query(url_or_query: str) -> dict[str, list[str]]:
     text = url_or_query.strip()
     return parse_qs(urlparse(text).query if "?" in text else text.lstrip("?"))
+
+
+SIGN_IN_EXPIRED = "Sign-in expired: run fleetwatch login"
+
+log = logging.getLogger(__name__)
 
 
 def parse_callback(url_or_query: str) -> AuthorizationCodeResult | None:
@@ -145,27 +152,92 @@ def _headless() -> bool:
 
 
 class _Provider(OAuthClientProvider):
-    """The SDK provider, plus one thing it forgets across a restart: when the stored token expires.
+    """The SDK provider, plus what it forgets across a restart, kept in the token store (`token_store.py`):
 
-    The SDK computes the expiry from `expires_in` only when it receives a token, so a token loaded from storage
-    looks valid forever and is never refreshed early. The store keeps the absolute expiry next to the token
-    (`token_store.py`); here it goes back into the SDK's context, which then refreshes on its own schedule."""
+    - when the stored token expires. The SDK works it out from `expires_in` only when a token arrives, so a token
+      loaded from storage looks valid forever and is never refreshed early.
+    - the OAuth endpoints discovered at sign-in. The SDK discovers them only after an HTTP 401, which Epiphan never
+      sends, so after a restart a refresh would go to a guessed `<origin>/token`.
+
+    It also notices when Epiphan refuses the refresh token (HTTP 400 or 401, typically `invalid_grant`). That
+    can't fix itself, so the store is marked dead and `fleetwatch run` stops instead of restarting forever."""
+
+    dead = False  # Epiphan refused the refresh token; only `fleetwatch login` helps
 
     async def _initialize(self) -> None:
         await super()._initialize()
-        expires_at = getattr(self.context.storage, "expires_at", None)
-        when = expires_at() if callable(expires_at) else None
+        storage = self.context.storage
+        when = _ask(storage, "expires_at")
         if self.context.current_tokens is not None and when is not None:
             self.context.token_expiry_time = when.timestamp()
+        self.dead = self.dead or bool(_ask(storage, "is_dead"))
+        if self.context.oauth_metadata is None:
+            self._restore_endpoints(_ask(storage, "oauth_metadata"))
+        if self.context.oauth_metadata is None and self.context.can_refresh_token():
+            log.warning(
+                "No saved Epiphan sign-in endpoints, so a token refresh will guess %s/token. "
+                "Run fleetwatch login once to save them.",
+                self.context.get_authorization_base_url(self.context.server_url),
+            )
+
+    def _restore_endpoints(self, saved: dict | None) -> None:
+        if not saved:
+            return
+        try:
+            if saved.get("metadata"):
+                self.context.oauth_metadata = OAuthMetadata.model_validate(saved["metadata"])
+            if saved.get("protected_resource"):
+                prm = ProtectedResourceMetadata.model_validate(saved["protected_resource"])
+                self.context.protected_resource_metadata = prm
+            self.context.auth_server_url = saved.get("auth_server_url") or self.context.auth_server_url
+        except ValidationError:
+            log.warning("The saved Epiphan sign-in endpoints don't parse; ignoring them")
+
+    def _save_endpoints(self) -> None:
+        """Endpoints only: issuer, token endpoint, resource. Never a token."""
+        save = getattr(self.context.storage, "set_oauth_metadata", None)
+        if self.context.oauth_metadata is None or not callable(save):
+            return
+        prm = self.context.protected_resource_metadata
+        save(
+            {
+                "metadata": self.context.oauth_metadata.model_dump(mode="json", exclude_none=True),
+                "auth_server_url": self.context.auth_server_url,
+                "protected_resource": prm.model_dump(mode="json", exclude_none=True) if prm else None,
+            }
+        )
+
+    async def _handle_token_response(self, response: httpx2.Response) -> None:
+        await super()._handle_token_response(response)
+        self._save_endpoints()
+
+    async def _handle_refresh_response(self, response: httpx2.Response) -> bool:
+        ok = await super()._handle_refresh_response(response)
+        if ok:
+            self.dead = False
+            self._save_endpoints()
+        elif response.status_code in (400, 401):
+            self.dead = True
+            mark = getattr(self.context.storage, "mark_dead", None)
+            if callable(mark):
+                mark()
+            log.error("Epiphan refused the refresh token (HTTP %s). %s", response.status_code, SIGN_IN_EXPIRED)
+        return ok
 
     async def mark_expired(self) -> bool:
         """Make the next request refresh first, through the SDK's own refresh path. False if it can't refresh."""
         if not self._initialized:  # never sent a request yet, or a failed refresh dropped the tokens: reload
             await self._initialize()
-        if not self.context.can_refresh_token():
+        if self.dead or not self.context.can_refresh_token():
             return False
         self.context.token_expiry_time = 1.0  # in the past; 0 or None would mean "never expires" to the SDK
         return True
+
+
+def _ask(storage: object, method: str):
+    """Call an optional store method; stores written for the SDK alone don't have them."""
+    fn = getattr(storage, method, None)
+    return fn() if callable(fn) else None
 
 
 def make_provider(server_url: str, storage: TokenStore, port: int, interactive: bool) -> OAuthClientProvider:

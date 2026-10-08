@@ -30,6 +30,10 @@ class SignInExpired(RuntimeError):
     """Epiphan said 401 inside the tool result, and one refresh didn't fix it."""
 
 
+class SignInDead(SignInExpired):
+    """Epiphan refused the refresh token. Only `fleetwatch login` fixes it, so retrying is pointless."""
+
+
 # Epiphan reports an expired or missing sign-in inside the tool result, not as an HTTP 401. Only an error result,
 # or a plain-text (non-JSON) one, is checked: a JSON result carries device names, which are untrusted text.
 _UNAUTHORIZED = re.compile(r"\b401\b|unauthori[sz]ed|invalid[_ ]token|token (?:has )?expired", re.IGNORECASE)
@@ -127,6 +131,8 @@ class EpiphanClient:
                 if result.is_error:
                     raise RuntimeError(f"{tool}: {safe[:500]}")
                 return safe
+            if getattr(self._provider, "dead", False):
+                raise SignInDead(f"{tool}: Epiphan refused the refresh token. Sign-in expired: run fleetwatch login")
             if attempt == 1 and await self._force_refresh():
                 log.warning("%s: Epiphan says the sign-in expired; refreshing the token and trying once more", tool)
                 continue

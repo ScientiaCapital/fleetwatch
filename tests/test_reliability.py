@@ -428,3 +428,188 @@ def test_memory_db_still_works():
     assert s.db.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
     s.reconcile([Finding("k", Priority.FIX_SOON, "d", "Room 204 Pearl Mini", "x")], NOW, timedelta(hours=1))
     assert len(s.open_findings()) == 1
+
+
+# --- 7. the OAuth metadata discovered at login survives a restart ---------------------------------------------
+AS = "https://auth.example.invalid"
+TOKEN_URL = f"{AS}/oauth2/v1/token"
+
+
+def _metadata() -> dict:
+    return {
+        "metadata": {
+            "issuer": AS,
+            "authorization_endpoint": f"{AS}/oauth2/v1/authorize",
+            "token_endpoint": TOKEN_URL,
+        },
+        "auth_server_url": AS,
+        "protected_resource": {"resource": URL, "authorization_servers": [AS]},
+    }
+
+
+async def _expired_store(tmp_path: Path, oauth: dict | None) -> FileTokenStorage:
+    s = FileTokenStorage(tmp_path / "t.json")
+    await s.set_tokens(OAuthToken(access_token="FAKEOLD", refresh_token="FAKEREFRESH", expires_in=1))
+    await s.set_client_info(_client_info())
+    if oauth is not None:
+        s.set_oauth_metadata(oauth)
+    data = json.loads((tmp_path / "t.json").read_text())
+    data["expires_at"] = "2020-01-01T00:00:00Z"
+    (tmp_path / "t.json").write_text(json.dumps(data))
+    return FileTokenStorage(tmp_path / "t.json")  # a new process
+
+
+def test_oauth_metadata_round_trips(tmp_path: Path):
+    s = FileTokenStorage(tmp_path / "t.json")
+    assert s.oauth_metadata() is None
+    s.set_oauth_metadata(_metadata())
+    assert FileTokenStorage(tmp_path / "t.json").oauth_metadata() == _metadata()
+
+
+async def test_login_saves_the_discovered_metadata(tmp_path: Path):
+    from mcp.shared.auth import OAuthMetadata, ProtectedResourceMetadata
+
+    from fleetwatch.epiphan.auth import make_provider
+
+    s = FileTokenStorage(tmp_path / "t.json")
+    provider = make_provider(URL, s, 8765, interactive=False)
+    m = _metadata()
+    provider.context.oauth_metadata = OAuthMetadata.model_validate(m["metadata"])
+    provider.context.protected_resource_metadata = ProtectedResourceMetadata.model_validate(m["protected_resource"])
+    provider.context.auth_server_url = AS
+    body = {"access_token": "FAKENEW", "token_type": "Bearer", "expires_in": 3600, "refresh_token": "FAKER"}
+    await provider._handle_token_response(httpx2.Response(200, json=body, request=httpx2.Request("POST", TOKEN_URL)))
+    saved = s.oauth_metadata()
+    assert saved["metadata"]["token_endpoint"] == TOKEN_URL and saved["auth_server_url"] == AS
+    assert saved["protected_resource"]["resource"].rstrip("/") == URL
+    assert "FAKENEW" not in json.dumps(saved), "metadata only, never the token"
+
+
+async def test_refresh_after_restart_uses_the_stored_token_endpoint(tmp_path: Path):
+    from fleetwatch.epiphan.auth import make_provider
+
+    provider = make_provider(URL, await _expired_store(tmp_path, _metadata()), 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    first = await flow.__anext__()
+    assert str(first.url) == TOKEN_URL, "the real endpoint, not a guess"
+    await flow.aclose()
+
+
+async def test_no_stored_metadata_falls_back_to_the_guess_with_a_warning(tmp_path: Path, caplog):
+    from fleetwatch.epiphan.auth import make_provider
+
+    provider = make_provider(URL, await _expired_store(tmp_path, None), 8765, interactive=False)
+    with caplog.at_level(logging.WARNING):
+        flow = provider._auth_flow(httpx2.Request("POST", URL))
+        first = await flow.__anext__()
+    assert str(first.url) == "https://mcp.example.invalid/token"
+    assert any("fleetwatch login" in r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+    await flow.aclose()
+
+
+# --- 8. a refused refresh means "sign in again", not a restart loop ------------------------------------------
+@pytest.mark.parametrize("status", [400, 401])
+async def test_refused_refresh_marks_the_sign_in_dead(tmp_path: Path, status):
+    from fleetwatch.epiphan.auth import make_provider
+
+    store = await _expired_store(tmp_path, _metadata())
+    provider = make_provider(URL, store, 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    after = await flow.asend(httpx2.Response(status, json={"error": "invalid_grant"}, request=refresh))
+    assert str(after.url) == URL
+    await flow.aclose()
+    assert provider.dead and store.is_dead()
+    assert FileTokenStorage(tmp_path / "t.json").is_dead(), "remembered across a restart"
+
+
+async def test_a_server_error_on_refresh_is_not_dead(tmp_path: Path):
+    from fleetwatch.epiphan.auth import make_provider
+
+    store = await _expired_store(tmp_path, _metadata())
+    provider = make_provider(URL, store, 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    await flow.asend(httpx2.Response(503, request=refresh))
+    await flow.aclose()
+    assert not provider.dead and not store.is_dead()
+
+
+async def test_a_new_sign_in_clears_the_dead_mark(tmp_path: Path):
+    s = FileTokenStorage(tmp_path / "t.json")
+    s.mark_dead()
+    assert s.is_dead()
+    await s.set_tokens(OAuthToken(access_token="FAKENEW", refresh_token="FAKER", expires_in=3600))
+    assert not s.is_dead()
+
+
+async def test_in_band_401_with_a_dead_sign_in_raises_without_retry(tmp_path: Path):
+    from fleetwatch.epiphan.mcp import SignInDead
+
+    c = await _signed_in_client(tmp_path)
+    c._provider.dead = True
+    c._client = _FakeSDK([UNAUTHORIZED])
+    with pytest.raises(SignInDead):
+        await c.call("get_devices_in_my_team")
+    assert c._client.calls == 1
+
+
+async def test_dead_sign_in_exits_78_at_once(caplog):
+    from fleetwatch.epiphan.mcp import SignInDead
+    from fleetwatch.runner import run_loop
+
+    class Dead(_ScriptedClient):
+        async def call(self, tool, arguments=None):
+            raise SignInDead("refresh refused")
+
+    async def no_sleep(_):
+        raise AssertionError("must exit on the first beat")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
+        await run_loop(lambda: Dead([], []), State(), POLICY, Capture(), first_run=True, sleep=no_sleep)
+    assert e.value.code == 78
+    assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
+
+
+async def test_run_with_a_dead_store_exits_78_before_calling_epiphan(tmp_path: Path, monkeypatch, caplog):
+    from fleetwatch import cli
+    from fleetwatch.config import Settings
+
+    FileTokenStorage(tmp_path / "t.json").mark_dead()
+
+    def no_client(settings):
+        raise AssertionError("must not connect")
+
+    monkeypatch.setattr(cli, "_make_client", no_client)
+    s = Settings(
+        _env_file=None,
+        policy_file=ROOT / "policy.yaml",
+        tool_policy_file=ROOT / "tool_policy.yaml",
+        state_db=tmp_path / "state.db",
+        token_file=tmp_path / "t.json",
+        token_store="file",
+        epiphan_token=None,
+        slack_app_token=None,
+    )
+    with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
+        await cli._run(s)
+    assert e.value.code == 78
+    assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
+
+
+def test_doctor_says_sign_in_again_when_the_token_is_dead(tmp_path: Path):
+    from fleetwatch.doctor import run_checks
+    from tests.test_doctor import by_name, settings
+
+    f = tmp_path / "epiphan-oauth.json"
+    f.write_text(json.dumps({"tokens": {"access_token": "FAKESECRET"}, "dead": True}))
+    f.chmod(0o600)
+    row = by_name(run_checks(settings(tmp_path), reach=lambda u: True, service=lambda: ("OK", "running")))[
+        "Token expiry"
+    ]
+    assert row.status == "FAIL" and "sign in again" in row.detail and "fleetwatch login" in row.detail
+
+
+def test_systemd_does_not_restart_a_dead_sign_in():
+    unit = (ROOT / "deploy/fleetwatch.service").read_text()
+    assert "Restart=on-failure" in unit and "RestartPreventExitStatus=78" in unit
