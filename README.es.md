@@ -53,6 +53,30 @@ la rama de desarrollo.
 
 ¿Prefieres Docker? `docker compose run --rm fleetwatch login` y luego `docker compose up -d`.
 
+## Actualizar
+
+Vuelve a ejecutar la línea de instalación. Lleva `~/fleetwatch` a la última versión publicada, instala sus
+dependencias y reinicia el servicio. Tu `.env`, tu inicio de sesión y tu historial no se tocan: el estado en SQLite
+vive en `~/.fleetwatch`, y el token de inicio de sesión en el Llavero de macOS o en esa misma carpeta, todo fuera de
+la carpeta del código.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
+```
+
+Para elegir una versión, añade `-s -- --ref v0.1.0` (cualquier etiqueta de versión, o `main` para la rama de
+desarrollo). Si clonaste el repositorio tú mismo, ejecuta `git pull && uv sync` en su carpeta, y luego
+`deploy/install.sh` para reiniciar el servicio.
+
+En Docker, `docker compose pull && docker compose up -d` descarga la imagen más reciente de GitHub Container
+Registry y reinicia el contenedor. El volumen `fleetwatch-state` conserva el inicio de sesión y el historial. Para
+quedarte en una versión, cambia `image:` en `compose.yaml` a una etiqueta de versión, como
+`ghcr.io/scientiacapital/fleetwatch:0.1.0`, o `:0.1` para recibir sus correcciones. Mientras no exista la primera
+versión no hay imagen que descargar, así que ejecuta `docker compose up -d --build`.
+
+Después, `fleetwatch doctor` muestra la versión en su primera línea. Cada versión en
+[GitHub Releases](https://github.com/ScientiaCapital/fleetwatch/releases) dice qué cambió.
+
 ## Inicio rápido
 
 ¿Sin cuenta a mano? Ejecuta un ciclo completo contra la muestra guardada:
