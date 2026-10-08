@@ -39,7 +39,7 @@ con la API real de Anthropic. La versión 0.1 no usa nada de esto. El diseño es
 Lo que el modelo puede ver. Tu pregunta y los resultados, con los secretos ocultos, de las herramientas de lectura que
 pide. Esos resultados incluyen nombres de equipos, canales, fuentes y eventos, modelos, grupos, firmware y el estado
 de conexión, grabación y eventos. Se envían a la API de Anthropic. La ocultación quita las formas de secreto que
-conoce, no todos los secretos posibles; ver [Límites conocidos](#límites-conocidos).
+conoce, no todos los secretos posibles; ver los límites conocidos más abajo.
 
 Lo que el modelo puede hacer. Leer, con la misma protección `guard()` que todo lo demás, y llamar a
 `propose_change`. Esa herramienta guarda una propuesta pendiente y no ejecuta nada. El modelo nunca ve una
