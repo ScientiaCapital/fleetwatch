@@ -16,7 +16,9 @@ import sys
 import threading
 import webbrowser
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
 import httpx2
@@ -25,8 +27,17 @@ from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata, OAuthM
 from pydantic import ValidationError
 
 from fleetwatch.epiphan.token_store import FileTokenStorage, RefreshLock, TokenStore
+from fleetwatch.redact import MASK, redact
 
-__all__ = ["FileTokenStorage", "LoginAuth", "TokenStore", "make_provider", "parse_callback"]
+__all__ = [
+    "FileTokenStorage",
+    "LoginAuth",
+    "Revocation",
+    "TokenStore",
+    "make_provider",
+    "parse_callback",
+    "revoke_tokens",
+]
 
 LOGIN_TIMEOUT_S = 300
 CALLBACK_PATH = "/callback"
@@ -318,6 +329,128 @@ def make_provider(server_url: str, storage: TokenStore, port: int, interactive: 
         redirect_handler=show_link,
         callback_handler=wait_for_code,
     )
+
+
+REVOKE_TIMEOUT_S = 5.0
+REASON_MAX = 120  # characters of Epiphan's error text kept in the logout message
+
+
+@dataclass(frozen=True)
+class Revocation:
+    """What `revoke_tokens` managed. `reason` is short, plain and already redacted: safe to print."""
+
+    outcome: Literal["revoked", "no_endpoint", "failed", "no_tokens"]
+    reason: str | None = None
+
+
+def _safe(text: str, secrets: tuple[str, ...]) -> str:
+    """Error text fit to print: our own token values masked even when nothing names them, then `redact()`."""
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, MASK)
+    text = redact(" ".join(text.split()))
+    return text if len(text) <= REASON_MAX else text[: REASON_MAX - 3] + "..."
+
+
+def _https(url: str) -> bool:
+    """Tokens only ever go over TLS. No loopback exception: nothing real needs one, and tests mock the transport."""
+    parsed = urlparse(url)
+    return parsed.scheme == "https" and bool(parsed.hostname)
+
+
+def _metadata_url(issuer: str) -> str:
+    """RFC 8414 section 3.1: the well-known part goes between the host and the issuer's path."""
+    parsed = urlparse(issuer)
+    return f"https://{parsed.netloc}/.well-known/oauth-authorization-server{parsed.path.rstrip('/')}"
+
+
+def _why(response: httpx2.Response) -> str:
+    """HTTP status plus the OAuth error fields (RFC 6749 section 5.2) or the start of the body. Not yet redacted."""
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict) and body.get("error"):
+        detail = " ".join(str(body[k]) for k in ("error", "error_description") if body.get(k))
+    else:
+        detail = response.text
+    return f"HTTP {response.status_code}{': ' + detail if detail.strip() else ''}"
+
+
+def _error_text(e: Exception) -> str:
+    """`ValueError` carries our own words; a network error says what kind it was. Not yet redacted."""
+    if isinstance(e, ValueError):
+        return str(e)
+    return f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+
+
+async def _discover(client: httpx2.AsyncClient, issuer: str) -> str | None:
+    """The revocation endpoint from a fresh RFC 8414 read, or None if Epiphan publishes none. Raises ValueError when
+    the answer can't be trusted (another issuer), httpx2.HTTPError when it can't be read."""
+    response = await client.get(_metadata_url(issuer))
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise ValueError(_why(response))
+    try:
+        found = OAuthMetadata.model_validate(response.json())
+    except (ValueError, ValidationError) as e:
+        raise ValueError("its sign-in settings don't parse") from e
+    if str(found.issuer).rstrip("/") != issuer.rstrip("/"):  # RFC 8414 section 3.3
+        raise ValueError("its sign-in settings name a different issuer")
+    return str(found.revocation_endpoint) if found.revocation_endpoint else None
+
+
+async def revoke_tokens(
+    storage: TokenStore, timeout: float = REVOKE_TIMEOUT_S, transport: httpx2.AsyncBaseTransport | None = None
+) -> Revocation:
+    """Ask Epiphan to revoke the stored tokens (RFC 7009): the refresh token first, then the access token.
+
+    Uses the revocation endpoint saved at sign-in, or one from a fresh RFC 8414 read of the saved issuer. Only reads
+    the store; clearing it is the caller's job, and the caller does it whatever this returns. Never raises for
+    an HTTP or network problem: that comes back as "failed" with a short, redacted reason."""
+    tokens = await storage.get_tokens()
+    if tokens is None:
+        return Revocation("no_tokens")
+    client_info = await storage.get_client_info()
+    secrets = (tokens.access_token, tokens.refresh_token or "", (client_info and client_info.client_secret) or "")
+    saved = (_ask(storage, "oauth_metadata") or {}).get("metadata") or {}
+    issuer, endpoint = saved.get("issuer"), saved.get("revocation_endpoint")
+    if not issuer and not endpoint:
+        return Revocation("failed", "this sign-in has no saved Epiphan addresses")
+
+    async with httpx2.AsyncClient(transport=transport, timeout=timeout, follow_redirects=False) as client:
+        try:
+            if not endpoint:
+                if not _https(issuer):
+                    return Revocation("failed", "Epiphan's sign-in address isn't https")
+                endpoint = await _discover(client, issuer)
+                if endpoint is None:
+                    return Revocation("no_endpoint")
+        except (httpx2.HTTPError, ValueError) as e:
+            return Revocation("failed", _safe(f"couldn't read Epiphan's sign-in settings: {_error_text(e)}", secrets))
+        if not _https(endpoint):
+            return Revocation("failed", "Epiphan's revocation address isn't https")
+
+        problem = None
+        for token, hint in ((tokens.refresh_token, "refresh_token"), (tokens.access_token, "access_token")):
+            if not token:
+                continue
+            form = {"token": token, "token_type_hint": hint}
+            if client_info is not None and client_info.client_id:
+                form["client_id"] = client_info.client_id
+                if client_info.client_secret:
+                    form["client_secret"] = client_info.client_secret
+            try:
+                response = await client.post(endpoint, data=form)
+            except httpx2.HTTPError as e:
+                problem = problem or _error_text(e)
+                continue
+            if response.status_code != 200:  # RFC 7009 section 2.2: 200 means done, even for an unknown token
+                problem = problem or _why(response)
+    if problem:
+        return Revocation("failed", _safe(problem, secrets))
+    return Revocation("revoked")
 
 
 class LoginAuth(httpx2.Auth):

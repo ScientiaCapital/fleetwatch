@@ -19,7 +19,10 @@ the team to watch. Fleetwatch sees only what your account sees in that team.
   which one is in use. A Mac that runs Fleetwatch while nobody is logged in can't open the login Keychain;
   use `FLEETWATCH_TOKEN_STORE=file` there. Whichever store is in use, `~/.fleetwatch/epiphan-oauth.lock` is an
   empty file the processes on one machine (`run`, a cron `digest`) take turns on, so only one refreshes at a time.
-- `uv run fleetwatch status` shows whether you are signed in. `uv run fleetwatch logout` deletes the token.
+- `uv run fleetwatch status` shows whether you are signed in. `uv run fleetwatch logout` asks Epiphan to revoke
+  the token (RFC 7009) when Epiphan offers that, then deletes it from this machine either way. It tells you which
+  happened: "Epiphan revoked the token", or "Signed out on this machine" when Epiphan doesn't offer revocation or
+  didn't confirm it. In that case a copy of the token taken earlier keeps working until it expires.
 - The sign-in redirect goes to `http://127.0.0.1:8765/callback` (the loopback address, not `localhost`). If a
   version before this change signed you in and `login` now fails with a redirect error, run `fleetwatch logout`
   first so Fleetwatch registers again with the new address. A running agent keeps refreshing its token either way.

@@ -52,6 +52,31 @@ async def _login(settings: Settings) -> None:
     print(f"Signed in. This team has {n} devices. Token saved to {where}.")
 
 
+def _logout(settings: Settings) -> str:
+    """Ask Epiphan to revoke the token (RFC 7009) when it offers that, then always delete it here. Revocation never
+    stops the sign-out: whatever happens on the network, the store is cleared and a plain message comes back."""
+    from fleetwatch.epiphan import auth
+    from fleetwatch.redact import redact
+
+    store = make_token_store(settings.token_store, settings.token_file)
+    try:
+        result = asyncio.run(auth.revoke_tokens(store))
+    except Exception as e:  # noqa: BLE001 - a bug or a store read error must not leave the token on disk
+        result = auth.Revocation("failed", redact(f"{type(e).__name__}: {e}")[: auth.REASON_MAX])
+    finally:
+        store.clear()
+    if result.outcome == "revoked":
+        return "Signed out. Epiphan revoked the token."
+    if result.outcome == "no_endpoint":
+        return "Signed out on this machine. Epiphan doesn't offer token revocation, so a copied token works until it expires."
+    if result.outcome == "failed":
+        return (
+            f"Signed out on this machine. Epiphan didn't confirm the revocation ({result.reason}), "
+            "so a copied token may work until it expires."
+        )
+    return "Signed out."
+
+
 async def _digest(settings: Settings, replay: str | None, capture: str | None = None) -> None:
     client, state, notifier = _build(settings, interactive=False, replay=replay, capture=capture)
     policy = load_policy(settings.policy_file)
@@ -221,8 +246,7 @@ def main() -> None:
     if args.command == "login":
         asyncio.run(_login(settings))
     elif args.command == "logout":
-        make_token_store(settings.token_store, settings.token_file).clear()
-        print("Signed out.")
+        print(_logout(settings))
     elif args.command == "digest":
         asyncio.run(_digest(settings, args.replay, args.capture))
     elif args.command == "ask":
