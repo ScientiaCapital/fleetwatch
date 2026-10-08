@@ -56,6 +56,10 @@ class FakeEdge:
         self.team_id: str | None = None
         self.reply: Any = {}  # what a write returns: a map, text, an exception, or "sleep"
         self.fail_reads: set[str] = set()
+        # The sandbox team's stream destinations. A real result carries a URL and a key too; only the ID matters here.
+        self.endpoints: list[dict[str, Any]] = [
+            {"id": STREAM, "name": "Rehearsal stream", "url": "rtmp://rehearsal.example.invalid/live/FAKEKEY123"}
+        ]
         self.server = self._build()
 
     @property
@@ -107,6 +111,20 @@ class FakeEdge:
         def get_current_or_next_cms_events_for_devices(until: str) -> dict[str, Any]:
             self._read("get_current_or_next_cms_events_for_devices", {"until": until})
             return {"devices": {ROOM: {"event": self.event}, OTHER: {"event": None}}}
+
+        @srv.tool()
+        def get_stream_endpoints() -> dict[str, Any]:
+            self._read("get_stream_endpoints", {})
+            return {"stream_endpoints": self.endpoints}
+
+        @srv.tool()
+        async def stop_stream_endpoint(stream_id: str, device_id: str, channel_id: str) -> Any:
+            args = {"stream_id": stream_id, "device_id": device_id, "channel_id": channel_id}
+            return await self._write("stop_stream_endpoint", args)
+
+        @srv.tool()
+        async def confirm_cms_event_on_device(device_id: str, event_id: str) -> Any:
+            return await self._write("confirm_cms_event_on_device", {"device_id": device_id, "event_id": event_id})
 
         @srv.tool()
         async def batch_reboot(device_ids: list[str]) -> Any:
@@ -322,6 +340,60 @@ async def test_a_disruptive_change_well_before_the_next_event_runs(edge, sandbox
     edge.event = {"id": "e1", "title": "Weekly review", "start": start.isoformat(), "end": None}
     state = State()
     record, _ = _approved(state, fp=_fp(next_event_start=start.isoformat()))
+    assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
+
+
+OTHER_STREAM = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d"  # a stream ID that isn't on the sandbox team's list
+
+
+@pytest.mark.parametrize("tool", ["start_stream_endpoint", "stop_stream_endpoint"])
+async def test_a_stream_that_isnt_on_the_teams_list_is_refused(edge, sandbox, tools, tool):
+    state = State()
+    args = {"stream_id": OTHER_STREAM, "device_id": ROOM, "channel_id": "1"}
+    record, aid = _approved(state, tool=tool, args=args)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "stream" in out.detail and OTHER_STREAM in out.detail
+    assert edge.writes == []
+    assert state.outcome(aid) == "error"
+
+
+async def test_a_stream_on_the_teams_list_runs_and_the_list_was_read_through_the_guard(edge, sandbox, tools):
+    state = State()
+    args = {"stream_id": STREAM, "device_id": ROOM, "channel_id": "1"}
+    record, _ = _approved(state, tool="start_stream_endpoint", args=args)
+    assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
+    assert ("get_stream_endpoints", {}) in edge.calls
+    assert [c[0] for c in edge.writes] == ["start_stream_endpoint"]
+
+
+async def test_an_unreadable_stream_list_fails_closed(edge, sandbox, tools):
+    edge.fail_reads = {"get_stream_endpoints"}
+    state = State()
+    args = {"stream_id": STREAM, "device_id": ROOM, "channel_id": "1"}
+    record, _ = _approved(state, tool="start_stream_endpoint", args=args)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and edge.writes == []
+
+
+async def test_an_event_that_isnt_on_the_target_device_is_refused(edge, sandbox, tools):
+    start = (datetime.now(UTC) + timedelta(hours=5)).replace(microsecond=0)
+    edge.event = {"id": "e1", "title": "Weekly review", "start": start.isoformat(), "end": None}
+    state = State()
+    args = {"device_id": ROOM, "event_id": "someone-elses-event"}
+    fp = _fp(next_event_start=start.isoformat())
+    record, _ = _approved(state, tool="confirm_cms_event_on_device", args=args, fp=fp)
+    out = await _executor(sandbox, state, tools).execute(record)
+    assert out.status == "refused" and "event" in out.detail
+    assert edge.writes == []
+
+
+async def test_an_event_on_the_target_device_runs(edge, sandbox, tools):
+    start = (datetime.now(UTC) + timedelta(hours=5)).replace(microsecond=0)
+    edge.event = {"id": "e1", "title": "Weekly review", "start": start.isoformat(), "end": None}
+    state = State()
+    args = {"device_id": ROOM, "event_id": "e1"}
+    fp = _fp(next_event_start=start.isoformat())
+    record, _ = _approved(state, tool="confirm_cms_event_on_device", args=args, fp=fp)
     assert (await _executor(sandbox, state, tools).execute(record)).status == "ok"
 
 

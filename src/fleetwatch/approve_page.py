@@ -31,6 +31,7 @@ import time
 import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Protocol
@@ -170,6 +171,20 @@ TEXT: dict[str, dict[str, str]] = {
         "recording": "Recording",
         "not_recording": "Not recording",
         "missing": "Not on the device list just read",
+        "named": "Names just read",
+        "channel": "Channel",
+        "stream": "Stream destination",
+        "host": "Host",
+        "event": "Event",
+        "starts": "Starts",
+        "ends": "Ends",
+        "none": "none set",
+        "notfound": "Not found",
+        "channel_unknown": "A channel isn't on the device just read, so this can't be approved.",
+        "stream_unknown": "This stream destination isn't on the team's list just read, so this can't be approved.",
+        "streams_unread": "Fleetwatch couldn't read the team's stream destinations just now, so this can't be "
+        "approved. Reload to try again.",
+        "event_unknown": "This event isn't the one the device reports as current or next, so this can't be approved.",
         "arguments": "Every argument",
         "what": "What happens",
         "undo": "How to undo it",
@@ -224,6 +239,22 @@ TEXT: dict[str, dict[str, str]] = {
         "recording": "Grabando",
         "not_recording": "Sin grabar",
         "missing": "No está en la lista de equipos recién leída",
+        "named": "Nombres recién leídos",
+        "channel": "Canal",
+        "stream": "Destino de transmisión",
+        "host": "Servidor",
+        "event": "Evento",
+        "starts": "Inicia",
+        "ends": "Termina",
+        "none": "sin definir",
+        "notfound": "No encontrado",
+        "channel_unknown": "Un canal no está en el equipo recién leído, así que no se puede aprobar.",
+        "stream_unknown": "Este destino de transmisión no está en la lista del equipo recién leída, así que no se "
+        "puede aprobar.",
+        "streams_unread": "Fleetwatch no pudo leer los destinos de transmisión del equipo ahora, así que no se "
+        "puede aprobar. Recarga para intentarlo de nuevo.",
+        "event_unknown": "Este evento no es el que el equipo reporta como actual o siguiente, así que no se puede "
+        "aprobar.",
         "arguments": "Todos los argumentos",
         "what": "Qué pasa",
         "undo": "Cómo deshacerlo",
@@ -317,6 +348,62 @@ def _visible(text: str) -> str:
         else ch
         for ch in text
     )
+
+
+_CHANNEL_TARGET = re.compile(r"([0-9a-f]{8,32})-([1-9][0-9]{0,2})")
+
+
+def _when_text(when: Any) -> str:
+    return when.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC") if when else ""
+
+
+def _resolved(t: dict[str, str], args: dict[str, Any], fleet: Fleet | None) -> tuple[str, str]:
+    """Names for the IDs in the arguments, from the fresh read: (rows, why not). Display text only: every value is
+    capped, shown with hidden characters as \\uXXXX and escaped; none is bound into the approval or picks a path.
+    The arguments are already schema-checked, so the keys looked at here are the schema's own. A stream
+    destination shows its name and host, never its key. An ID that isn't found says so and the card offers Deny
+    only."""
+    if fleet is None:  # the card already says the read failed
+        return "", ""
+    rows: list[str] = []
+    why = ""
+
+    def row(label: str, value: str) -> None:
+        rows.append(f"<tr><th>{_e(label)}</th><td>{_e(_visible(_cap(value, NAME_CAP)))}</td></tr>")
+
+    def gone(label: str, key: str) -> None:
+        nonlocal why
+        rows.append(f'<tr><th>{_e(label)}</th><td class="warn">{_e(t["notfound"])}</td></tr>')
+        why = why or t[key]
+
+    ids = args.get("device_ids") or ()
+    channels = [(m.group(1), m.group(2)) for v in ids if (m := _CHANNEL_TARGET.fullmatch(str(v)))]
+    if args.get("channel_id") is not None and args.get("device_id") is not None:
+        channels.append((str(args["device_id"]), str(args["channel_id"])))
+    for dev_id, number in channels:
+        device = fleet.devices.get(dev_id)
+        channel = device.channels.get(number) if device else None
+        if channel is None:
+            gone(f"{t['channel']} {number}", "channel_unknown")
+        else:
+            row(f"{t['channel']} {number}", channel.name)
+    if args.get("stream_id") is not None:
+        if fleet.endpoints is None:
+            gone(t["stream"], "streams_unread")
+        elif (endpoint := fleet.endpoints.get(str(args["stream_id"]))) is None:
+            gone(t["stream"], "stream_unknown")
+        else:
+            row(t["stream"], endpoint.name)
+            row(t["host"], endpoint.host or t["none"])
+    if args.get("event_id") is not None:
+        event = fleet.events.get(str(args.get("device_id")))
+        if event is None or not event.id or event.id != args["event_id"]:
+            gone(t["event"], "event_unknown")
+        else:
+            row(t["event"], event.title)
+            row(t["starts"], _when_text(event.start))
+            row(t["ends"], _when_text(event.end) or t["none"])
+    return "".join(rows), why
 
 
 def _showable_text(s: str) -> bool:
@@ -483,6 +570,9 @@ class ApprovePage:
                 except NotCanonical:
                     why = t["not_listed"]
 
+        named_rows, named_why = _resolved(t, args, fleet)
+        why = why or named_why
+
         arg_rows = "".join(
             f"<tr><th><code>{_e(k)}</code></th><td><code>{_e(json.dumps(v, ensure_ascii=False))}</code></td></tr>"
             for k, v in sorted(args.items())
@@ -495,7 +585,8 @@ class ApprovePage:
             f"<th>{_e(t['model'])}</th><th>{_e(t['online'])}</th><th>{_e(t['recording'])}</th></tr>"
             + "".join(rows)
             + f"</table><h3>{_e(t['arguments'])}</h3><table>{arg_rows}</table>"
-            f"<h3>{_e(t['what'])}</h3><p>{_e(what)}</p><h3>{_e(t['undo'])}</h3><p>{_e(undo)}</p>"
+            + (f"<h3>{_e(t['named'])}</h3><table>{named_rows}</table>" if named_rows else "")
+            + f"<h3>{_e(t['what'])}</h3><p>{_e(what)}</p><h3>{_e(t['undo'])}</h3><p>{_e(undo)}</p>"
             + (f'<p class="note">{_e(t["disruptive"])}</p>' if disruptive else "")
             + (f'<p class="warn">{_e(why)}</p>' if why else "")
             + f'<section class="reason"><h3>{_e(t["reason"])}</h3><pre>{_e(clean_reason)}</pre></section>'

@@ -220,6 +220,34 @@ def test_chat_without_a_key_or_with_no_ai_uses_the_keyword_answer_and_says_so(tm
     assert len(page.state.pending_proposals()) == 1  # only the replay sample: the keyword answer can't propose
 
 
+def test_every_replay_client_the_page_builds_shares_one_clock(tmp_path, monkeypatch, no_real_executor):
+    """The replay's relative times ("{{now+25m}}") resolve against each client's own clock. A card compares the
+    fingerprint the assistant took with the page's fresh read, so two clients built a second apart made a card look
+    "changed" and Deny-only. This once failed under load; here each new client's clock is forced a second later."""
+    from datetime import UTC, datetime, timedelta
+
+    from fleetwatch.epiphan.replay import ReplayClient
+
+    made: list[ReplayClient] = []
+    base = datetime.now(UTC)
+
+    class Ticking(ReplayClient):
+        def __init__(self, directory, tools, now=None):
+            super().__init__(directory, tools, now=now or base + timedelta(seconds=len(made) + 1))
+            made.append(self)
+
+    monkeypatch.setattr(cli, "ReplayClient", Ticking)
+    from tests.test_assistant import FakeAnthropic, reply, text
+
+    fake = FakeAnthropic(reply(text("Nothing needs attention.")))
+    s = _settings(tmp_path, "observe", anthropic_api_key="sk-ant-test")
+    page = cli._approve_page(s, str(FIXTURES), model_client=fake)
+    asyncio.run(page.read_fleet())
+    page.ask_fn("what needs attention")
+    assert len(made) >= 2, "the page's client and the chat's reader"
+    assert len({c.now for c in made}) == 1, [c.now for c in made]
+
+
 def test_the_live_pages_sandbox_read_is_strict(tmp_path, monkeypatch):
     """A failed recorder read must fail the page's read (a Deny-only card), not show 'Not recording'."""
     from fleetwatch.epiphan.replay import ReplayClient
@@ -241,3 +269,10 @@ def test_the_live_pages_sandbox_read_is_strict(tmp_path, monkeypatch):
     page = cli._approve_page(s, None)
     with pytest.raises(FailedRead):
         asyncio.run(page.read_fleet())
+
+
+def test_replay_reads_name_the_stream_endpoints_by_host_only(tmp_path, no_real_executor):
+    page = cli._approve_page(_settings(tmp_path, "observe"), str(FIXTURES))
+    fleet = asyncio.run(page.read_fleet())
+    assert fleet.endpoints, "the replay sample lists stream destinations"
+    assert all(e.host and "/" not in e.host for e in fleet.endpoints.values())

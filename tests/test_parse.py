@@ -76,3 +76,22 @@ def test_events_shapes(fleet):
     assert set(fleet.events) == {dev.id}
     ev = fleet.events[dev.id]
     assert ev.title == "BIO 101" and ev.start == datetime(2026, 10, 7, 15, 20, tzinfo=UTC) and ev.key == f"{dev.id}:e1"
+
+
+def test_stream_endpoints_keep_the_name_and_host_and_never_the_key():
+    from fleetwatch.epiphan.parse import parse_stream_endpoints
+
+    sid = "3f2a9c1e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
+    url = "rtmp://rehearsal.example.invalid:1935/live/KEY123?token=abc"
+    raw = {"stream_endpoints": [{"id": sid, "name": "Rehearsal stream", "url": url}]}
+    (endpoint,) = parse_stream_endpoints(raw).values()
+    assert (endpoint.id, endpoint.name, endpoint.host) == (sid, "Rehearsal stream", "rehearsal.example.invalid")
+    assert "KEY123" not in repr(endpoint) and "token" not in repr(endpoint)
+
+
+def test_stream_endpoints_that_cant_be_read_are_none_not_empty():
+    from fleetwatch.epiphan.parse import parse_stream_endpoints
+
+    assert parse_stream_endpoints("an error in words") is None
+    assert parse_stream_endpoints({"stream_endpoints": [{"name": "no id"}]}) is None
+    assert parse_stream_endpoints({"stream_endpoints": []}) == {}

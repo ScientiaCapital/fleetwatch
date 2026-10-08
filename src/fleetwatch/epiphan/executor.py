@@ -17,7 +17,8 @@ one write tool per consumed approval.
 4. Reads through an `EpiphanClient` on that session, so every read goes through the same `guard()` and `redact()`
    as the heartbeat: the sandbox team's device list (every target device, a channel's master included, must be on
    it), each target's recording state and next event (they must match the approved fingerprint), and the team ID
-   when FLEETWATCH_WRITE_TEAM_ID is set. With neither that nor FLEETWATCH_WRITE_DEVICE_IDS set, nothing runs, and a
+   when FLEETWATCH_WRITE_TEAM_ID is set. A `stream_id` must be on the team's stream destination list, and an
+   `event_id` must be the event the target device reports. With neither that nor FLEETWATCH_WRITE_DEVICE_IDS set, nothing runs, and a
    target not on that allowlist is refused. A disruptive change is refused while a target room is recording or
    inside the readiness window. Any failed read refuses the change.
 5. Calls the write tool once, with the canonical arguments. No retry, ever. A 401, a timeout or any transport error
@@ -40,7 +41,13 @@ from typing import Any
 from fleetwatch.agents.room_state.rules import room_state
 from fleetwatch.config import Settings
 from fleetwatch.epiphan.mcp import _UNAUTHORIZED, EpiphanClient
-from fleetwatch.epiphan.parse import apply_events, apply_recorder_status, device_items, parse_devices
+from fleetwatch.epiphan.parse import (
+    apply_events,
+    apply_recorder_status,
+    device_items,
+    parse_devices,
+    parse_stream_endpoints,
+)
 from fleetwatch.epiphan.token_store import SANDBOX_SERVICE, TokenStore, TokenStoreError, make_token_store
 from fleetwatch.fence import Fence, master_id
 from fleetwatch.model import Fleet, RoomState
@@ -244,8 +251,24 @@ class WriteExecutor:
 
         if state_fingerprint(fleet, record.targets) != record.fingerprint:
             raise Refused("a target's state changed since approval (online, recording or next event)")
+        await self._check_ids(reader, fleet, args)
         if self._tools.is_disruptive(record.tool):
             self._check_rooms(fleet, record, now)
+
+    async def _check_ids(self, reader: EpiphanClient, fleet: Fleet, args: dict[str, Any]) -> None:
+        """A stream must be on the sandbox team's destination list, and an event must be the one the target device
+        reports (from the events read above). Only IDs are compared; names never pick anything."""
+        stream_id, event_id = args.get("stream_id"), args.get("event_id")
+        if stream_id is not None:
+            endpoints = parse_stream_endpoints(await self._read(reader, "get_stream_endpoints", {}))
+            if endpoints is None:
+                raise Refused("the sandbox team's stream destinations couldn't be read")
+            if stream_id not in endpoints:
+                raise Refused(f"the stream {stream_id} isn't on the sandbox team's list of stream destinations")
+        if event_id is not None:
+            event = fleet.events.get(str(args.get("device_id")))
+            if event is None or not event.id or event.id != event_id:
+                raise Refused(f"the event {event_id} isn't the one this device reports as current or next")
 
     async def _read(self, reader: EpiphanClient, tool: str, arguments: dict[str, Any]) -> Any:
         try:

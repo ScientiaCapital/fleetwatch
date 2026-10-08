@@ -59,6 +59,16 @@ class Event:
         return f"{self.device_id}:{self.id or self.start.isoformat()}"
 
 
+@dataclass(frozen=True)
+class Endpoint:
+    """A stream destination on the team: its ID, its name (untrusted text) and its host. Never the stream key and
+    never the full URL: the key is part of a URL's path, so only the host is kept."""
+
+    id: str
+    name: str
+    host: str = ""
+
+
 @dataclass
 class SystemStatus:
     cpu_load_pct: float | None = None
@@ -72,6 +82,9 @@ class Fleet:
     devices: dict[str, Device] = field(default_factory=dict)
     events: dict[str, Event] = field(default_factory=dict)  # next or current event per device id
     system: dict[str, SystemStatus] = field(default_factory=dict)
+    # The team's stream destinations by ID. None means they weren't read (or couldn't be), which is different from
+    # an empty team. Only the approval page and the write executor read them.
+    endpoints: dict[str, Endpoint] | None = None
 
 
 @dataclass(frozen=True)
