@@ -10,11 +10,11 @@ Quiet hours don't apply, so the digest looks the same at any time of day.
 
 The bundled sample is also the offline demo. It covers every tool a heartbeat reads, so one run shows the whole
 product: rooms offline, a channel with no picture, a unit working hard, one running warm, a recent restart, the
-storage FYI, and two checks before an event, one *Ready* and one *Not ready*. The device list is a real fleet, renamed
-and with IDs replaced; the recorder, system and schedule files are synthetic.
+storage FYI, and two checks before an event, one "Ready" and one "Not ready". The device list is a real fleet, renamed
+and with IDs replaced; the recorder, system, and schedule files are synthetic.
 
 There is also a calm sample for a screen in a quiet room: `uv run fleetwatch digest --replay tests/fixtures/calm`
-shows *All clear* and one event coming up, *Ready*. Four rooms, nothing to fix.
+shows "All clear" and one event coming up, "Ready". Four rooms, nothing to fix.
 
 ## Your own sample
 
@@ -22,7 +22,7 @@ Save each tool's JSON result as `<tool name>.json` in a folder, for example `get
 with no saved file are reported and skipped.
 
 Or let a signed-in Fleetwatch write them: `fleetwatch digest --capture ~/fleetwatch-capture` runs one heartbeat
-and saves every tool result it read, redacted, as replay files in that folder (private, with a note saying it is
+and saves every tool result it read, redacted, as replay files in that folder (private, with a note saying it's
 not for commit). Keep the folder outside the repo: the files come from your real fleet. `--replay DIR --capture DIR2`
 works too, and is what the tests use.
 
@@ -34,4 +34,4 @@ Times can be written relative to when the replay runs, so a sample stays current
 | `{{now+25m}}` | 25 minutes from now |
 | `{{now-2h}}` | 2 hours ago |
 
-**Rename rooms and remove IDs, IPs, serials and people's names before you share a sample.**
+Rename rooms and remove IDs, IPs, serials, and people's names before you share a sample.
