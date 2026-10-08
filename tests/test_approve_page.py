@@ -966,6 +966,23 @@ def test_card_uses_the_firmware_update_window(harness):
     assert "would be blocked" in _get(harness), "firmware's window is 120"
 
 
+def test_card_says_when_no_device_returned_a_schedule(harness):
+    harness.add("batch_reboot", {"device_ids": [ROOM]})  # the harness fleet has no events at all
+    body = _get(harness)
+    assert "No event schedule came back for any device" in body
+    assert 'action="/approve"' in body, "information, not a new gate"
+    harness.fleet_box[0].events[OTHER] = _soon(300)
+    assert "No event schedule came back" not in _get(harness), "one device with an event shows the read works"
+
+
+def test_no_schedule_note_is_only_for_disruptive_changes_and_comes_in_spanish(harness):
+    harness.add("batch_recording", REC_START)
+    assert "No event schedule" not in _get(harness)
+    harness.add("batch_reboot", {"device_ids": [ROOM]})
+    harness.state.deny(harness.state.pending_proposals()[0][0], "x")
+    assert "Ningún horario de eventos" in _get(harness, "es")
+
+
 def test_card_does_not_warn_when_the_room_is_free(harness):
     harness.add("batch_reboot", {"device_ids": [ROOM]})
     assert "would be blocked" not in _get(harness)

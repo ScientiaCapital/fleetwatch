@@ -269,7 +269,14 @@ async def _live_assistant(settings: Settings, key: str, question: str, state: St
 
 
 def _approve_ask(
-    settings: Settings, state: State, policy, key: str, replay: str | None, model_client=None, replay_now=None
+    settings: Settings,
+    state: State,
+    policy,
+    key: str,
+    replay: str | None,
+    model_client=None,
+    replay_now=None,
+    no_ai: bool = False,
 ):
     """The approval page's chat box. Sync, because the page's server is single-threaded: one question at a time, each
     in its own event loop. Replay reads the fixtures for both the model's reads and the proposal check, and binds
@@ -277,7 +284,8 @@ def _approve_ask(
     from fleetwatch import assistant
 
     if not key:
-        return lambda q: assistant.fallback(q, state, policy, None, None, "no_key").text
+        why = "no_ai" if no_ai else "no_key"
+        return lambda q: assistant.fallback(q, state, policy, None, None, why).text
     if not replay:
         return lambda q: asyncio.run(_live_assistant(settings, key, q, state, policy))
     tools = load_tools(settings.tool_policy_file)
@@ -328,7 +336,9 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
                 return await read_for_approval(client, datetime.now(UTC))
 
         state = State(":memory:", check_same_thread=False)  # a replay never touches the real history
-        ask_fn = _approve_ask(settings, state, load_policy(settings.policy_file), key, replay, model_client, replay_now)
+        ask_fn = _approve_ask(
+            settings, state, load_policy(settings.policy_file), key, replay, model_client, replay_now, no_ai
+        )
         page = ApprovePage(
             state,
             read_replay,
@@ -377,7 +387,7 @@ def _approve_page(settings: Settings, replay: str | None, no_ai: bool = False, m
             # Strict: a failed recorder or event read must fail the card (Deny only), not read as "Not recording".
             return await read_for_approval(client, datetime.now(UTC), strict=True)
 
-    ask_fn = _approve_ask(settings, state, policy, key, None)
+    ask_fn = _approve_ask(settings, state, policy, key, None, no_ai=no_ai)
     return ApprovePage(state, read_sandbox, executor, tools, settings.approve_port, ask_fn=ask_fn, policy=policy)
 
 

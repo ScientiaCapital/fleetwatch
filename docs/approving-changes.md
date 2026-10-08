@@ -42,6 +42,10 @@ checks again the moment you approve, and refuses then if the room is still busy.
 exception to the recording rule: a room that is recording can be stopped, unless an event is on now or starts soon. A firmware update looks further ahead
 (120 minutes) than other changes, because the update can still be running when the event starts.
 
+If no device returned an event schedule at all (a schedule from a content management system that Epiphan doesn't
+report, for example), a disruptive card says "No event schedule came back for any device" and asks you to check the
+room yourself, because Fleetwatch can't see an event that's about to start.
+
 ## When only Deny is offered
 
 The page shows only Deny when the arguments can't be shown in full (hidden characters, too long), the change doesn't

@@ -61,6 +61,10 @@ NOTES = {  # why the keyword answer came instead, in plain words; never silent
         "en": "The assistant is off (no API key), so here's the quick answer:",
         "es": "El asistente está apagado (no hay clave de API), así que aquí va la respuesta rápida:",
     },
+    "no_ai": {
+        "en": "The assistant is off (--no-ai), so here's the quick answer:",
+        "es": "El asistente está apagado (--no-ai), así que aquí va la respuesta rápida:",
+    },
     "api_error": {
         "en": "The assistant couldn't answer (the API returned an error), so here's the quick answer:",
         "es": "El asistente no pudo responder (la API devolvió un error), así que aquí va la respuesta rápida:",
