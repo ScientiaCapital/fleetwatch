@@ -12,6 +12,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from urllib.parse import urlparse
 
@@ -85,6 +86,29 @@ def _sign_in(s: Settings) -> Check:
     if mode & 0o077:
         return Check("Sign-in", FAIL, f"{f} is readable by other users (mode {mode:o}): run  chmod 600 {f}")
     return Check("Sign-in", OK, f"token in {f} (mode 600)")
+
+
+def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
+    """When the stored access token runs out, read offline from the store. Never shows the token itself."""
+    if s.epiphan_token:
+        return None
+    try:
+        store = make_token_store(s.token_store, s.token_file)
+        if not store.has_tokens():
+            return None
+        when = getattr(store, "expires_at", lambda: None)()  # a store without it just shows no expiry
+        dead = getattr(store, "is_dead", lambda: False)()
+    except (TokenStoreError, ValueError):
+        return None  # the Sign-in row already reports it
+    if dead:
+        return Check("Token expiry", FAIL, "Epiphan refused the refresh token: sign in again with  fleetwatch login")
+    if when is None:
+        return Check("Token expiry", OK, "not recorded yet; saved with the next refresh")
+    now = now or datetime.now(UTC)
+    local = when.astimezone().strftime("%Y-%m-%d %H:%M")
+    if when <= now:
+        return Check("Token expiry", OK, f"expired {local}; the next heartbeat will refresh it")
+    return Check("Token expiry", OK, f"{local} (refreshes itself before then)")
 
 
 def _state_dir(s: Settings) -> Check:
@@ -186,6 +210,7 @@ def run_checks(
         _guard(s),
         _redaction(),
         _sign_in(s),
+        *filter(None, [_token_expiry(s)]),
         _state_dir(s),
         _slack(s),
         _slack_commands(s),

@@ -37,3 +37,13 @@ With a note on the room (the date is when it was left):
   _Check power and the network cable at the unit._
   ↳ “Power strip under the lectern was switched off” (alex, Oct 7)
 ```
+
+## When a heartbeat can't read the fleet
+
+A read that fails, comes back as text instead of a device list, or suddenly lists 0 devices after a real fleet,
+posts nothing. Fleetwatch logs a warning and keeps every open item open, so a bad read never shows up as
+*Back to normal*. The next heartbeat opens a fresh connection to Epiphan. After 3 failed heartbeats in a row,
+`fleetwatch run` exits with code 75, and launchd, systemd or Docker starts it again.
+
+`fleetwatch ask` and the `ask --serve` page show when the fleet was last read ("Last checked 14:05"), so an old
+answer looks old.

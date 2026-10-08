@@ -23,3 +23,26 @@ the team to watch. Fleetwatch sees only what your account sees in that team.
 
 Epiphan's MCP server reports an expired or missing sign-in inside the tool result rather than as an HTTP 401, so
 `login` starts the OAuth flow itself.
+
+The token refreshes before it runs out, across restarts too: its expiry is saved next to it, and
+`fleetwatch doctor` shows it (never the token). If Epiphan still says the sign-in expired, Fleetwatch refreshes
+once and retries the read once. If that fails too, run `fleetwatch login` again.
+
+`login` also saves where Epiphan's sign-in endpoints are (no secrets), so a refresh after a restart goes to the
+right place. A token saved by an older version has no endpoints yet: the log says so once, and the next
+`fleetwatch login` saves them.
+
+## When the sign-in can't be refreshed
+
+If Epiphan refuses the refresh token (it was revoked, or the account changed), restarting won't help. Fleetwatch
+logs `Sign-in expired: run fleetwatch login`, remembers it, and `fleetwatch run` exits with code 78.
+`fleetwatch doctor` shows *sign in again*. Run `fleetwatch login`, then start the service again.
+
+- **Linux (systemd):** the unit has `RestartPreventExitStatus=78`, so it stays stopped until you sign in and run
+  `systemctl --user restart fleetwatch`.
+- **Mac (launchd):** launchd can't skip one exit code. `KeepAlive` → `SuccessfulExit = false` restarts on any
+  non-zero exit, and `Crashed` only covers crashes. The agent is started again every 30 seconds, sees the saved
+  "sign in again" mark, logs the line and exits at once, without contacting Epiphan. After `fleetwatch login`
+  the next start works on its own.
+- **Docker:** `restart: unless-stopped` behaves like launchd. Sign in again with
+  `docker compose run --rm fleetwatch login`, or `docker compose stop` until you can.

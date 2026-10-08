@@ -12,6 +12,8 @@ EnvironmentFile=-%h/fleetwatch/.env
 ExecStart=%h/.local/bin/uv run --frozen fleetwatch run
 Restart=on-failure
 RestartSec=30
+# 78 (EX_CONFIG) means Epiphan refused the refresh token: restarting can't fix it, `fleetwatch login` does.
+RestartPreventExitStatus=78
 NoNewPrivileges=true
 # Files the agent creates (token, state, logs) are private to this user.
 UMask=0077
