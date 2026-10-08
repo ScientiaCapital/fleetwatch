@@ -71,3 +71,16 @@ async def test_replay_resolves_relative_times(tmp_path):
     client = ReplayClient(tmp_path, load_tool_policy(ROOT / "tool_policy.yaml"), now=NOW)
     got = await client.call("get_team_presets")
     assert got == {"a": "2026-10-07T15:25:00Z", "b": "2026-10-07T13:00:00Z", "c": "2026-10-07T15:00:00Z"}
+
+
+async def test_calm_sample_is_all_clear_with_one_ready_check():
+    """The calm sample is for a screen in a quiet room: nothing to fix, one event coming up and it is Ready."""
+    client = ReplayClient(ROOT / "tests/fixtures/calm", load_tool_policy(ROOT / "tool_policy.yaml"), now=NOW)
+    state, out = State(), Capture()
+    async with client:
+        text = await tick(client, state, Policy(quiet_start=None, quiet_end=None), out, first_run=True, now=NOW)
+    assert text and "All clear" in text
+    for word in ("Fix first", "Fix soon", "When convenient", "FYI:"):
+        assert word not in text
+    readiness = [p for p in out.posts if " at " in p.splitlines()[0] and p.startswith("*")]
+    assert len(readiness) == 1 and readiness[0].splitlines()[0].endswith("*Ready*")

@@ -1,0 +1,21 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. A calm fleet: nothing to fix. Times like {{now+20m}} are resolved when the replay runs.",
+  "devices": {
+    "1f000000013": {
+      "event": {
+        "id": "demo-opening",
+        "title": "Opening demo",
+        "start": "{{now+20m}}",
+        "end": "{{now+50m}}"
+      }
+    },
+    "1f000000017": {
+      "event": {
+        "id": "demo-afternoon",
+        "title": "Afternoon session",
+        "start": "{{now+3h}}",
+        "end": "{{now+4h}}"
+      }
+    }
+  }
+}

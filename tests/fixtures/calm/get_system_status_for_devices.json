@@ -1,0 +1,25 @@
+{
+  "_note": "Synthetic demo data for replay mode, not captured from a real fleet. A calm fleet: nothing to fix. Times like {{now+20m}} are resolved when the replay runs.",
+  "devices": {
+    "1f000000013": {
+      "cpu_load": 15,
+      "cpu_temp_c": 42,
+      "up_since": "{{now-30h}}"
+    },
+    "1f000000017": {
+      "cpu_load": 20,
+      "cpu_temp_c": 44,
+      "up_since": "{{now-36h}}"
+    },
+    "1f00000000b": {
+      "cpu_load": 25,
+      "cpu_temp_c": 46,
+      "up_since": "{{now-42h}}"
+    },
+    "1f000000005": {
+      "cpu_load": 30,
+      "cpu_temp_c": 48,
+      "up_since": "{{now-48h}}"
+    }
+  }
+}
