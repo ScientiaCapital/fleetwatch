@@ -174,7 +174,7 @@ def test_slack_post_failure_is_logged_redacted(caplog):
             raise RuntimeError(f"proxy said no to {FAKE_URL}")
 
     n = SlackNotifier.__new__(SlackNotifier)
-    n.channel, n._client = "#av-ops", Boom()
+    n.channel, n._web = "#av-ops", Boom()
     with caplog.at_level(logging.WARNING):
         assert n.post("hi") is False
     assert "Slack post failed" in caplog.text and "FAKEKEY" not in caplog.text

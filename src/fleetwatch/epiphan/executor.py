@@ -201,9 +201,9 @@ class WriteExecutor:
                 return self._refused(approval_id, record, e.reason)
             except Exception as e:  # noqa: BLE001 - fail closed on anything unexpected before the write
                 return self._refused(approval_id, record, f"a check failed: {_clip(e)}")
-            # The one write. `reader._client` is the same sandbox session the reads used; it is never handed to
+            # The one write. `reader.raw_session()` is the same sandbox session the reads used; it is never handed to
             # EpiphanClient.call(), whose guard refuses every write tool.
-            outcome = await self._write(reader._client, record, args)
+            outcome = await self._write(reader.raw_session(), record, args)
         finally:
             try:
                 await reader.__aexit__(None, None, None)

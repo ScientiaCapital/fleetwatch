@@ -366,6 +366,30 @@ async def test_no_fence_refuses_every_proposal(known, tools):
     assert result["is_error"] and "FLEETWATCH_WRITE_DEVICE_IDS" in result["content"]
 
 
+@pytest.mark.parametrize("failing", ["get_recorder_status_for_devices", "get_current_or_next_cms_events_for_devices"])
+async def test_a_failed_recorder_or_event_read_in_the_sandbox_refuses_the_proposal(known, tools, failing):
+    state, fleet = known
+
+    class Failing(ReplayClient):
+        async def call(self, tool, arguments=None):
+            if tool == failing:
+                raise RuntimeError("read failed")
+            return await super().call(tool, arguments)
+
+    fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("Couldn't.")))
+    await run(
+        "start recording in Courtroom",
+        fake,
+        state,
+        tools,
+        fleet=fleet,
+        sandbox=lambda: Failing(FIXTURES, tools, now=NOW),
+    )
+    assert proposal_rows(state) == [], "a card must not be built from a read that failed"
+    (result,) = tool_results(fake.messages.calls[1])
+    assert result["is_error"] and "couldn't be read" in result["content"]
+
+
 async def test_a_device_off_the_allowlist_is_not_proposed(known, tools):
     state, fleet = known
     fake = FakeAnthropic(reply(tool_use("propose_change", propose())), reply(text("Couldn't.")))

@@ -155,6 +155,7 @@ class BoundRecord:
     fingerprint: dict[str, dict[str, Any]]
     schema_version: int
     slot: str
+    reason: str = ""  # the model's stated reason, as stored; bound so the card shows what was approved
 
     def message(self) -> bytes:
         """The exact bytes the HMAC covers. The arguments go in as their canonical text, so nothing re-orders them."""
@@ -163,11 +164,12 @@ class BoundRecord:
                 "arguments": self.arguments.decode("utf-8"),
                 "fingerprint": self.fingerprint,
                 "proposal_id": self.proposal_id,
+                "reason": self.reason,
                 "schema_version": self.schema_version,
                 "slot": self.slot,
                 "targets": list(self.targets),
                 "tool": self.tool,
-                "v": 1,
+                "v": 2,
             }
         )
 

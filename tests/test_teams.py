@@ -150,6 +150,6 @@ def test_slack_path_is_still_escaped():
             sent.update(kw)
 
     n = SlackNotifier("xoxb-test", "#av-ops")
-    n._client = FakeClient()
+    n._web = FakeClient()
     assert n.post("<!here>")
     assert sent["text"] == "&lt;!here&gt;"
