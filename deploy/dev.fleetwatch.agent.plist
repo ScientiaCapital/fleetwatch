@@ -16,6 +16,10 @@
   <key>Umask</key><integer>63</integer>
   <key>StandardOutPath</key><string>__HOME__/.fleetwatch/agent.log</string>
   <key>StandardErrorPath</key><string>__HOME__/.fleetwatch/agent.log</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/local/bin:__HOME__/.local/bin</string></dict>
+  <!-- Unbuffered, or Python holds printed digests in an 8 KB block and the log looks silent for hours. -->
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/local/bin:__HOME__/.local/bin</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
 </dict>
 </plist>
