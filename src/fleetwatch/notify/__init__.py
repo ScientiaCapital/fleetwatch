@@ -49,12 +49,13 @@ class FanOut:
 
 
 def from_settings(s: "Settings") -> Notifier:
+    from fleetwatch.config import reveal
     from fleetwatch.notify.slack import SlackNotifier
     from fleetwatch.notify.teams import TeamsNotifier
 
     channels: list[Notifier] = []
-    if s.slack_bot_token:
-        channels.append(SlackNotifier(s.slack_bot_token, s.slack_channel))
+    if reveal(s.slack_bot_token):
+        channels.append(SlackNotifier(reveal(s.slack_bot_token), s.slack_channel))
     if s.teams_webhook_url and s.teams_webhook_url.get_secret_value():
         channels.append(TeamsNotifier(s.teams_webhook_url.get_secret_value()))
     return FanOut(channels) if channels else ConsoleNotifier(s.slack_channel)

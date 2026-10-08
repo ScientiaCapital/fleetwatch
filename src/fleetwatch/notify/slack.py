@@ -2,6 +2,8 @@
 
 import logging
 
+from fleetwatch.redact import redact
+
 log = logging.getLogger(__name__)
 
 
@@ -23,5 +25,5 @@ class SlackNotifier:
             self._client.chat_postMessage(channel=self.channel, text=slack_escape(text), mrkdwn=True)
             return True
         except Exception as e:  # noqa: BLE001  (a failed post must not stop the loop)
-            log.warning("Slack post failed: %s", e)
+            log.warning("Slack post failed: %s", redact(str(e)))
             return False
