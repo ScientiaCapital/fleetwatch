@@ -45,11 +45,12 @@ refuse anything wider.
 
 ## How that's enforced in v0.1
 
-- Read-only by construction. The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the
+- Refuses write tools in code. The client guard (`src/fleetwatch/epiphan/mcp.py`) refuses any tool not on the
   `read` list in `tool_policy.yaml` before a request leaves the machine, including tools Epiphan adds later.
   `policy.yaml` is forced to `autonomy: observe` and `dry_run: true`; any other value fails at start-up.
 - Redaction first. Every tool result passes through `src/fleetwatch/redact.py` before it's parsed, stored,
-  logged, or posted. Stream keys, passwords, tokens, and credentialed or ingest URLs become `[redacted]`.
+  logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
+  `[redacted]`.
 - No model call. v0.1 builds every message from fixed templates and has no AI model dependency. A later
   feature that uses a model will get its own section here first.
 - Token at rest. The Epiphan OAuth token refreshes itself, so it lives in a store Fleetwatch can write
