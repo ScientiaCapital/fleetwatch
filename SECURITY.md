@@ -200,7 +200,8 @@ Known limits:
 ## Known limits
 
 - Redaction recognizes the secret field names Epiphan uses today and common shapes in text. A secret written
-  some other way may not be caught. Add a case to `tests/test_redact.py` if you find one.
+  some other way may not be caught. If you find one, add a case to `tests/redaction-cases.json` (shared
+  byte-for-byte with the Epiphan Edge Claude Kit, so change both repos) and make `tests/test_redact.py` pass.
 - On the file store (Docker, Linux before systemd 256), the token is plain JSON protected only by file
   permissions.
 - Slack messages name rooms and devices. Pick a channel whose members may see that.
