@@ -30,7 +30,8 @@ Fleetwatch has made one live, read-only run against a real Edge team (the normal
 quirks, now handled). The 24-hour soak is done: about 28 hours of steady beats, no failed beat, no sign-in error, and
 the token refreshed from its saved endpoint across restarts. The agent exited twice when the Mac slept; that is fixed
 (#129, #130). The agent is stopped and signed out (`fleetwatch logout` revoked the token), so the next live run needs
-the maintainer's OK and a new sign-in. The v0.2 assistant, approval page and write executor are merged but tested
+the maintainer's OK and a new sign-in. `fleetwatch connect` is the guided first run for a person's own copy (region, sign-in,
+device check); it is tested only against fakes and has not been run against a real team. The v0.2 assistant, approval page and write executor are merged but tested
 only against fakes and mocks: no sandbox sign-in, no write and no model API call has been made. No release is
 tagged, so the installer installs `main` and Docker builds locally.
 
