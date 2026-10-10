@@ -115,7 +115,7 @@ With your own team:
 
 ```bash
 cp .env.example .env            # Slack bot token and channel; leave the token empty to print to the console
-uv run fleetwatch login         # one-time sign-in to Epiphan Edge; pick the team to watch
+uv run fleetwatch connect       # guided first run: your region, sign-in to Epiphan Edge, a check that the team shows devices
 uv run fleetwatch digest        # one heartbeat, prints or posts the digest
 uv run fleetwatch digest --capture ~/fleetwatch-capture   # also save what it read, redacted, as a replay sample
 uv run fleetwatch run           # keep going, every three minutes

@@ -21,7 +21,7 @@ git clone https://github.com/ScientiaCapital/fleetwatch.git
 cd fleetwatch
 uv sync
 cp .env.example .env          # Slack token and channel; leave the token empty to print to the console
-uv run fleetwatch login       # one-time sign-in to Epiphan Edge; see Sign-in
+uv run fleetwatch connect     # guided first run: region, sign-in to Epiphan Edge, device check; see Sign-in
 uv run fleetwatch digest      # one heartbeat, prints or posts the digest
 deploy/install.sh             # run it as a service
 ```

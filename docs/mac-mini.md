@@ -8,7 +8,7 @@ Groups, log in as that user, and run the steps below there. `fleetwatch doctor` 
 reminder.
 
 ```bash
-uv sync && uv run fleetwatch login
+uv sync && uv run fleetwatch connect
 deploy/install.sh
 ```
 
