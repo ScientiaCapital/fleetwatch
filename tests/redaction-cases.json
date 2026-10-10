@@ -1,6 +1,6 @@
 {
   "about": "Shared redaction cases for Fleetwatch (src/fleetwatch/redact.py) and the Epiphan Edge Claude Kit (.claude/hooks/epiphan-redact.sh). Keep this file byte-identical in both repos. Each case: the text must not contain any of must_not_contain after redaction, must contain every must_contain, and redacting twice must give the same text as once. All values are fake.",
-  "version": 2,
+  "version": 3,
   "cases": [
     {"id": "kv-password", "input": "password=hunter2", "must_not_contain": ["hunter2"]},
     {"id": "kv-stream-key-colon", "input": "stream key: live_9f8e7d6c", "must_not_contain": ["9f8e7d6c"]},
@@ -37,6 +37,17 @@
 
     {"id": "bare-anthropic-key", "input": "error: invalid x-api-key sk-ant-api03-FAKEANT44_def-456", "must_not_contain": ["FAKEANT44", "sk-ant-"]},
     {"id": "bare-anthropic-key-in-json", "input": "{\"detail\": \"bad key sk-ant-admin01-FAKEANT45\"}", "must_not_contain": ["FAKEANT45", "sk-ant-"]},
+
+    {"id": "json-dotted-key", "input": "{\"srt.passphrase\": \"FAKEDOT46\"}", "must_not_contain": ["FAKEDOT46"]},
+    {"id": "pair-name-with-space", "input": "{\"name\": \"Stream key\", \"value\": \"FAKEPAIR47\"}", "must_not_contain": ["FAKEPAIR47"]},
+    {"id": "pair-dotted-id", "input": "{\"id\": \"publisher.rtmp.key\", \"value\": \"FAKEDOTID48\"}", "must_not_contain": ["FAKEDOTID48"]},
+    {"id": "slack-webhook", "input": "https://hooks.slack.com/services/T0/B0/FAKEHOOK49", "must_not_contain": ["FAKEHOOK49"]},
+    {"id": "json-pin-and-pass", "input": "{\"pin\": \"FAKEPIN50\", \"pass\": \"FAKEPASS51\"}", "must_not_contain": ["FAKEPIN50", "FAKEPASS51"]},
+    {"id": "publisher-stream-field", "input": "{\"url\": \"rtmp://a.example/live2\", \"stream\": \"FAKESTREAM52\", \"password\": \"\"}", "must_not_contain": ["FAKESTREAM52"]},
+    {"id": "https-live-path", "input": "{\"url\": \"https://a.example/live/FAKELIVE53\"}", "must_not_contain": ["FAKELIVE53"]},
+
+    {"id": "keep-stream-flag", "input": "{\"record\": true, \"stream\": true}", "must_not_contain": [], "must_contain": ["\"stream\": true"]},
+    {"id": "keep-stream-name-without-url", "input": "{\"stream\": \"Program\", \"name\": \"Stream 1\"}", "must_not_contain": [], "must_contain": ["Program", "Stream 1"]},
 
     {"id": "keep-plain-text", "input": "Room 204 Pearl Mini is offline", "must_not_contain": [], "must_contain": ["Room 204 Pearl Mini is offline"]},
     {"id": "keep-docs-url", "input": "see https://kb.epiphan.com/pearl-2/firmware-upgrade", "must_not_contain": [], "must_contain": ["kb.epiphan.com/pearl-2/firmware-upgrade"]},

@@ -11,13 +11,15 @@ from typing import Any
 
 MASK = "[redacted]"
 
+# A secret name may sit behind a dotted, spaced or slashed prefix (srt.passphrase, "Stream key", publisher.rtmp.key).
 _SECRET_NAME = re.compile(
-    r"^(?:.*[_-])?(?:streaming_?key|stream_?key|stream_?name|key|api_?key|private_?key|password|passphrase"
-    r"|passwd|pwd|secret|token|authorization|auth|credentials?)$",
+    r"^(?:.*[_\-. /:])?(?:streaming[ _-]?key|stream[ _-]?key|stream[ _-]?name|key|api[ _-]?key|private[ _-]?key"
+    r"|password|passphrase|passwd|pwd|pw|pin|psk|pass|secret|token|authorization|auth|credentials?)$",
     re.IGNORECASE,
 )
 _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
-_STREAM_ID = re.compile(r"^(?:.*[_-])?stream_?id$", re.IGNORECASE)
+_STREAM_ID = re.compile(r"^(?:.*[_\-. /:])?stream[ _-]?id$", re.IGNORECASE)
+_PAIR_KEYS = ("id", "name", "key", "label", "field")  # {"name": "Stream key", "value": X} pairs
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
 # A mask already in the text is read as part of the value around it, so the whole value is masked again: scrubbing
@@ -38,13 +40,17 @@ _HTTP_URL = re.compile(
 )
 # File-transfer and websocket URLs keep their host and path; only the credentials go: ftp://[redacted]@host/x.
 _USERINFO_URL = re.compile(rf"(?P<p>\b(?:s?ftps?|wss?)://)(?:{_M}|[^/?#\s\"<>()\[\]])*@", re.IGNORECASE)
-_INGEST_PATH = re.compile(r"whip|whep|ingest|publish|upload|live|stream|rtmp|srt|push|broadcast", re.IGNORECASE)
+_INGEST_PATH = re.compile(
+    r"whip|whep|ingest|publish|upload|live|stream|rtmp|srt|push|broadcast|webhook|hooks\.slack|discord(?:app)?\.com/api/webhooks",
+    re.IGNORECASE,
+)
 _SEP = r"(?:[ _-]|%2[0d]|%5f)?"  # stream key, stream_key, stream-key, streamkey, stream%20key
 _KEY_NAMES = "|".join(
     re.sub(r"[ _-]", lambda _: _SEP, name)
     for name in (
         "streaming key", "stream key", "stream name", "x-api-key", "api key", "private key", "client secret",
-        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token", "authorization", "key",
+        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token", "authorization",
+        "pass", "pin", "psk", "pw", "key",
     )
 )  # fmt: skip
 # The name stands alone (\b on both sides), so "monkey: George" and "keyboard: US" are left alone. A quoted value is
@@ -64,7 +70,20 @@ _AUTH_SCHEME = re.compile(
 # A markdown pipe table whose header names a secret column (Stream key, Password, API key...) has that column masked.
 _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
-_LOOKS_SECRET = re.compile(r"://|key|pass|pwd|secret|token|auth|cred|bearer|basic|stream|sk-ant-", re.IGNORECASE)
+_LOOKS_SECRET = re.compile(
+    r"://|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-", re.IGNORECASE
+)
+# The same two JSON shapes as text, for output that was never parsed: an id/name/label whose value names a secret
+# followed by its "value", and a publisher's "stream" field (Pearl's name for the RTMP stream key) when a url,
+# username or password field is in the same text. A bare "stream": true flag has no quoted value and is left alone.
+_PAIR_TEXT = re.compile(
+    rf"(?P<k>[\"'](?:{'|'.join(_PAIR_KEYS)})[\"']\s*:\s*[\"'][^\"'\n]*"
+    rf"(?:key|password|passphrase|passwd|pwd|pin|psk|pass|secret|token)[\"']\s*,\s*[\"']value[\"']\s*:\s*[\"'])"
+    rf"(?P<v>(?:{_M}|[^\"'\n])+)",
+    re.IGNORECASE,
+)
+_STREAM_FIELD_TEXT = re.compile(rf"(?P<k>[\"']stream[\"']\s*:\s*[\"'])(?P<v>(?:{_M}|[^\"'\n])+)", re.IGNORECASE)
+_PUBLISHER_SIBLING = re.compile(r"[\"'](?:url|username|password)[\"']\s*:", re.IGNORECASE)
 # An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
 _ANTHROPIC_KEY = re.compile(rf"\bsk-ant-(?:{_M}|[\w-])+", re.IGNORECASE)
 MAX_TEXT = 200_000
@@ -130,6 +149,9 @@ def scrub_text(text: str) -> str:
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
+    text = _PAIR_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
+    if _PUBLISHER_SIBLING.search(text):
+        text = _STREAM_FIELD_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _AUTH_SCHEME.sub(lambda m: f"{m['s']} {MASK}", text)
     return _ANTHROPIC_KEY.sub(MASK, text)
 
@@ -142,9 +164,10 @@ def encodable(text: str) -> str:
 
 def redact(value: Any) -> Any:
     if isinstance(value, dict):
-        pair = "value" in value and any(
-            _secret_name(value.get(k)) or _stream_id_name(value.get(k)) for k in ("id", "name", "key")
-        )
+        pair = "value" in value and any(_secret_name(value.get(k)) or _stream_id_name(value.get(k)) for k in _PAIR_KEYS)
+        # A publisher's "stream" field is the RTMP stream key when it sits next to url/username/password.
+        lower_keys = {k.lower() for k in value if isinstance(k, str)}
+        publisher = "stream" in lower_keys and bool(lower_keys & {"url", "username", "password"})
         out = {}
         for key, item in value.items():
             if (
@@ -152,6 +175,10 @@ def redact(value: Any) -> Any:
                 and pair
                 or _secret_name(key)
                 and not ("value" in value and isinstance(item, str) and _secret_name(item))
+                or publisher
+                and isinstance(key, str)
+                and key.lower() == "stream"
+                and isinstance(item, str)
             ):
                 out[key] = _mask(item)
             elif _stream_id_name(key) and not (isinstance(item, str) and _UUID.match(item)):
