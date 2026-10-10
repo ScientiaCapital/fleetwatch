@@ -1,4 +1,4 @@
-"""fleetwatch: login | digest | run | status | doctor | logout. Observe-only in v0.1."""
+"""fleetwatch: connect | login | digest | run | status | doctor | logout. Observe-only in v0.1."""
 
 import argparse
 import asyncio
@@ -50,7 +50,7 @@ def _sandbox_store(settings: Settings):
     return sandbox_store(settings)
 
 
-async def _login(settings: Settings, sandbox: bool = False) -> None:
+async def _login(settings: Settings, sandbox: bool = False) -> int:
     """Sign in. `sandbox`: the v0.2 sandbox sign-in, in its own token slot, never the normal one or its static
     token. The same OAuth flow; only where the token is kept differs."""
     if sandbox:
@@ -76,6 +76,75 @@ async def _login(settings: Settings, sandbox: bool = False) -> None:
         )
     else:
         print(f"Signed in. This team has {n} devices. Token saved to {store.where}.")
+    return n
+
+
+def _signed_in(settings: Settings) -> bool:
+    store = make_token_store(settings.token_store, settings.token_file)
+    return bool(reveal(settings.epiphan_token)) or store.has_tokens()
+
+
+async def _read_count(settings: Settings) -> int:
+    """How many devices the saved sign-in sees. One read, no browser: it raises if the sign-in doesn't work."""
+    async with _make_client(settings) as client:
+        fleet = await client.call("get_devices_in_my_team")
+    return len(fleet.get("devices", fleet)) if isinstance(fleet, (dict, list)) else 0
+
+
+async def _connect(settings: Settings, region: str | None = None, *, ask=input, env_path: Path = Path(".env")) -> None:
+    """The guided first run: pick the region, sign in, check the team shows devices, say what to do next."""
+    from fleetwatch import connect as c
+    from fleetwatch.redact import redact
+
+    print("Step 1 of 3: Your region")
+    url = c.REGIONS[region][1] if region else c.choose_region(settings.epiphan_mcp_url, ask, print)
+    chosen = settings.model_copy(update={"epiphan_mcp_url": url})
+    switched = url != settings.epiphan_mcp_url
+    if switched:
+        c.set_env_url(env_path, url)
+    print(f"Using {url}\n")
+
+    print("Step 2 of 3: Sign in")
+    devices: int | None = None
+    if _signed_in(settings):
+        if switched:
+            print("You picked another region, so the old sign-in goes and you sign in again.")
+            print(_logout(settings))
+        else:
+            print("You're already signed in. Checking that it still works.")
+            try:
+                devices = await _read_count(chosen)
+            except Exception:  # noqa: BLE001 - any failure here just means: sign in again
+                print("That sign-in no longer works. Signing in again.")
+    if devices is None:
+        print(
+            "A browser opens. Sign in with your Epiphan Edge account, then pick the team with the rooms you want "
+            "to watch. (No browser on this machine? It prints a link: open it on any device.)"
+        )
+        try:
+            devices = await _login(chosen)
+        except Exception as e:  # noqa: BLE001 - plain words for a first-time user, never a traceback
+            print(
+                f"The sign-in did not finish ({redact(str(e)) or type(e).__name__}). Run  fleetwatch connect  to try again."
+            )
+            raise SystemExit(1) from None
+
+    print("\nStep 3 of 3: Check")
+    if devices == 0:
+        print(
+            "You're signed in, but this team has no devices. Most often that's the wrong team or the wrong region. "
+            "Run  fleetwatch connect  again to pick another."
+        )
+        return
+    print(f"Connected. Your team has {devices} devices.")
+    print(
+        "\nNext:\n"
+        "  fleetwatch digest   reads your fleet once and shows what Fleetwatch would post\n"
+        "  fleetwatch doctor   checks the setup\n"
+        "  deploy/install.sh   keeps Fleetwatch running in the background\n"
+        "\nTip: sign in with an account made for Fleetwatch, with the least access that still sees your rooms. "
+        "Epiphan's sign-in can't be limited to reading (docs/sign-in.md)."
+    )
 
 
 def _refuse_overlapping_sandbox(settings: Settings, raw: Any) -> None:
@@ -480,6 +549,7 @@ def main() -> None:
     p.add_argument(
         "command",
         choices=[
+            "connect",
             "login",
             "digest",
             "run",
@@ -520,6 +590,11 @@ def main() -> None:
     p.add_argument("--author", help="note: who left it (default: your login name)")
     p.add_argument("--search", metavar="TEXT", help="notes: only notes containing TEXT")
     p.add_argument(
+        "--region",
+        choices=["na", "eu", "au"],
+        help="connect: North America, Europe or Australia (skips the question)",
+    )
+    p.add_argument(
         "--sandbox",
         action="store_true",
         help="login, logout: the v0.2 sandbox sign-in, kept in its own slot (needs a sandbox team)",
@@ -527,9 +602,13 @@ def main() -> None:
     args = p.parse_intermixed_args()
     if args.sandbox and args.command not in ("login", "logout"):
         p.error("--sandbox works with login and logout only")
+    if args.region and args.command != "connect":
+        p.error("--region works with connect only")
     configure_logging(args.verbose)  # redacted, and the MCP/HTTP libraries stay at WARNING even with -v
     settings = Settings()
-    if args.command == "login":
+    if args.command == "connect":
+        asyncio.run(_connect(settings, args.region))
+    elif args.command == "login":
         asyncio.run(_login(settings, args.sandbox))
     elif args.command == "logout":
         print(_logout(settings, args.sandbox))

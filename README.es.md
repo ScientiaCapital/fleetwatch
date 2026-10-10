@@ -109,7 +109,7 @@ Con tu propio equipo:
 
 ```bash
 cp .env.example .env            # token del bot de Slack y canal; sin token, imprime en la consola
-uv run fleetwatch login         # inicio de sesión único en Epiphan Edge; elige el equipo que quieres vigilar
+uv run fleetwatch connect       # primer uso guiado: tu región, inicio de sesión en Epiphan Edge y una revisión de que el equipo muestra dispositivos
 uv run fleetwatch digest        # un ciclo: imprime o publica el resumen
 uv run fleetwatch digest --capture ~/fleetwatch-capture   # además guarda lo que leyó, sin secretos, como muestra de replay
 uv run fleetwatch run           # sigue ejecutándose, cada tres minutos

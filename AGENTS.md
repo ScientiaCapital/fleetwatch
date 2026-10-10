@@ -9,7 +9,7 @@ Fleetwatch for Epiphan Edge: an always-on, read-only watcher for an Epiphan Edge
 EC20 cameras. Each heartbeat reads the fleet through Epiphan's MCP server, diffs against SQLite, and posts a calm
 Slack or Teams digest only when something changed. Before each scheduled event it posts Ready or Not ready.
 
-Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch login | digest | run | status | doctor | logout | ask | approve | sweep | history | note | notes`.
+Python 3.12, uv, ruff, pytest. Package in `src/fleetwatch/`. CLI: `fleetwatch connect | login | digest | run | status | doctor | logout | ask | approve | sweep | history | note | notes`.
 
 ## Commands
 
@@ -25,7 +25,7 @@ tests/install_update.sh                           # install.sh updates: main, ta
 
 ## Hard rules
 
-1. Never run `fleetwatch login`, `fleetwatch run`, or `fleetwatch digest` without `--replay`, and never call
+1. Never run `fleetwatch connect`, `fleetwatch login`, `fleetwatch run`, or `fleetwatch digest` without `--replay`, and never call
    Epiphan MCP tools directly. They act on a real team that other people use. Ask the maintainer first.
 2. Never add a write tool to the `read` list in `tool_policy.yaml`, never weaken `guard()` in
    `src/fleetwatch/epiphan/mcp.py`, and never add a flag or setting that bypasses it. Writes run only through the

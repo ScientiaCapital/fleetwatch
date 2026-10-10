@@ -6,7 +6,7 @@ AGENTS.md (imported above) has the commands, hard rules, style, and map. This fi
 
 ## Rules for Claude Code
 
-1. Epiphan sign-in needs the maintainer's OK in this session: `fleetwatch login`, `run`, `digest` without
+1. Epiphan sign-in needs the maintainer's OK in this session: `fleetwatch connect`, `login`, `run`, `digest` without
    `--replay`, and the claude.ai Epiphan connectors. The Edge team you sign in to may be shared.
 2. Main is protected. Branch, PR, 15 required checks green, squash-merge. Keep the job names "Docs build",
    "Replay heartbeat", and "Docker image" (they're required checks).

@@ -1,18 +1,28 @@
 # Sign-in
 
 ```bash
-uv run fleetwatch login
+uv run fleetwatch connect
 ```
 
-`login` prints a sign-in link and opens it when there is a browser. Sign in with your Epiphan Edge account and pick
+`connect` is the guided first run, and the one to use for your own copy. It asks which Epiphan region your account is
+on (the web address you sign in at: `go.` is North America, `eu.` is Europe, `au.` is Australia) and saves the answer
+in `.env`. Then it signs you in, checks that the team shows devices, and says what to run next. If the team shows none,
+it says so: that is nearly always the wrong team or the wrong region, and running `connect` again fixes it. Skip the
+question with `fleetwatch connect --region eu`. Already signed in, it only checks the sign-in still works. Switching
+region signs you out of the old one first.
+
+Each person installs their own copy and signs in to their own team. On a team that several people share, a new
+sign-in can end an earlier one (the Epiphan Edge Claude Kit documents the same limit), so a team of your own is best.
+
+`fleetwatch login` is the sign-in step on its own (and `--sandbox` for v0.2). It prints a sign-in link and opens it when there is a browser. Sign in with your Epiphan Edge account and pick
 the team to watch. Fleetwatch sees only what your account sees in that team.
 
 - Headless machine (a Pi over SSH): sign in from a laptop through an SSH tunnel, so the last page reaches the
   machine directly: `ssh -L 8765:127.0.0.1:8765 user@machine`, then run `fleetwatch login` in that session and
   open the link in the laptop's browser. Without a tunnel, open the link on any device and, when the final
   `127.0.0.1` page can't load, copy its URL from the address bar and paste it into the terminal.
-- Europe or Australia: set `FLEETWATCH_EPIPHAN_MCP_URL` to `https://eu.epiphan.cloud/mcp` or
-  `https://au.epiphan.cloud/mcp` in `.env` before you sign in.
+- Europe or Australia: `fleetwatch connect` asks, or set `FLEETWATCH_EPIPHAN_MCP_URL` to
+  `https://eu.epiphan.cloud/mcp` or `https://au.epiphan.cloud/mcp` in `.env` before you sign in.
 - The token refreshes itself. On a Mac it lives in the login Keychain; on Linux with systemd 256 or later it's
   encrypted with `systemd-creds`; anywhere else (Docker included) it's `~/.fleetwatch/epiphan-oauth.json` with mode
   `600`. Set `FLEETWATCH_TOKEN_STORE` to `file`, `keychain`, or `systemd-creds` to choose; `fleetwatch doctor` shows

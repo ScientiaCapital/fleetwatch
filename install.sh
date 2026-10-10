@@ -7,7 +7,7 @@
 #   1. installs uv if it is missing (a pinned release of the astral.sh installer, which checks the archive's sha256)
 #   2. clones or updates Fleetwatch in ~/fleetwatch (change with --dir) at the newest release tag
 #   3. installs the locked dependencies and creates .env from .env.example
-#   4. runs `fleetwatch login` to sign in to Epiphan Edge
+#   4. runs `fleetwatch connect`: asks your region, signs in to Epiphan Edge, checks the team shows devices
 #   5. installs the always-on service with deploy/install.sh
 #
 # Options: --dir PATH   --ref BRANCH_OR_TAG (default: newest vX.Y.Z tag, else main)   --no-login   --no-service
@@ -108,9 +108,9 @@ if $do_login && ! $dry_run; then
   elif [ -r /dev/tty ]; then
     say "Signing in to Epiphan Edge"
     # Piped from curl, stdin is this script: read the pasted redirect URL from the terminal instead.
-    uv run --frozen fleetwatch login < /dev/tty
+    uv run --frozen fleetwatch connect < /dev/tty
   else
-    echo "No terminal to sign in from. Run:  cd $dir && uv run fleetwatch login"
+    echo "No terminal to sign in from. Run:  cd $dir && uv run fleetwatch connect"
     do_service=false
   fi
 fi
