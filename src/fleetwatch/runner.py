@@ -68,12 +68,18 @@ async def run_loop(
             except SignInDead:
                 log.error(SIGN_IN_EXPIRED)
                 raise SystemExit(EXIT_CONFIG) from None
-            except Exception as e:  # noqa: BLE001  (counted; the next beat retries on a new session)
-                failures += 1
-                log.warning("heartbeat failed (%d in a row): %s", failures, redact(str(e)))
+            except (Exception, asyncio.CancelledError) as e:  # counted; the next beat retries on a new session
+                # The MCP client runs its own task group in this task. When a read stalls (a Mac waking from sleep),
+                # that scope can cancel this task from inside, and a CancelledError comes out with nobody asking
+                # to stop. Close the session first: that exits the client's scope and drops its cancel. If the
+                # task is still being cancelled after that, the cancel is real (Ctrl+C, shutdown): pass it on.
                 if client is not None:
                     await _close(client)
                     client = None
+                if isinstance(e, asyncio.CancelledError) and (task := asyncio.current_task()) and task.cancelling():
+                    raise
+                failures += 1
+                log.warning("heartbeat failed (%d in a row): %s", failures, redact(str(e) or type(e).__name__))
                 if failures >= MAX_FAILED_BEATS:
                     log.error("%d heartbeats failed in a row; exiting so the service manager restarts", failures)
                     raise SystemExit(EXIT_TEMPFAIL) from None

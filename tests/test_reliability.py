@@ -317,6 +317,72 @@ async def test_failed_beat_closes_and_reopens_the_client():
     assert log == ["open", "ok", "fail", "close", "open", "ok", "close"]
 
 
+class _ScopedClient(_ScriptedClient):
+    """Like the MCP client: it owns an anyio task group opened by the loop's task. A `stray` step makes that scope
+    cancel the loop's own task from inside a read, so a CancelledError comes out although nobody asked to stop."""
+
+    async def __aenter__(self):
+        import anyio
+
+        self.tg = anyio.create_task_group()
+        await self.tg.__aenter__()
+        return await super().__aenter__()
+
+    async def __aexit__(self, *exc):
+        self.tg.cancel_scope.cancel()
+        await self.tg.__aexit__(*exc)
+        return await super().__aexit__(*exc)
+
+    async def call(self, tool, arguments=None):
+        if tool == "get_devices_in_my_team" and self.script and self.script[0] == "stray":
+            self.log.append(self.script.pop(0))
+            self.tg.cancel_scope.cancel()
+            await asyncio.sleep(10)
+        return await super().call(tool, arguments)
+
+
+async def test_a_stray_cancel_from_the_client_is_a_failed_beat_not_a_crash(caplog):
+    from fleetwatch.runner import run_loop
+
+    script, log = ["ok", "stray", "ok"], []
+
+    async def sleep(_):
+        if not script:
+            raise asyncio.CancelledError  # end of the script, like Ctrl+C
+
+    with caplog.at_level(logging.WARNING), pytest.raises(asyncio.CancelledError):
+        await run_loop(lambda: _ScopedClient(script, log), State(), POLICY, Capture(), first_run=True, sleep=sleep)
+    assert log.count("ok") == 2, "the beat after the stray cancel ran"
+    assert log == ["open", "ok", "stray", "close", "open", "ok", "close"], "a new session after the failed beat"
+    assert any("heartbeat failed (1 in a row)" in r.getMessage() for r in caplog.records)
+
+
+async def test_a_real_shutdown_still_stops_the_loop_and_is_not_counted(caplog):
+    from fleetwatch.runner import run_loop
+
+    log: list[str] = []
+    started = asyncio.Event()
+
+    class Hangs(_ScriptedClient):
+        async def call(self, tool, arguments=None):
+            started.set()
+            await asyncio.sleep(60)
+
+    async def never(_):
+        raise AssertionError("the loop went on to sleep after a shutdown")
+
+    with caplog.at_level(logging.WARNING):
+        task = asyncio.create_task(
+            run_loop(lambda: Hangs([], log), State(), POLICY, Capture(), first_run=True, sleep=never)
+        )
+        await asyncio.wait_for(started.wait(), 5)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 5)
+    assert log == ["open", "close"], "the session is closed once on the way out"
+    assert not any("heartbeat failed" in r.getMessage() for r in caplog.records), "a shutdown is not a failed beat"
+
+
 async def test_slack_listener_still_closes_on_exit_75(monkeypatch):
     from fleetwatch import cli
     from fleetwatch.config import Settings
