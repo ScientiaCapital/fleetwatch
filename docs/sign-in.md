@@ -91,7 +91,8 @@ use it with the team you watch.
   run".
 - `uv run fleetwatch logout --sandbox` signs out of the sandbox only. The normal sign-in stays.
 
-This version has no approval page yet, so nothing uses the sandbox sign-in.
+The approval page (`fleetwatch approve --serve`) is the only thing that uses the sandbox sign-in. See
+[Approving changes](approving-changes.md).
 
 ## When the sign-in can't be refreshed
 
