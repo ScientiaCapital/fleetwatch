@@ -77,11 +77,14 @@ def test_disruptive_list_only_names_write_tools():
     assert tp.disruptive <= tp.write
 
 
-def test_read_list_is_unchanged():
+def test_read_list_is_the_reviewed_list():
+    """Pinned on purpose: a new read tool is a decision, so adding one means editing this list in the same PR."""
     tp = load_tools()
     assert tp.read == frozenset(
         {
             "get_devices_in_my_team",
+            "get_groups",
+            "get_group_devices",
             "get_device_info",
             "get_device_sources",
             "get_system_status_for_devices",
@@ -410,3 +413,24 @@ def test_guard_refuses_every_write_tool_even_in_propose_mode(tmp_path, tool):
     client = EpiphanClient("https://example.invalid/mcp", load_tools(), static_token="x")
     with pytest.raises(ToolNotAllowed):
         client.guard(tool)
+
+
+GROUP_WRITES = (
+    "create_group",
+    "rename_group",
+    "add_devices_to_group",
+    "remove_devices_from_groups",
+    "move_devices_to_group",
+    "move_group",
+    "delete_groups",
+)
+
+
+def test_group_changes_are_writes_and_none_can_be_proposed():
+    tp = load_tools()
+    for tool in GROUP_WRITES:
+        assert tool in KNOWN_WRITE_TOOLS and tool in tp.write and tool not in tp.read
+        assert not tp.proposable(tool), "no group tool is proposable until the group fence exists"
+    for tool in ("remove_devices_from_groups", "move_devices_to_group", "move_group", "delete_groups"):
+        assert tool in tp.disruptive
+    assert {"get_groups", "get_group_devices"} <= tp.read

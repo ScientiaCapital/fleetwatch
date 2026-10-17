@@ -93,6 +93,13 @@ KNOWN_WRITE_TOOLS = frozenset(
         "delete_cms_event",
         "cms_event_action",
         "confirm_cms_event_on_device",
+        "create_group",
+        "rename_group",
+        "add_devices_to_group",
+        "remove_devices_from_groups",
+        "move_devices_to_group",
+        "move_group",
+        "delete_groups",
     }
 )
 READ_PREFIXES = ("get_", "kb_")
