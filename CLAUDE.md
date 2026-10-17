@@ -32,8 +32,9 @@ the token refreshed from its saved endpoint across restarts. The agent exited tw
 (#129, #130). The agent is stopped and signed out (`fleetwatch logout` revoked the token), so the next live run needs
 the maintainer's OK and a new sign-in. `fleetwatch connect` is the guided first run for a person's own copy (region, sign-in,
 device check); it is tested only against fakes and has not been run against a real team. The v0.2 assistant, approval page and write executor are merged but tested
-only against fakes and mocks: no sandbox sign-in, no write and no model API call has been made. No release is
-tagged, so the installer installs `main` and Docker builds locally.
+only against fakes and mocks: no sandbox sign-in, no write and no model API call has been made. Device-group tools are
+on the read and write lists but none can be proposed; the fence they need is designed in `docs/design/group-writes.md`
+and not built. No release is tagged, so the installer installs `main` and Docker builds locally.
 
 Open: #13 (what `iss` the sign-in reports), #14 release v0.1.0, #15 installer on a real Pi 5 and Mac mini, #25 voice
 (not built), #82 local model. Sprint 3: #59 and #62 (sign-in security) and #119 to #124 (what a read-only review found
