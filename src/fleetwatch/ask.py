@@ -29,7 +29,6 @@ HELP = (
     "I can answer: what needs attention, what's offline, the last digest, "
     "and whether a room is ready (for example: is Main Stage ready)."
 )
-_ORDER = {Priority.FIX_FIRST: 0, Priority.FIX_SOON: 1, Priority.WHEN_CONVENIENT: 2}
 
 
 def _norm(text: str) -> str:
@@ -127,7 +126,7 @@ def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now
     if d.online and not open_items:
         head += f", nothing needs attention. No {policy.event_word} is coming up that I know of."
     lines = [head]
-    lines += [f"- {f.priority.value}: {f.what}" for f in sorted(open_items, key=lambda f: _ORDER[f.priority])]
+    lines += [f"- {f.priority.value}: {f.what}" for f in sorted(open_items, key=lambda f: f.priority.rank)]
     if posted and posted.start and posted.start >= now:
         lines.append(f"Last check: {posted.title} at {_when(posted.start)}: {posted.verdict}")
         lines += [f"- {n}" for n in posted.notes]
@@ -149,7 +148,7 @@ def _offline(state: State) -> str:
 
 
 def _attention(state: State) -> str:
-    items = sorted((f for f in state.open_findings() if not f.fyi), key=lambda f: _ORDER[f.priority])
+    items = sorted((f for f in state.open_findings() if not f.fyi), key=lambda f: f.priority.rank)
     fyi = [f.what for f in state.open_findings() if f.fyi]
     if not items:
         return "\n".join(["Nothing needs attention right now."] + fyi)

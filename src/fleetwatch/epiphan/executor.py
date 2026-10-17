@@ -171,7 +171,7 @@ class WriteExecutor:
                 raise Refused("Sandbox sign-in: none, so no change can run (fleetwatch login --sandbox)")
         except Refused as e:
             return self._refused(approval_id, record, e.reason)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (any failed check refuses the change)
             return self._refused(approval_id, record, f"a check failed: {_clip(e)}")
         return await self._run(approval_id, record, args)
 
@@ -222,7 +222,7 @@ class WriteExecutor:
         )
         try:
             await reader.__aenter__()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (a session that won't open refuses the change)
             return self._refused(approval_id, record, f"couldn't open the sandbox session: {_clip(e)}")
         try:
             try:
@@ -253,7 +253,7 @@ class WriteExecutor:
         now = datetime.now(UTC)
         try:
             raw = await reader.call("get_devices_in_my_team")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (a failed read refuses the change)
             raise Refused(f"couldn't read the sandbox team's devices: {_clip(e)}") from None
         if device_items(raw) is None:
             raise Refused("the sandbox team's device list couldn't be read")
@@ -304,7 +304,7 @@ class WriteExecutor:
     async def _read(self, reader: EpiphanClient, tool: str, arguments: dict[str, Any]) -> Any:
         try:
             result = await reader.call(tool, arguments)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (a failed read refuses the change)
             raise Refused(f"couldn't read {tool}: {_clip(e)}") from None
         if not isinstance(result, (dict, list)):
             raise Refused(f"{tool} returned text instead of data")
@@ -341,7 +341,7 @@ class WriteExecutor:
                 result = await session.call_tool(record.tool, args)
         except TimeoutError:
             return Outcome("unknown", "Epiphan didn't answer in time; the change may or may not have run")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (the change may have run, so the outcome is unknown, not refused)
             return Outcome("unknown", f"the connection failed ({_clip(type(e).__name__)}); it may or may not have run")
         return _read_result(result)
 
@@ -384,7 +384,7 @@ class WriteExecutor:
                     "why": reason,
                 },
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (recording the refusal is best effort)
             log.error("couldn't record a refused change: %s", _clip(e))
         return Outcome("refused", f"Nothing ran: {reason}.")
 

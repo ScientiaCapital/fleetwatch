@@ -1,5 +1,5 @@
-"""Which state a room is in. Decides what the agent may say or (later) do. The trading analogue is the
-market regime: live rooms are left alone, pre-class rooms get a readiness check."""
+"""Which state a room is in. Decides what the agent may say or (later) do: live rooms are left alone and rooms
+with an event coming up get a readiness check."""
 
 from datetime import datetime, timedelta
 
