@@ -66,6 +66,18 @@ maintainer's machine, not a Fleetwatch dependency, and nothing in `src/` calls i
 - Most useful before an upgrade of `mcp`, `httpx2`, `anthropic` or `slack-sdk`, where `src/fleetwatch/epiphan/auth.py`
   and `mcp.py` rely on SDK internals.
 
+## Redaction loop
+
+`scripts/redact_loop/` scores `src/fleetwatch/redact.py` against invented secret shapes
+(`docs/design/redaction-loop.md`). Run it locally, on a branch `autoresearch/redact-<tag>`, with an iteration cap.
+
+- An agent in the loop edits `src/fleetwatch/redact.py` and nothing else. `run_eval.py` refuses any other changed file.
+  Never edit `scripts/redact_loop/`, `tests/`, `tool_policy.yaml` or the guard from inside the loop.
+- Every case value is invented. Never put a real capture, device or account in a case.
+- A case for the shared `tests/redaction-cases.json` goes to the Kit repo first. New ones start in
+  `tests/redaction-holdout.json`.
+- The loop's result is an ordinary PR. It needs the full suite, the replay digest and the hidden gate set.
+
 ## Map
 
 | Path | What it does |
@@ -82,5 +94,6 @@ maintainer's machine, not a Fleetwatch dependency, and nothing in `src/` calls i
 | `src/fleetwatch/state.py` | SQLite: open items, what was posted when, audit log |
 | `src/fleetwatch/notify/` | Digest templates; Slack, Teams, or console |
 | `src/fleetwatch/i18n.py` | English and Spanish text for findings, the digest and before-event lines; `language` in `policy.yaml` picks one |
+| `scripts/redact_loop/` | Local redaction loop: fixed evaluator and the agent's instructions; not run in CI |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
 | `tests/fixtures/` | Redacted, renamed fleet sample used by replay mode |

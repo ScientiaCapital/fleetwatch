@@ -56,4 +56,5 @@ nav:
   - Design:
       - "v0.2: approved changes": design/approved-writes.md
       - "v0.2: group changes": design/group-writes.md
+      - "Redaction loop": design/redaction-loop.md
   - Contributing: contributing.md
