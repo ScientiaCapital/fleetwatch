@@ -7,6 +7,7 @@ Two files control behavior. Both are plain YAML in the repo folder.
 | Setting | Default | Meaning |
 |---|---|---|
 | `heartbeat_seconds` | `180` | How often to look at the fleet |
+| `language` | `en` | What people read in digests, before-event lines and findings: `en` (English) or `es` (Mexican Spanish). Stored values and priorities stay English underneath, so changing it never reposts or reopens anything |
 | `vertical` | `events` | The word for a scheduled recording: `events` (event), `education` (class), `business` (meeting), `courts` (hearing), `worship` (service) |
 | `lead_minutes` | `30` | Post Ready / Not ready this long before each event (`preclass_lead_minutes` still works) |
 | `remind_after_minutes` | `240` | Repeat an open item at most this often |

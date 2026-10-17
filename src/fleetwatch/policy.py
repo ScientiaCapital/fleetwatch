@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from fleetwatch.i18n import LANGUAGES
+
 
 @dataclass(frozen=True)
 class Thresholds:
@@ -41,6 +43,7 @@ class Policy:
     heartbeat_seconds: int = 180
     lead_minutes: int = 30
     vertical: str = "events"
+    language: str = "en"  # what people read: en or es (src/fleetwatch/i18n.py)
     remind_after_minutes: int = 240
     quiet_start: time | None = None
     quiet_end: time | None = None
@@ -300,6 +303,9 @@ def load_policy(path: Path) -> Policy:
     vertical = str(raw.get("vertical", "events"))
     if vertical not in VERTICALS:
         raise ValueError(f"vertical must be one of {', '.join(VERTICALS)}, not {vertical!r}")
+    language = str(raw.get("language", "en"))
+    if language not in LANGUAGES:
+        raise ValueError(f"language must be one of {', '.join(LANGUAGES)}, not {language!r}")
     quiet = raw.get("quiet_hours") or {}
     scope = raw.get("scope") or {}
     slack = raw.get("slack") or {}
@@ -309,6 +315,7 @@ def load_policy(path: Path) -> Policy:
         heartbeat_seconds=int(raw.get("heartbeat_seconds", 180)),
         lead_minutes=int(raw.get("lead_minutes", raw.get("preclass_lead_minutes", 30))),  # old name still works
         vertical=vertical,
+        language=language,
         remind_after_minutes=int(raw.get("remind_after_minutes", 240)),
         quiet_start=_hhmm(quiet.get("start")),
         quiet_end=_hhmm(quiet.get("end")),

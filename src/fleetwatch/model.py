@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
+from fleetwatch.i18n import priority_label
+
 
 class Priority(str, Enum):
     FIX_FIRST = "Fix first"
@@ -14,6 +16,10 @@ class Priority(str, Enum):
     def rank(self) -> int:
         """0 for Fix first, then Fix soon, then When convenient: the order a digest lists them in."""
         return list(type(self)).index(self)
+
+    def label(self, lang: str = "en") -> str:
+        """The priority in words, in `lang`. `value` stays English: it is what's stored."""
+        return priority_label(self.value, lang)
 
 
 class RoomState(str, Enum):
