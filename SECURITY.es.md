@@ -31,7 +31,7 @@ acceso y ejecuta Fleetwatch con su propio usuario en una máquina de confianza.
 
 ## Modelo de confianza de la v0.2
 
-Esto cubre el asistente opcional y el flujo de aprobación. Están construidos, pero sin publicar, y probados solo con
+Esto cubre el asistente opcional y el flujo de aprobación. Están incluidos en la versión 0.1.0, pero apagados por defecto, y probados solo con
 simulaciones: un servidor de Epiphan simulado y un modelo simulado. Nada de esto se ha ejecutado con un equipo real ni
 con la API real de Anthropic. La versión 0.1 no usa nada de esto. El diseño está en
 [docs/design/approved-writes.md](docs/design/approved-writes.md) (en inglés).

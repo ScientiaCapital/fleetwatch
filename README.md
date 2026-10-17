@@ -46,6 +46,7 @@ use a least-access account.
 | Refuses write tools in code | The client refuses write tools before any request leaves the machine. The stored sign-in can still write, because Epiphan Edge has no read-only sign-in, so use a least-access account. |
 | Built for a Pi or a Mac mini | One-line install as a systemd or launchd service, or Docker. |
 | `fleetwatch doctor` | One line per check: version, policy, guard, redaction, sign-in, state folder, Slack and Teams, network, and service. |
+| English or Spanish | One `language` setting in `policy.yaml` writes the digest, the Ready or Not ready lines, and `ask` answers in Mexican Spanish. |
 | Offline demo | A full heartbeat against a saved sample fleet, or a calm one for a screen in a quiet room. No account, no network. |
 
 ## Install
@@ -57,11 +58,10 @@ and installs the always-on service. [Read the script](install.sh) first if you l
 curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 ```
 
-It installs the newest release (until the first one is tagged, the `main` branch); add `-s -- --ref main` for
-the development branch.
+It installs the newest release; add `-s -- --ref main` for the development branch.
 
 Prefer Docker? From a clone of the repo, `docker compose run --rm fleetwatch login`, then `docker compose up -d`.
-Until the first release, Compose builds the image locally.
+Compose pulls the release image from the GitHub Container Registry.
 
 | Tier | Platform | Runs as |
 |---|---|---|
@@ -94,8 +94,7 @@ cloned the repo yourself, run `git pull && uv sync` in its folder, then `deploy/
 On Docker, `docker compose pull && docker compose up -d` fetches the newest image from the GitHub Container
 Registry and restarts the container. The `fleetwatch-state` volume keeps the sign-in and history. To stay on one
 version, set `image:` in `compose.yaml` to a release tag, such as `ghcr.io/scientiacapital/fleetwatch:0.1.0`, or
-`:0.1` for its patch updates. Until the first release is out there's no image to pull, so run
-`docker compose up -d --build` instead.
+`:0.1` for its patch updates.
 
 Afterwards, `fleetwatch doctor` shows the version on its first line. Each release on
 [GitHub Releases](https://github.com/ScientiaCapital/fleetwatch/releases) lists what changed.
@@ -148,6 +147,8 @@ FYI: 3 Pearls have little or no local space left. That's normal when recordings 
   start, one more line says so: `Now not ready (was Ready)` or `Ready now (was Not ready)`.
 - Say `vertical: events`, `education`, `business`, `courts`, or `worship` in `policy.yaml` and the words change: class, meeting,
   hearing, service.
+- Say `language: es` and the digest, the before-event lines, and `ask` answers come out in Spanish. The priorities read
+  Arreglar primero, Arreglar pronto, and Cuando convenga. What's stored stays the same, so switching never reposts anything.
 
 ## How it fits together
 
@@ -179,7 +180,7 @@ Start with `fleetwatch doctor`. It signs in to nothing and calls no tools, so it
 ```text
 OK    Version            fleetwatch 0.1.0, Python 3.12.4 on arm64
 OK    Policy             observe-only, heartbeat every 180 s
-OK    Read-only guard    20 read tools allowed; every write tool is refused
+OK    Read-only guard    22 read tools allowed; every write tool is refused
 OK    Redaction          stream keys and credentialed URLs are masked
 WARN  Sign-in            not signed in: run  fleetwatch login
 OK    State folder       /Users/you/.fleetwatch (created on first run)
@@ -222,8 +223,8 @@ The [trust model](SECURITY.md#trust-model), what is in and out of scope, and kno
 
 ### Assistant (v0.2, optional)
 
-Built but not released, and tested only against fakes and mocks: a fake Epiphan server and a mocked model. It has not
-run against a real team or the live Anthropic API.
+Included in 0.1.0 but off by default, and tested only against fakes and mocks: a fake Epiphan server and a mocked model. It
+has not run against a real team or the live Anthropic API.
 
 With `FLEETWATCH_ANTHROPIC_API_KEY` set, `fleetwatch ask` uses Claude Haiku 5.5 to answer in plain English or
 Spanish. It reads the fleet through the same read-only guard. It can't change anything. When `policy.yaml` says
@@ -231,7 +232,8 @@ Spanish. It reads the fleet through the same read-only guard. It can't change an
 
 - A person approves each change, one at a time, on a local page: `fleetwatch approve --serve`. See
   [Approving changes](docs/approving-changes.md).
-- Changes run on a sandbox team only, through a separate sign-in (`fleetwatch login --sandbox`).
+- Changes run on a sandbox team only, through a separate sign-in (`fleetwatch login --sandbox`). Epiphan says write
+  calls need an Epiphan Edge Premium plan, so that team needs one.
 - Each approval works once, expires after five minutes, and is bound to the exact tool and arguments.
 - Disruptive tools, such as a reboot or a firmware update, are refused near a scheduled event or while a room is
   recording, even with approval.
@@ -273,11 +275,11 @@ and feature requests go in [issues](https://github.com/ScientiaCapital/fleetwatc
 
 ## Status
 
-Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has made one live, read-only run against a real
+Version 0.1.0 is released. Unit and replay tests pass. Fleetwatch has made one live, read-only run against a real
 team and a long steady run after it. The agent isn't left running, and the next live run needs a fresh sign-in. What's next is in the
 [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) and
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2) milestones, including a voice interface that
-isn't built yet. The optional assistant that proposes changes for a person to approve is built but not released, and
+isn't built yet. The optional assistant that proposes changes for a person to approve is included in 0.1.0 but off by default, and
 chat wiring is still in progress. It's untested against a real team. It won't run disruptive actions unattended. The
 guard, the dry run, and the redaction stay.
 

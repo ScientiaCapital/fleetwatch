@@ -21,8 +21,7 @@ Problems in Epiphan products, Epiphan Edge, or the Epiphan MCP server belong to 
 
 ## Supported versions
 
-Fleetwatch has not tagged a release yet; until it does, fixes go to `main`. After the first release, only the
-newest release gets security fixes.
+Version 0.1.0 is the first release. Only the newest release gets security fixes.
 
 ## Trust model
 
@@ -119,7 +118,7 @@ mocked model so far, not the live Anthropic API or a real team.
 
 ## v0.2 trust model
 
-This covers the optional assistant and the approval flow. They're built but not released, and tested only against
+This covers the optional assistant and the approval flow. They're included in 0.1.0 but off by default, and tested only against
 fakes and mocks: a fake Epiphan server and a mocked model. Nothing here has run against a real team or the live
 Anthropic API. Version 0.1 doesn't use any of it. The design is in
 [docs/design/approved-writes.md](https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/design/approved-writes.md).
