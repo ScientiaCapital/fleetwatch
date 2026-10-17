@@ -64,10 +64,10 @@ def test_the_shipped_case_files_are_well_formed():
     assert not shared & {c["id"] for c in run_eval.load_cases(run_eval.DEV)}, "a dev id repeats a shared id"
 
 
-def test_the_dev_set_has_known_gaps_and_keep_cases_that_pass_today():
-    """The baseline the loop starts from: the 'keep' cases already pass, so only real gaps count against the metric."""
+def test_the_dev_keep_cases_pass():
+    """A 'keep' case that fails means redact.py hides ordinary words, which the loop must never reward. The dev set's
+    gap cases are not asserted here: they start failing and the loop's job is to make them pass."""
     from fleetwatch.redact import redact, scrub_text
 
     out = run_eval.failures(run_eval.load_cases(run_eval.DEV), {"scrub_text": scrub_text, "redact": redact})
-    assert out, "the dev set should have gaps for the loop to close; if it is empty, add new cases"
-    assert not [line for line in out if line.startswith("keep-")], "a 'keep' case fails: the loop would over-redact"
+    assert not [line for line in out if line.startswith("keep-")], "a 'keep' case fails: redact.py over-redacts"
