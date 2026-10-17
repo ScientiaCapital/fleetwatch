@@ -288,8 +288,10 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
     answer, exactly as before. The --serve page stays keyword-only for now."""
     from fleetwatch.ask import answer, last_checked
     from fleetwatch.heartbeat import snapshot
+    from fleetwatch.i18n import pick
 
     policy = load_policy(settings.policy_file)
+    lang = pick(question, policy)
     key = "" if no_ai or serve else reveal(settings.anthropic_api_key)
     fleet = None
     if replay:
@@ -300,19 +302,21 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
             fleet = await snapshot(client, datetime.now(UTC))
             if key:  # no sandbox here: a replay answers questions, and refuses every proposal
                 text = await _assistant_answer(settings, key, question, state, policy, client, fleet)
-                print(f"{text}\n\n{last_checked(state)}")
+                print(f"{text}\n\n{last_checked(state, lang=lang)}")
                 return
     else:
         state = State(settings.state_db)  # reads what the heartbeat saved
         if key:  # the assistant reads the fleet through the guarded, read-only client; never an interactive sign-in
-            print(f"{await _live_assistant(settings, key, question, state, policy)}\n\n{last_checked(state)}")
+            print(
+                f"{await _live_assistant(settings, key, question, state, policy)}\n\n{last_checked(state, lang=lang)}"
+            )
             return
 
     def ask(q: str) -> str:
         return answer(q, state, policy, fleet)
 
     if not serve:
-        print(f"{ask(question)}\n\n{last_checked(state)}")
+        print(f"{ask(question)}\n\n{last_checked(state, lang=lang)}")
         return
 
     from fleetwatch.ask_page import serve as serve_page
@@ -321,7 +325,7 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         with_events = [fleet.devices[i].name for i in fleet.events if i in fleet.devices] if fleet else []
         return (with_events or [d.name for d in state.devices() if d.online])[:8]
 
-    serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state))
+    serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state, lang=policy.language))
 
 
 async def _live_assistant(settings: Settings, key: str, question: str, state: State, policy) -> str:
@@ -487,20 +491,22 @@ def _history(settings: Settings, days: int) -> None:
     from fleetwatch.sweep import render_history
 
     now = datetime.now(UTC)
-    print(render_history(State(settings.state_db), since=now - timedelta(days=days), now=now))
+    lang = load_policy(settings.policy_file).language
+    print(render_history(State(settings.state_db), since=now - timedelta(days=days), now=now, lang=lang))
 
 
 def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Settings) -> None:
     from fleetwatch.notes import add_note, default_author, list_notes
 
     state = State(settings.state_db)  # local notes only; never signs in or calls Epiphan
+    lang = load_policy(settings.policy_file).language
     if args.command == "notes":
-        print(list_notes(state, room=" ".join(args.question) or None, search=args.search))
+        print(list_notes(state, room=" ".join(args.question) or None, search=args.search, lang=lang))
         return
     if len(args.question) < 2:
         p.error('note needs a room and the text, e.g. fleetwatch note "Room 204 Pearl Mini" "Bulb replaced"')
     room, text = args.question[0], " ".join(args.question[1:])
-    code, msg = add_note(state, room, text, args.author or default_author(), datetime.now(UTC))
+    code, msg = add_note(state, room, text, args.author or default_author(), datetime.now(UTC), lang)
     print(msg)
     raise SystemExit(code)
 

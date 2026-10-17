@@ -30,6 +30,7 @@ from fleetwatch import ask
 from fleetwatch.epiphan.executor import master_id
 from fleetwatch.fence import Fence
 from fleetwatch.heartbeat import snapshot
+from fleetwatch.i18n import detect
 from fleetwatch.model import Fleet
 from fleetwatch.policy import FieldSpec, Policy, ToolPolicy, check_arguments
 from fleetwatch.proposals import ProposalRefused, state_fingerprint
@@ -86,12 +87,6 @@ STOPPED = {
     "en": "I stopped before finishing, to keep this short. Ask a narrower question to see more.",
     "es": "Me detuve antes de terminar para no alargarme. Haz una pregunta más concreta para ver más.",
 }
-_SPANISH = re.compile(
-    r"[¿¡ñáéíóú]|\b(qué|que|cuál|cual|cuáles|cómo|como|está|esta|están|hay|necesita|sala|salas|listo|lista|"
-    r"desconectad[oa]s?|atención|problemas?|grabando|grabación|evento|clase|ahora|por|favor|dónde|donde)\b",
-    re.IGNORECASE,
-)
-
 SYSTEM_PROMPT = """\
 You are the assistant in Fleetwatch for Epiphan Edge. You help one AV operator understand their fleet of Epiphan \
 Pearl encoders and EC20 cameras: what needs attention, what's offline or recording, and whether a room is ready \
@@ -191,7 +186,7 @@ def make_client(api_key: str, timeout_s: float = TIMEOUT_S) -> Any:
 
 
 def language(question: str) -> str:
-    return "es" if _SPANISH.search(question or "") else "en"
+    return detect(question)
 
 
 # --- the prompt the model sees ----------------------------------------------------------------------------------------

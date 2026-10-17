@@ -33,7 +33,7 @@ def render_digest(
         out = [f"• {_line(f, lang)}"]
         if f.device_id in notes and f.device_id not in shown:
             shown.add(f.device_id)
-            out += [f"  ↳ {format_note(n)}" for n in notes[f.device_id]]
+            out += [f"  ↳ {format_note(n, lang)}" for n in notes[f.device_id]]
         return out
 
     items = sorted((f for f in new if not f.fyi), key=lambda f: f.priority.rank)

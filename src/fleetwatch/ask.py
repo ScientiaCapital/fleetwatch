@@ -5,9 +5,11 @@ never executed, never used as a SQL pattern, and never echoed back.
 """
 
 import re
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from fleetwatch.agents.readiness.rules import check as readiness_check
+from fleetwatch.i18n import at_clock, pick, short_date, t, verdict_label, vocab
 from fleetwatch.model import Fleet, Priority
 from fleetwatch.notes import format_note
 from fleetwatch.policy import Policy
@@ -17,7 +19,7 @@ from fleetwatch.state import KnownDevice, State
 MAX_QUESTION = 300
 MAX_ROOMS = 6
 
-# English and Spanish. Answers stay in English like the digest.
+# English and Spanish questions. An answer is in Spanish when the question is, or when policy.yaml says `language: es`.
 _OFFLINE = {"offline", "down", "desconectado", "desconectados", "desconectada", "caído", "caídos", "apagado"}
 _ATTENTION = {"attention", "wrong", "broken", "problem", "problems", "issue", "issues", "fix", "problema",
               "problemas", "atención", "falla", "fallas"}  # fmt: skip
@@ -25,10 +27,7 @@ _LAST = {"last", "digest", "summary", "recap", "último", "ultimo", "resumen"}
 _READY = {"ready", "listo", "lista", "listos", "preparado", "preparada"}
 _FILLER = {"is", "are", "the", "a", "ready", "check", "for", "now", "how", "está", "esta", "listo", "lista", "next"}
 
-HELP = (
-    "I can answer: what needs attention, what's offline, the last digest, "
-    "and whether a room is ready (for example: is Main Stage ready)."
-)
+HELP = t("en", "ask.help")  # the English text; answer() picks the language
 
 
 def _norm(text: str) -> str:
@@ -41,35 +40,38 @@ def _words(text: str) -> list[str]:
 
 def answer(question: str, state: State, policy: Policy, fleet: Fleet | None = None, now: datetime | None = None) -> str:
     now = now or datetime.now(UTC)
+    lang = pick(question, policy)
     q = _norm(question[:MAX_QUESTION])
     words = set(_words(q))
     if not words:
-        return HELP
+        return t(lang, "ask.help")
 
     named = _named_in(q, state.devices())
     if named:
-        return scrub_text(_rooms(named, state, policy, fleet, now))
+        return scrub_text(_rooms(named, state, policy, fleet, now, lang))
     if words & _OFFLINE:
-        return scrub_text(_offline(state))
+        return scrub_text(_offline(state, lang))
     if words & _ATTENTION:
-        return scrub_text(_attention(state))
+        return scrub_text(_attention(state, lang))
     if words & _LAST:
-        return scrub_text(_last_digest(state))
+        return scrub_text(_last_digest(state, lang))
     if words & _READY or q.startswith(("is ", "check ", "how is ", "está ", "esta ")):
         rooms = _guess_rooms(q, state)
         if not rooms:
-            return "I couldn't find that room. Ask what's offline to see room names, or use the exact name."
-        return scrub_text(_rooms(rooms, state, policy, fleet, now))
-    return HELP
+            return t(lang, "ask.no_room")
+        return scrub_text(_rooms(rooms, state, policy, fleet, now, lang))
+    return t(lang, "ask.help")
 
 
-def last_checked(state: State, now: datetime | None = None) -> str:
+def last_checked(state: State, now: datetime | None = None, lang: str = "en") -> str:
     """How fresh the answers are: when the last heartbeat read the fleet, in local time."""
     at = state.last_snapshot()
     if at is None:
-        return "Not checked yet."
+        return t(lang, "ask.checked_never")
     local, today = at.astimezone(), (now or datetime.now(UTC)).astimezone()
-    return f"Last checked {local:%H:%M}." if local.date() == today.date() else f"Last checked {local:%b %-d %H:%M}."
+    if local.date() == today.date():
+        return t(lang, "ask.checked_today", time=f"{local:%H:%M}")
+    return t(lang, "ask.checked_other", date=short_date(at, lang), time=f"{local:%H:%M}")
 
 
 # --- which room ---------------------------------------------------------------------------------------------
@@ -99,73 +101,79 @@ def _guess_rooms(q: str, state: State) -> list[KnownDevice]:
 
 
 # --- answers ------------------------------------------------------------------------------------------------
-def _when(dt: datetime) -> str:
-    return dt.astimezone().strftime("%-I:%M %p")
-
-
-def _rooms(devices: list[KnownDevice], state: State, policy: Policy, fleet: Fleet | None, now: datetime) -> str:
+def _rooms(
+    devices: list[KnownDevice], state: State, policy: Policy, fleet: Fleet | None, now: datetime, lang: str = "en"
+) -> str:
     shown = devices[:MAX_ROOMS]
-    blocks = [_room(d, state, policy, fleet, now) for d in shown]
+    blocks = [_room(d, state, policy, fleet, now, lang) for d in shown]
     if len(devices) > MAX_ROOMS:
-        blocks.append(f"{len(devices) - MAX_ROOMS} more rooms match. Use the full name to narrow it down.")
+        blocks.append(t(lang, "ask.more_rooms", n=len(devices) - MAX_ROOMS))
     return "\n\n".join(blocks)
 
 
-def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now: datetime) -> str:
+def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now: datetime, lang: str = "en") -> str:
     live = fleet.devices.get(d.id) if fleet else None
     event = fleet.events.get(d.id) if fleet else None
     if live is not None and event is not None and event.start >= now:
-        r = readiness_check(live, event, policy, now)
-        lines = [f"{d.name} · {event.title} at {_when(event.start)}: {r.verdict}"]
+        r = readiness_check(live, event, replace(policy, language=lang), now)
+        lines = [f"{d.name} · {event.title} {at_clock(lang, event.start)}: {verdict_label(r.verdict, lang)}"]
         lines += [f"- {n}" for n in r.notes]
-        return "\n".join(lines + _notes(d, state))
+        return "\n".join(lines + _notes(d, state, lang))
 
     posted = state.latest_readiness(d.id)
     open_items = [f for f in state.open_findings() if f.device_id == d.id and not f.fyi]
-    head = f"{d.name}: offline" if not d.online else f"{d.name}: online"
+    head = t(lang, "ask.room.offline" if not d.online else "ask.room.online", name=d.name)
     if d.online and not open_items:
-        head += f", nothing needs attention. No {policy.event_word} is coming up that I know of."
+        head += t(lang, "ask.room.calm", **vocab(lang, policy.vertical))
     lines = [head]
-    lines += [f"- {f.priority.value}: {f.what}" for f in sorted(open_items, key=lambda f: f.priority.rank)]
+    lines += [f"- {f.priority.label(lang)}: {f.what}" for f in sorted(open_items, key=lambda f: f.priority.rank)]
     if posted and posted.start and posted.start >= now:
-        lines.append(f"Last check: {posted.title} at {_when(posted.start)}: {posted.verdict}")
+        lines.append(
+            t(
+                lang,
+                "ask.room.last_check",
+                title=posted.title,
+                at=at_clock(lang, posted.start),
+                verdict=verdict_label(posted.verdict, lang),
+            )
+        )
         lines += [f"- {n}" for n in posted.notes]
-    return "\n".join(lines + _notes(d, state))
+    return "\n".join(lines + _notes(d, state, lang))
 
 
-def _notes(d: KnownDevice, state: State) -> list[str]:
-    return [f"Note: {format_note(n)}" for n in state.notes(d.id)[:3]]
+def _notes(d: KnownDevice, state: State, lang: str = "en") -> list[str]:
+    return [t(lang, "ask.note", note=format_note(n, lang)) for n in state.notes(d.id)[:3]]
 
 
-def _offline(state: State) -> str:
+def _offline(state: State, lang: str = "en") -> str:
     down = [d for d in state.devices() if not d.online]
     if not state.devices():
-        return "I haven't seen the fleet yet. Run a heartbeat first."
+        return t(lang, "ask.unseen")
     if not down:
-        return "Everything is online."
-    head = f"{len(down)} offline:" if len(down) > 1 else "1 offline:"
-    return "\n".join([head] + [f"- {d.name}" for d in down])
+        return t(lang, "ask.all_online")
+    return "\n".join([t(lang, "ask.offline_head", n=len(down))] + [f"- {d.name}" for d in down])
 
 
-def _attention(state: State) -> str:
+def _attention(state: State, lang: str = "en") -> str:
     items = sorted((f for f in state.open_findings() if not f.fyi), key=lambda f: f.priority.rank)
     fyi = [f.what for f in state.open_findings() if f.fyi]
     if not items:
-        return "\n".join(["Nothing needs attention right now."] + fyi)
+        return "\n".join([t(lang, "ask.nothing")] + fyi)
     lines: list[str] = []
     for p in Priority:
         group = [f for f in items if f.priority is p]
         if group:
-            lines.append(f"{p.value} ({len(group)}):")
+            lines.append(f"{p.label(lang)} ({len(group)}):")
             lines += [f"- {f.what}" for f in group]
     return "\n".join(lines + fyi)
 
 
-def _last_digest(state: State) -> str:
+def _last_digest(state: State, lang: str = "en") -> str:
     recent = state.recent_audit("digest", 1)
     if not recent:
-        return "No digest has been posted yet."
+        return t(lang, "ask.no_digest")
     at, detail = recent[0]
-    counts = [f"{len(detail.get(k, []))} {label}" for k, label in
-              (("new", "new"), ("reminders", "reminders"), ("resolved", "back to normal"))]  # fmt: skip
-    return f"Last digest at {_when(at)}: {', '.join(counts)}.\n\n" + _attention(state)
+    counts = [t(lang, f"ask.digest_{k}", n=len(detail.get(k, []))) for k in ("new", "reminders", "resolved")]
+    return (
+        t(lang, "ask.digest_head", at=at_clock(lang, at), counts=", ".join(counts)) + "\n\n" + _attention(state, lang)
+    )

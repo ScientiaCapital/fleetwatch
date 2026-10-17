@@ -1,5 +1,6 @@
 """`fleetwatch ask`: typed questions answered from the state DB after one replay heartbeat. No network."""
 
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -83,9 +84,24 @@ def test_last_digest_counts_and_lists(known):
 
 
 def test_spanish_keywords(known):
-    assert "offline:" in ask(known, "¿qué está desconectado?")
-    assert ask(known, "¿hay problemas?").startswith("Fix first (")
-    assert "Not ready" in ask(known, "¿Está lista Courtroom?")
+    assert "sin conexión:" in ask(known, "¿qué está desconectado?")
+    assert ask(known, "¿hay problemas?").startswith("Arreglar primero (")
+    assert "No está listo" in ask(known, "¿Está lista Courtroom?")
+
+
+def test_a_spanish_question_gets_a_spanish_answer_and_an_english_one_stays_english(known):
+    es, en = ask(known, "¿qué está desconectado?"), ask(known, "what's offline?")
+    assert "sin conexión:" in es and "offline:" not in es
+    assert "offline:" in en and "sin conexión" not in en
+
+
+def test_the_language_setting_answers_an_english_question_in_spanish(known):
+    es = replace(POLICY, language="es")
+    assert "sin conexión:" in ask(known, "what's offline", policy=es)
+    assert ask(known, "what needs attention", policy=es).startswith("Arreglar primero (")
+    assert ask(known, "tell me a joke", policy=es).startswith("Puedo responder:")
+    assert "No está listo" in ask(known, "is Courtroom ready", policy=es)
+    assert "Not ready" in ask(known, "is Courtroom ready")
 
 
 def test_nonsense_and_empty_get_help(known):

@@ -147,3 +147,59 @@ def test_the_before_event_line_in_spanish(utc):
 def test_the_before_event_line_in_english_is_unchanged(utc):
     assert render_readiness(_verdict(NOT_READY)) == "*Sala 1* · LAW 210 at 6:35 PM: *Not ready*"
     assert render_readiness(_verdict(READY), NOT_READY) == "*Sala 1* · LAW 210 at 6:35 PM: *Ready now* (was Not ready)"
+
+
+def test_the_nightly_sweep_in_spanish_and_in_english():
+    from fleetwatch.model import SweepResult
+    from fleetwatch.sweep import render_sweep
+
+    s = SweepResult(
+        at=NOW,
+        devices=5,
+        online=3,
+        offline=("Sala A", "Sala B"),
+        behind=(("Sala C", "4.24.5", "4.24.6"),),
+        newly_offline=("Sala B",),
+        back_online=("Sala D",),
+    )
+    assert render_sweep(s, "es").splitlines() == [
+        "*Revisión nocturna* · 5 equipos, 3 en línea",
+        "• Sin conexión (2): Sala A, Sala B",
+        "• Con firmware atrasado (1): Sala C (4.24.5; el más reciente 4.24.6)",
+        "• Desde la última revisión, ahora sin conexión: Sala B; de vuelta en línea: Sala D",
+    ]
+    assert render_sweep(s).splitlines()[0] == "*Nightly sweep* · 5 devices, 3 online"
+    calm = SweepResult(at=NOW, devices=1, online=1)
+    assert render_sweep(calm, "es").endswith("Todo está en línea y con el mismo firmware.")
+
+
+def test_notes_and_the_short_date_in_spanish():
+    from fleetwatch.i18n import short_date
+    from fleetwatch.notes import add_note, format_note, list_notes
+    from fleetwatch.state import Note, State
+
+    at = datetime(2026, 10, 7, 15, 0, tzinfo=UTC)
+    assert short_date(at, "es") == "7 oct" and short_date(at, "en") == "Oct 7"
+    note = Note(id=1, device_id="d", note="Se cambió el foco", author="ana", at=at)
+    assert format_note(note, "es") == "“Se cambió el foco” (ana, 7 oct)"
+    assert format_note(note) == "“Se cambió el foco” (ana, Oct 7)"
+    state = State(":memory:")
+    assert add_note(state, "Sala 1", "algo", "ana", at, "es") == (
+        1,
+        "Todavía no he visto la flota. Ejecuta un heartbeat primero.",
+    )
+    assert add_note(state, "Sala 1", "  ", "ana", at, "es") == (1, "Esa nota está vacía. No se guardó nada.")
+    assert list_notes(state, lang="es") == "Todavía no hay notas."
+    assert list_notes(state) == "No notes yet."
+
+
+def test_history_in_spanish(tmp_path):
+    from fleetwatch.state import State
+    from fleetwatch.sweep import render_history
+
+    state = State(":memory:")
+    assert (
+        render_history(state, NOW - timedelta(days=7), NOW, "es")
+        == "Todavía no hay historial. Empieza con el primer heartbeat."
+    )
+    assert render_history(state, NOW - timedelta(days=7), NOW) == "No history yet. It starts with the first heartbeat."

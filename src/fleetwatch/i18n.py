@@ -8,6 +8,7 @@ Spanish is Mexican Spanish, informal (tú), like README.es.md.
 policy's `vertical`, because Spanish needs the article and the gender that go with each one.
 """
 
+import re
 from typing import Any
 
 LANGUAGES = ("en", "es")
@@ -41,6 +42,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": f"the {one}",
             "the_scheduled": f"the scheduled {one}",
             "Next": f"The next {one}",
+            "NoEvent": f"No {one}",
         }
         for v, (one, many) in {
             "events": ("event", "events"),
@@ -57,6 +59,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": "el evento",
             "the_scheduled": "el evento programado",
             "Next": "El próximo evento",
+            "NoEvent": "Ningún evento",
         },
         "education": {
             "event": "clase",
@@ -64,6 +67,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": "la clase",
             "the_scheduled": "la clase programada",
             "Next": "La próxima clase",
+            "NoEvent": "Ninguna clase",
         },
         "business": {
             "event": "reunión",
@@ -71,6 +75,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": "la reunión",
             "the_scheduled": "la reunión programada",
             "Next": "La próxima reunión",
+            "NoEvent": "Ninguna reunión",
         },
         "courts": {
             "event": "audiencia",
@@ -78,6 +83,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": "la audiencia",
             "the_scheduled": "la audiencia programada",
             "Next": "La próxima audiencia",
+            "NoEvent": "Ninguna audiencia",
         },
         "worship": {
             "event": "servicio",
@@ -85,6 +91,7 @@ _VOCAB: dict[str, dict[str, dict[str, str]]] = {
             "the_event": "el servicio",
             "the_scheduled": "el servicio programado",
             "Next": "El próximo servicio",
+            "NoEvent": "Ningún servicio",
         },
     },
 }
@@ -234,7 +241,136 @@ MESSAGES: dict[str, dict[str, str]] = {
     "readiness.at": {"en": "at {when}", "es": "a las {when}"},
     "readiness.at_one": {"en": "at {when}", "es": "a la {when}"},  # Spanish says "a la 1:05", not "a las 1:05"
     "readiness.was": {"en": "(was {was})", "es": "(antes: {was})"},
+    # --- ask: answers to a question ----------------------------------------------------------------------------
+    "ask.help": {
+        "en": "I can answer: what needs attention, what's offline, the last digest, "
+        "and whether a room is ready (for example: is Main Stage ready).",
+        "es": "Puedo responder: qué necesita atención, qué está sin conexión, el último resumen "
+        "y si una sala está lista (por ejemplo: ¿está lista la Sala 204?).",
+    },
+    "ask.no_room": {
+        "en": "I couldn't find that room. Ask what's offline to see room names, or use the exact name.",
+        "es": "No encontré esa sala. Pregunta qué está sin conexión para ver los nombres, o usa el nombre exacto.",
+    },
+    "ask.more_rooms": {
+        "en": "{n} more rooms match. Use the full name to narrow it down.",
+        "es": "{n} salas más coinciden. Usa el nombre completo para acotar.",
+    },
+    "ask.room.offline": {"en": "{name}: offline", "es": "{name}: sin conexión"},
+    "ask.room.online": {"en": "{name}: online", "es": "{name}: en línea"},
+    "ask.room.calm": {
+        "en": ", nothing needs attention. {NoEvent} is coming up that I know of.",
+        "es": ", nada requiere atención. {NoEvent} está programado, que yo sepa.",
+    },
+    "ask.room.last_check": {
+        "en": "Last check: {title} {at}: {verdict}",
+        "es": "Última revisión: {title} {at}: {verdict}",
+    },
+    "ask.note": {"en": "Note: {note}", "es": "Nota: {note}"},
+    "ask.unseen": {
+        "en": "I haven't seen the fleet yet. Run a heartbeat first.",
+        "es": "Todavía no he visto la flota. Ejecuta un heartbeat primero.",
+    },
+    "ask.all_online": {"en": "Everything is online.", "es": "Todo está en línea."},
+    "ask.offline_head": {"en": "{n} offline:", "es": "{n} sin conexión:"},
+    "ask.nothing": {"en": "Nothing needs attention right now.", "es": "Nada requiere atención por ahora."},
+    "ask.no_digest": {
+        "en": "No digest has been posted yet.",
+        "es": "Todavía no se ha publicado ningún resumen.",
+    },
+    "ask.digest_head": {"en": "Last digest {at}: {counts}.", "es": "Último resumen {at}: {counts}."},
+    "ask.digest_new": {"en": "{n} new", "es": "{n} nuevos"},
+    "ask.digest_reminders": {"en": "{n} reminders", "es": "{n} recordatorios"},
+    "ask.digest_resolved": {"en": "{n} back to normal", "es": "{n} de vuelta a la normalidad"},
+    "ask.checked_never": {"en": "Not checked yet.", "es": "Aún no se ha revisado."},
+    "ask.checked_today": {"en": "Last checked {time}.", "es": "Última revisión: {time}."},
+    "ask.checked_other": {"en": "Last checked {date} {time}.", "es": "Última revisión: {date} {time}."},
+    # --- the nightly sweep and history -------------------------------------------------------------------------
+    "sweep.head": {
+        "en": "*Nightly sweep* · {devices} devices, {online} online",
+        "es": "*Revisión nocturna* · {devices} equipos, {online} en línea",
+    },
+    "sweep.offline": {"en": "• Offline ({n}): {names}", "es": "• Sin conexión ({n}): {names}"},
+    "sweep.behind": {
+        "en": "• Behind on firmware ({n}): {shown}{more}",
+        "es": "• Con firmware atrasado ({n}): {shown}{more}",
+    },
+    "sweep.behind_item": {
+        "en": "{name} ({firmware}; newest {newest})",
+        "es": "{name} ({firmware}; el más reciente {newest})",
+    },
+    "sweep.more": {"en": ", and {n} more", "es": ", y {n} más"},
+    "sweep.newly_offline": {"en": "newly offline: {names}", "es": "ahora sin conexión: {names}"},
+    "sweep.back_online": {"en": "back online: {names}", "es": "de vuelta en línea: {names}"},
+    "sweep.changes": {"en": "• Since the last sweep, {changes}", "es": "• Desde la última revisión, {changes}"},
+    "sweep.all_good": {
+        "en": "Everything is online and on the same firmware.",
+        "es": "Todo está en línea y con el mismo firmware.",
+    },
+    "history.none": {
+        "en": "No history yet. It starts with the first heartbeat.",
+        "es": "Todavía no hay historial. Empieza con el primer heartbeat.",
+    },
+    "history.head": {"en": "History since {since} (now {now})", "es": "Historial desde {since} (ahora {now})"},
+    "history.fleet": {"en": "{size} devices, {span} online", "es": "{size} equipos, {span} en línea"},
+    "history.digest.one": {"en": "1 digest", "es": "1 resumen"},
+    "history.digest.many": {"en": "{n} digests", "es": "{n} resúmenes"},
+    "history.readiness.one": {"en": "1 readiness check", "es": "1 revisión previa al evento"},
+    "history.readiness.many": {"en": "{n} readiness checks", "es": "{n} revisiones previas al evento"},
+    "history.sweep": {
+        "en": "sweep: {offline} offline, {behind} behind on firmware",
+        "es": "revisión nocturna: {offline} sin conexión, {behind} con firmware atrasado",
+    },
+    # --- room notes --------------------------------------------------------------------------------------------
+    "notes.empty": {"en": "That note is empty. Nothing saved.", "es": "Esa nota está vacía. No se guardó nada."},
+    "notes.no_room": {
+        "en": "I couldn't find that room. Run fleetwatch notes to see rooms with notes, or use the exact name.",
+        "es": "No encontré esa sala. Ejecuta fleetwatch notes para ver las salas con notas, o usa el nombre exacto.",
+    },
+    "notes.many_rooms": {
+        "en": "More than one room matches. Use the full name:",
+        "es": "Coincide más de una sala. Usa el nombre completo:",
+    },
+    "notes.and_more": {"en": "...and {n} more", "es": "...y {n} más"},
+    "notes.saved": {"en": "Saved a note on {name}.", "es": "Nota guardada en {name}."},
+    "notes.no_room_short": {"en": "I couldn't find that room.", "es": "No encontré esa sala."},
+    "notes.no_match": {"en": "No notes match.", "es": "Ninguna nota coincide."},
+    "notes.none": {"en": "No notes yet.", "es": "Todavía no hay notas."},
 }
+
+
+_SPANISH = re.compile(
+    r"[¿¡ñáéíóú]|\b(qué|que|cuál|cual|cuáles|cómo|como|está|esta|están|hay|necesita|sala|salas|listo|lista|"
+    r"desconectad[oa]s?|atención|problemas?|grabando|grabación|evento|clase|ahora|por|favor|dónde|donde)\b",
+    re.IGNORECASE,
+)
+
+_MONTHS_ES = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+
+
+def detect(question: str | None) -> str:
+    """`es` when a question reads as Spanish, else `en`."""
+    return "es" if _SPANISH.search(question or "") else "en"
+
+
+def pick(question: str | None, policy: Any) -> str:
+    """The language to answer a question in: Spanish if the policy says so or the question is Spanish."""
+    return "es" if getattr(policy, "language", "en") == "es" or detect(question) == "es" else "en"
+
+
+def short_date(at: Any, lang: str) -> str:
+    """Oct 7 (English) or 7 oct (Spanish), in local time."""
+    local = at.astimezone()
+    if _lang(lang) == "es":
+        return f"{local.day} {_MONTHS_ES[local.month - 1]}"
+    return f"{local:%b} {local.day}"
+
+
+def at_clock(lang: str, at: Any) -> str:
+    """`at 6:35 PM` or `a las 6:35 PM` (`a la 1:05 PM`), in local time."""
+    local = at.astimezone()
+    key = "readiness.at_one" if local.hour % 12 == 1 else "readiness.at"
+    return t(lang, key, when=local.strftime("%-I:%M %p"))
 
 
 def _lang(lang: str) -> str:

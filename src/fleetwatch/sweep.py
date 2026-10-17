@@ -10,6 +10,7 @@ from datetime import datetime, time, timedelta
 from fleetwatch.agents.scanner.rules import _version, firmware_family, in_scope, newest_firmware
 from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.heartbeat import snapshot
+from fleetwatch.i18n import t
 from fleetwatch.model import Fleet, SweepResult
 from fleetwatch.notify import Notifier
 from fleetwatch.policy import Policy
@@ -53,28 +54,30 @@ def summarize(fleet: Fleet, policy: Policy, now: datetime, previous: SweepResult
     )
 
 
-def _names(names: tuple[str, ...]) -> str:
+def _names(names: tuple[str, ...], lang: str = "en") -> str:
     shown = ", ".join(names[:MAX_NAMES])
-    return shown + (f", and {len(names) - MAX_NAMES} more" if len(names) > MAX_NAMES else "")
+    return shown + (t(lang, "sweep.more", n=len(names) - MAX_NAMES) if len(names) > MAX_NAMES else "")
 
 
-def render_sweep(s: SweepResult) -> str:
-    lines = [f"*Nightly sweep* · {s.devices} devices, {s.online} online"]
+def render_sweep(s: SweepResult, lang: str = "en") -> str:
+    lines = [t(lang, "sweep.head", devices=s.devices, online=s.online)]
     if s.offline:
-        lines.append(f"• Offline ({len(s.offline)}): {_names(s.offline)}")
+        lines.append(t(lang, "sweep.offline", n=len(s.offline), names=_names(s.offline, lang)))
     if s.behind:
-        shown = ", ".join(f"{n} ({fw}; newest {new})" for n, fw, new in s.behind[:MAX_NAMES])
-        more = f", and {len(s.behind) - MAX_NAMES} more" if len(s.behind) > MAX_NAMES else ""
-        lines.append(f"• Behind on firmware ({len(s.behind)}): {shown}{more}")
+        shown = ", ".join(
+            t(lang, "sweep.behind_item", name=n, firmware=fw, newest=new) for n, fw, new in s.behind[:MAX_NAMES]
+        )
+        more = t(lang, "sweep.more", n=len(s.behind) - MAX_NAMES) if len(s.behind) > MAX_NAMES else ""
+        lines.append(t(lang, "sweep.behind", n=len(s.behind), shown=shown, more=more))
     changes = []
     if s.newly_offline:
-        changes.append(f"newly offline: {_names(s.newly_offline)}")
+        changes.append(t(lang, "sweep.newly_offline", names=_names(s.newly_offline, lang)))
     if s.back_online:
-        changes.append(f"back online: {_names(s.back_online)}")
+        changes.append(t(lang, "sweep.back_online", names=_names(s.back_online, lang)))
     if changes:
-        lines.append(f"• Since the last sweep, {'; '.join(changes)}")
+        lines.append(t(lang, "sweep.changes", changes="; ".join(changes)))
     if not s.offline and not s.behind:
-        lines.append("Everything is online and on the same firmware.")
+        lines.append(t(lang, "sweep.all_good"))
     return "\n".join(lines)
 
 
@@ -108,17 +111,17 @@ def _post(
 ) -> bool:
     if policy.in_quiet_hours(now.astimezone().time()) or sweep_id is None:
         return False
-    if notifier.post(render_sweep(s)):
+    if notifier.post(render_sweep(s, policy.language)):
         state.mark_sweep_posted(sweep_id, now)
         return True
     return False
 
 
-def _plural(n: int, word: str) -> str:
-    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+def _count(lang: str, key: str, n: int) -> str:
+    return t(lang, f"{key}.one") if n == 1 else t(lang, f"{key}.many", n=n)
 
 
-def render_history(state: State, since: datetime, now: datetime) -> str:
+def render_history(state: State, since: datetime, now: datetime, lang: str = "en") -> str:
     """One line per local day: fleet size, online range, posts, and that day's sweep."""
     days: dict[str, dict] = {}
 
@@ -138,22 +141,22 @@ def render_history(state: State, since: datetime, now: datetime) -> str:
     for s in state.sweeps_since(since):
         day(s.at)["sweep"] = s
     if not days:
-        return "No history yet. It starts with the first heartbeat."
+        return t(lang, "history.none")
 
-    lines = [f"History since {since.astimezone():%Y-%m-%d} (now {now.astimezone():%Y-%m-%d %H:%M})"]
+    lines = [t(lang, "history.head", since=f"{since.astimezone():%Y-%m-%d}", now=f"{now.astimezone():%Y-%m-%d %H:%M}")]
     for date in sorted(days):
         d = days[date]
         parts = []
         if d["sizes"]:
             lo, hi = min(d["online"]), max(d["online"])
             span = str(lo) if lo == hi else f"{lo}-{hi}"
-            parts.append(f"{max(d['sizes'])} devices, {span} online")
+            parts.append(t(lang, "history.fleet", size=max(d["sizes"]), span=span))
         if d["kinds"].get("digest"):
-            parts.append(_plural(d["kinds"]["digest"], "digest"))
+            parts.append(_count(lang, "history.digest", d["kinds"]["digest"]))
         if d["kinds"].get("readiness"):
-            parts.append(_plural(d["kinds"]["readiness"], "readiness check"))
+            parts.append(_count(lang, "history.readiness", d["kinds"]["readiness"]))
         if d["sweep"]:
             s = d["sweep"]
-            parts.append(f"sweep: {len(s.offline)} offline, {len(s.behind)} behind on firmware")
+            parts.append(t(lang, "history.sweep", offline=len(s.offline), behind=len(s.behind)))
         lines.append(f"{date}  " + " · ".join(parts))
     return "\n".join(lines)
