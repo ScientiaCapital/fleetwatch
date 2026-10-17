@@ -9,6 +9,7 @@ import getpass
 import unicodedata
 from datetime import datetime
 
+from fleetwatch.i18n import short_date, t
 from fleetwatch.redact import redact
 from fleetwatch.state import KnownDevice, Note, State
 
@@ -40,48 +41,48 @@ def default_author() -> str:
         return "unknown"
 
 
-def format_note(n: Note) -> str:
+def format_note(n: Note, lang: str = "en") -> str:
     """One line for the digest and `ask`: the note in quotes, then who and when."""
-    return f"“{n.note}” ({n.author}, {n.at.astimezone():%b %-d})"
+    return f"“{n.note}” ({n.author}, {short_date(n.at, lang)})"
 
 
-def add_note(state: State, room: str, text: str, author: str, now: datetime) -> tuple[int, str]:
+def add_note(state: State, room: str, text: str, author: str, now: datetime, lang: str = "en") -> tuple[int, str]:
     """Save a note against exactly one known room. Returns (exit code, message for the person)."""
     note = clean_note(text)
     if not note:
-        return 1, "That note is empty. Nothing saved."
+        return 1, t(lang, "notes.empty")
     if not state.devices():
-        return 1, "I haven't seen the fleet yet. Run a heartbeat first."
+        return 1, t(lang, "ask.unseen")
     matches = state.find_devices(room)
     if not matches:
-        return 1, "I couldn't find that room. Run fleetwatch notes to see rooms with notes, or use the exact name."
+        return 1, t(lang, "notes.no_room")
     if len(matches) > 1:
-        lines = ["More than one room matches. Use the full name:"]
+        lines = [t(lang, "notes.many_rooms")]
         lines += [f"- {d.name}" for d in matches[:MAX_CANDIDATES]]
         if len(matches) > MAX_CANDIDATES:
-            lines.append(f"...and {len(matches) - MAX_CANDIDATES} more")
+            lines.append(t(lang, "notes.and_more", n=len(matches) - MAX_CANDIDATES))
         return 1, "\n".join(lines)
     (device,) = matches
     state.add_note(device.id, note, clean_author(author), now)
-    return 0, f"Saved a note on {device.name}."
+    return 0, t(lang, "notes.saved", name=device.name)
 
 
-def list_notes(state: State, room: str | None = None, search: str | None = None) -> str:
+def list_notes(state: State, room: str | None = None, search: str | None = None, lang: str = "en") -> str:
     """Newest first. `room` narrows to the rooms it matches; `search` is a plain case-insensitive substring."""
     names = {d.id: d.name for d in state.devices()}
     notes = state.notes()
     if room:
         rooms: list[KnownDevice] = state.find_devices(room)
         if not rooms:
-            return "I couldn't find that room."
+            return t(lang, "notes.no_room_short")
         ids = {d.id for d in rooms}
         notes = [n for n in notes if n.device_id in ids]
     if search:
         needle = " ".join(search.split()).casefold()
         notes = [n for n in notes if needle in n.note.casefold()]
     if not notes:
-        return "No notes match." if (room or search) else "No notes yet."
+        return t(lang, "notes.no_match") if (room or search) else t(lang, "notes.none")
     return "\n".join(
-        f"{n.at.astimezone():%b %-d %-I:%M %p} · {names.get(n.device_id, n.device_id)} · {n.author}: {n.note}"
+        f"{short_date(n.at, lang)} {n.at.astimezone():%-I:%M %p} · {names.get(n.device_id, n.device_id)} · {n.author}: {n.note}"
         for n in notes
     )
