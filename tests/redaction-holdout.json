@@ -1,0 +1,28 @@
+{
+  "about": "Held-out dev cases for the redaction loop (docs/design/redaction-loop.md). NOT part of the shared corpus and not run by pytest: scripts/redact_loop/run_eval.py scores them. Same case format as redaction-cases.json. All values are invented. Add a case here, not to the shared file, until the Kit repo has agreed it.",
+  "version": 1,
+  "cases": [
+    {"id": "camel-access-token-json", "input": "{\"accessToken\": \"FAKETOK111\"}", "must_not_contain": ["FAKETOK111"]},
+    {"id": "camel-secret-key-json", "input": "{\"secretKey\": \"FAKESEC222\"}", "must_not_contain": ["FAKESEC222"]},
+    {"id": "camel-api-token-json", "input": "{\"apiToken\": \"FAKEAPI333\"}", "must_not_contain": ["FAKEAPI333"]},
+    {"id": "camel-client-secret-json", "input": "{\"clientSecret\": \"FAKECLI555\"}", "must_not_contain": ["FAKECLI555"]},
+    {"id": "camel-auth-token-text", "input": "authToken: FAKEAUTH666", "must_not_contain": ["FAKEAUTH666"]},
+    {"id": "camel-secret-key-text", "input": "secretKey=FAKESEC777", "must_not_contain": ["FAKESEC777"]},
+    {"id": "camel-access-key-text", "input": "accessKey: FAKEACC888", "must_not_contain": ["FAKEACC888"]},
+    {"id": "env-style-bot-token", "input": "FLEETWATCH_BOT_TOKEN=FAKEENV2020", "must_not_contain": ["FAKEENV2020"]},
+    {"id": "env-style-stream-key", "input": "RTMP_STREAM_KEY=FAKEENV2121", "must_not_contain": ["FAKEENV2121"]},
+    {"id": "escaped-slash-rtmp", "input": "rtmp:\\/\\/a.example\\/live\\/FAKEKEY999", "must_not_contain": ["FAKEKEY999"]},
+    {"id": "fullwidth-colon", "input": "password：FAKEPW1010", "must_not_contain": ["FAKEPW1010"]},
+    {"id": "escaped-inner-quotes", "input": "{\"msg\": \"password=\\\"FAKEPW1313\\\"\"}", "must_not_contain": ["FAKEPW1313"]},
+    {"id": "table-without-leading-pipe", "input": "Name | Stream key\n--- | ---\nHall A | FAKETBL2828", "must_not_contain": ["FAKETBL2828"]},
+
+    {"id": "keep-keyboard-layout", "input": "keyboardLayout: US", "must_not_contain": [], "must_contain": ["US"]},
+    {"id": "keep-tokenizer", "input": "tokenizer: fast", "must_not_contain": [], "must_contain": ["fast"]},
+    {"id": "keep-author-name", "input": "authorName: Alice Example", "must_not_contain": [], "must_contain": ["Alice Example"]},
+    {"id": "keep-passage-count", "input": "passageCount: 3", "must_not_contain": [], "must_contain": ["3"]},
+    {"id": "keep-pinned", "input": "pinned: true", "must_not_contain": [], "must_contain": ["true"]},
+    {"id": "keep-monkey-business", "input": "monkeyBusiness: yes", "must_not_contain": [], "must_contain": ["yes"]},
+    {"id": "keep-env-style-plain", "input": "FLEETWATCH_HEARTBEAT_SECONDS=180", "must_not_contain": [], "must_contain": ["180"]},
+    {"id": "keep-table-without-secret", "input": "Room | Status\n--- | ---\n204 | online", "must_not_contain": [], "must_contain": ["online"]}
+  ]
+}
