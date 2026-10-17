@@ -24,6 +24,8 @@ read:
   - get_current_or_next_cms_events_for_devices
   - get_cms_names_for_devices
   - get_devices_by_cms
+  - get_groups
+  - get_group_devices
   - kb_search
   - kb_fetch
 
@@ -44,6 +46,15 @@ write:
   - switch_device_to_cms
   - batch_reboot
   - batch_firmware_update
+  # Device groups. A group belongs to the team, not to a device, so the device fence doesn't cover these yet
+  # (docs/design/group-writes.md). None is under `propose`, so none can be proposed.
+  - create_group
+  - rename_group
+  - add_devices_to_group
+  - remove_devices_from_groups
+  - move_devices_to_group
+  - move_group
+  - delete_groups
 
 # Writes that take a room offline or interrupt a class. Never on a live room or before an event.
 # The last three aren't reviewed yet, so they count as disruptive until they are (docs/design/approved-writes.md).
@@ -58,6 +69,11 @@ disruptive:
   - switch_device_to_cms
   - update_cms_event
   - cms_event_action
+  # Group changes decide which devices a person or a policy scope can see, so they count as disruptive until reviewed.
+  - remove_devices_from_groups
+  - move_devices_to_group
+  - move_group
+  - delete_groups
 
 # For v0.2 (docs/design/approved-writes.md): the write tools the assistant may *suggest*, for a person to approve
 # one at a time. Nothing in this version reads this section to run anything, and guard() still refuses every
@@ -102,7 +118,7 @@ disruptive:
 #
 # Not listed, so never proposed: create_/update_stream_endpoint (their arguments carry stream keys, which a card
 # can't show in full); create_/update_/delete_cms_event, cms_event_action, delete_stream_endpoint,
-# apply_team_preset and switch_device_to_cms (not reviewed yet).
+# apply_team_preset and switch_device_to_cms (not reviewed yet); and every group tool (docs/design/group-writes.md).
 #
 # FLEETWATCH_TOOL_POLICY_FILE may remove entries, lower max_targets, turn disruptive on, widen disruptive_when, raise
 # lead_minutes, or set a schema back to pending. It can't add an entry, raise max_targets, turn disruptive off, make a
