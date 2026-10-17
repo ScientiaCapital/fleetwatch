@@ -52,7 +52,7 @@ def _version() -> Check:
 def _policy(s: Settings) -> Check:
     try:
         p = load_policy(s.policy_file)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001  (any load error is the check's FAIL detail)
         return Check("Policy", FAIL, f"{s.policy_file}: {e}")
     mode = (
         "autonomy: propose: the assistant may propose changes for a person to approve; the heartbeat stays "
@@ -66,7 +66,7 @@ def _policy(s: Settings) -> Check:
 def _guard(s: Settings) -> Check:
     try:
         tools = load_tools(s.tool_policy_file)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001  (any load error is the check's FAIL detail)
         return Check("Read-only guard", FAIL, str(e))  # the message names the file
     leaked = sorted(t for t in KNOWN_WRITE_TOOLS | tools.write | tools.disruptive if tools.is_read(t))
     if leaked:

@@ -10,6 +10,11 @@ class Priority(str, Enum):
     FIX_SOON = "Fix soon"
     WHEN_CONVENIENT = "When convenient"
 
+    @property
+    def rank(self) -> int:
+        """0 for Fix first, then Fix soon, then When convenient: the order a digest lists them in."""
+        return list(type(self)).index(self)
+
 
 class RoomState(str, Enum):
     OFFLINE = "offline"

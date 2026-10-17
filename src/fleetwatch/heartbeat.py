@@ -55,7 +55,7 @@ async def snapshot(client: EpiphanClient, now: datetime, *, strict: bool = False
     try:
         until = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
         apply_events(fleet, await client.call("get_current_or_next_cms_events_for_devices", {"until": until}))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001  (a failed event read is skipped, or raised as FailedRead when strict)
         if strict:
             raise FailedRead(f"the event read failed: {redact(str(e))}") from None
         log.warning("event lookup failed: %s", redact(str(e)))
@@ -94,7 +94,7 @@ async def tick(
     except FailedRead as e:
         # Nothing below runs: no diff, no "Back to normal", no post, and no snapshot that `status --check`
         # would count as a healthy heartbeat.
-        log.warning("failed read, skipping this heartbeat: %s", e)
+        log.warning("failed read, skipping this heartbeat: %s", redact(str(e)))
         raise
     if on_fleet is not None:  # lets /fleetwatch answer from this beat's fleet without reading it again
         on_fleet(fleet)

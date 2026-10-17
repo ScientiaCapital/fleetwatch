@@ -2,11 +2,9 @@
 priorities in words. No AI model is involved."""
 
 from fleetwatch.agents.readiness.rules import NOT_READY, NOTES, READY
-from fleetwatch.model import Finding, Priority, Readiness
+from fleetwatch.model import Finding, Readiness
 from fleetwatch.notes import format_note
 from fleetwatch.state import Note
-
-_ORDER = {Priority.FIX_FIRST: 0, Priority.FIX_SOON: 1, Priority.WHEN_CONVENIENT: 2}
 
 
 def _line(f: Finding) -> str:
@@ -37,7 +35,7 @@ def render_digest(
             out += [f"  ↳ {format_note(n)}" for n in notes[f.device_id]]
         return out
 
-    items = sorted((f for f in new if not f.fyi), key=lambda f: _ORDER[f.priority])
+    items = sorted((f for f in new if not f.fyi), key=lambda f: f.priority.rank)
     fyi = [f for f in new if f.fyi]
     lines: list[str] = []
     if items:
@@ -45,7 +43,7 @@ def render_digest(
         lines += [line for f in items for line in with_notes(f)]
     if reminders:
         lines.append("*Still open*")
-        lines += [line for f in sorted(reminders, key=lambda f: _ORDER[f.priority]) for line in with_notes(f)]
+        lines += [line for f in sorted(reminders, key=lambda f: f.priority.rank) for line in with_notes(f)]
     if resolved:
         lines.append("*Back to normal*")
         lines += [f"• {f.what}" for f in resolved]

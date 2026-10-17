@@ -210,7 +210,7 @@ def _action_disruptive(rule: ProposeRule, arguments: Any) -> bool:
     return given in values
 
 
-def _check_value(spec: FieldSpec, value, where: str) -> None:
+def _check_value(spec: FieldSpec, value: Any, where: str) -> None:
     kind = spec.type
     if kind in ("string", "enum"):
         if not isinstance(value, str):
@@ -241,7 +241,7 @@ def _check_value(spec: FieldSpec, value, where: str) -> None:
             _check_value(spec.items, item, f"{where}[{i}]")
 
 
-def check_arguments(tool: str, rule: ProposeRule, arguments) -> tuple[str, ...]:
+def check_arguments(tool: str, rule: ProposeRule, arguments: Any) -> tuple[str, ...]:
     """Check proposed arguments against the tool's reviewed schema and return the target device IDs.
 
     Refuses (ValueError, in plain words) a pending schema, anything that isn't a mapping, a missing required field,
@@ -276,7 +276,7 @@ def _hhmm(value: str | None) -> time | None:
     return time(int(hours), int(minutes))
 
 
-def _ids(value, key: str) -> tuple[str, ...]:
+def _ids(value: Any, key: str) -> tuple[str, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
@@ -314,13 +314,13 @@ def load_policy(path: Path) -> Policy:
     )
 
 
-def _positive_int(value, what: str, *, minimum: int = 1) -> int:
+def _positive_int(value: Any, what: str, *, minimum: int = 1) -> int:
     if type(value) is not int or value < minimum:  # bool is an int subclass, so `true` is refused here too
         raise ValueError(f"{what} must be a whole number of at least {minimum}, not {value!r}")
     return value
 
 
-def _field(spec, where: str, *, nested: bool = False) -> FieldSpec:
+def _field(spec: Any, where: str, *, nested: bool = False) -> FieldSpec:
     if not isinstance(spec, dict):
         raise ValueError(f"{where} must be a mapping")  # noqa: TRY004  (same as other policy errors)
     kind = spec.get("type")
@@ -370,7 +370,7 @@ def _field(spec, where: str, *, nested: bool = False) -> FieldSpec:
     )
 
 
-def _schema(raw, where: str, max_targets: int) -> ArgSchema | None:
+def _schema(raw: Any, where: str, max_targets: int) -> ArgSchema | None:
     if raw == PENDING:
         return None
     if not isinstance(raw, dict):
@@ -399,7 +399,7 @@ def _schema(raw, where: str, max_targets: int) -> ArgSchema | None:
 
 
 def _disruptive_when(
-    raw, at: str, schema: ArgSchema | None, flag: bool, listed: bool
+    raw: Any, at: str, schema: ArgSchema | None, flag: bool, listed: bool
 ) -> tuple[str, frozenset[str]] | None:
     """`disruptive_when: {action: [stop]}`: one enum field of the schema and the values that make a call disruptive."""
     if raw is None:
@@ -414,7 +414,7 @@ def _disruptive_when(
     return _field_values(raw, where, schema)
 
 
-def _stops_recording(raw, at: str, schema: ArgSchema | None) -> tuple[str, frozenset[str]] | None:
+def _stops_recording(raw: Any, at: str, schema: ArgSchema | None) -> tuple[str, frozenset[str]] | None:
     """`stops_recording: {action: [stop]}`: the action that ends a recording."""
     if raw is None:
         return None
@@ -424,7 +424,7 @@ def _stops_recording(raw, at: str, schema: ArgSchema | None) -> tuple[str, froze
     return _field_values(raw, where, schema)
 
 
-def _field_values(raw, where: str, schema: ArgSchema) -> tuple[str, frozenset[str]]:
+def _field_values(raw: Any, where: str, schema: ArgSchema) -> tuple[str, frozenset[str]]:
     if not isinstance(raw, dict) or len(raw) != 1:
         raise ValueError(f"{where} must name exactly one field, as in {{action: [stop]}}")
     ((name, values),) = raw.items()
@@ -439,7 +439,7 @@ def _field_values(raw, where: str, schema: ArgSchema) -> tuple[str, frozenset[st
 
 
 def _propose(
-    raw, where: str, read: frozenset[str], write: frozenset[str], disruptive: frozenset[str]
+    raw: Any, where: str, read: frozenset[str], write: frozenset[str], disruptive: frozenset[str]
 ) -> Mapping[str, ProposeRule]:
     if raw is None:
         return MappingProxyType({})

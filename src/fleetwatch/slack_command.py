@@ -143,7 +143,7 @@ class Listener:
     def close(self) -> None:
         try:
             self.client.close()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (closing a socket that already dropped)
             log.debug("Slack socket close: %s", e)
 
 
