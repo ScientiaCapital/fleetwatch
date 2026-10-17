@@ -146,7 +146,7 @@ FYI: 3 Pearls have little or no local space left. That's normal when recordings 
 - Quiet hours (22:00 to 06:30 by default) only let Fix first items and before-event checks through.
 - Before each event: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. If the verdict changes before the
   start, one more line says so: `Now not ready (was Ready)` or `Ready now (was Not ready)`.
-- Say `vertical: education`, `business`, `courts`, or `worship` in `policy.yaml` and the words change: class, meeting,
+- Say `vertical: events`, `education`, `business`, `courts`, or `worship` in `policy.yaml` and the words change: class, meeting,
   hearing, service.
 
 ## How it fits together
@@ -273,8 +273,8 @@ and feature requests go in [issues](https://github.com/ScientiaCapital/fleetwatc
 
 ## Status
 
-Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has only run against the saved sample fleet
-so far: the first live run against a real team is still to do. What's next is in the
+Version 0.1.0, not released yet. Unit and replay tests pass. Fleetwatch has made one live, read-only run against a real
+team and a long steady run after it. The agent isn't left running, and the next live run needs a fresh sign-in. What's next is in the
 [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) and
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2) milestones, including a voice interface that
 isn't built yet. The optional assistant that proposes changes for a person to approve is built but not released, and

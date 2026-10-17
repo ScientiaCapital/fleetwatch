@@ -80,7 +80,7 @@ refuse anything wider.
 
 ## Data sent to the model (v0.2, in progress)
 
-The v0.2 assistant (docs/design/approved-writes.md) is optional and off by default. It's tested only against a
+The v0.2 assistant (https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/design/approved-writes.md) is optional and off by default. It's tested only against a
 mocked model so far, not the live Anthropic API or a real team.
 
 - When. Only `fleetwatch ask` (not `--serve`, not `--no-ai`), and only when `FLEETWATCH_ANTHROPIC_API_KEY` is set.
@@ -117,7 +117,7 @@ mocked model so far, not the live Anthropic API or a real team.
 This covers the optional assistant and the approval flow. They're built but not released, and tested only against
 fakes and mocks: a fake Epiphan server and a mocked model. Nothing here has run against a real team or the live
 Anthropic API. Version 0.1 doesn't use any of it. The design is in
-[docs/design/approved-writes.md](docs/design/approved-writes.md).
+[docs/design/approved-writes.md](https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/design/approved-writes.md).
 
 What the model can see. Your question, and redacted results from the read tools it asks for. Those results include
 device, channel, source and event names, models, groups, firmware, and online, recording and event status. They go to
@@ -129,7 +129,7 @@ stores a pending proposal and runs nothing. The model never sees a write tool. I
 persuades it to propose something still meets every check below.
 
 What a person approves. One change at a time, on the approval page (`fleetwatch approve --serve`, see
-[Approving changes](docs/approving-changes.md)). Code builds the card from the stored proposal and a fresh read of
+[Approving changes](https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/approving-changes.md)). Code builds the card from the stored proposal and a fresh read of
 each target: the tool in plain words, each device's ID, name and state, and every argument in full. The assistant's
 reason appears in a separate box marked as not checked. If an argument can't be shown in full, only Deny is offered.
 

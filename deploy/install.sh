@@ -2,7 +2,7 @@
 # Install fleetwatch as an always-on service for the current user.
 #   macOS (Apple Silicon or Intel): a launchd agent, starts at login, restarts on failure.
 #   Linux (Raspberry Pi 5, any systemd distro): a user systemd unit, starts at boot with lingering.
-# Run from the repo folder after `uv sync`, `cp .env.example .env` and `uv run fleetwatch login`.
+# Run from the repo folder after `uv sync`, `cp .env.example .env` and `uv run fleetwatch connect`.
 #
 #   deploy/install.sh             install and start the service
 #   deploy/install.sh --dry-run   render and validate the service file only: no sign-in check, nothing loaded
@@ -26,7 +26,7 @@ if $dry_run; then
 else
   [ -f "$here/.env" ] || echo "note: no .env yet; the agent will print to the console instead of Slack."
   if ! "$uv_bin" run --frozen fleetwatch status 2>/dev/null | grep -q "Signed in: yes"; then
-    echo "Not signed in yet. Run:  uv run fleetwatch login   then run this script again."; exit 1
+    echo "Not signed in yet. Run:  uv run fleetwatch connect   then run this script again."; exit 1
   fi
 fi
 
@@ -40,7 +40,7 @@ case "$(uname -s)" in
     plutil -lint "$plist"
     if grep -q "__[A-Z]*__" "$plist"; then echo "unrendered placeholder in $plist"; exit 1; fi
     if $dry_run; then echo "Dry run OK: $plist"; exit 0; fi
-    # Remove the agent from before the rename, if present.
+    # Remove the agent from before the rename (com.epiphan.fleetwatch, now $label), if present.
     launchctl bootout "gui/$(id -u)/com.epiphan.fleetwatch" 2>/dev/null || true
     rm -f "$HOME/Library/LaunchAgents/com.epiphan.fleetwatch.plist"
     launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true

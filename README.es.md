@@ -141,7 +141,7 @@ FYI: 3 Pearls have little or no local space left. That's normal when recordings 
   de cada evento.
 - Antes de cada evento: `Ballroom B · Opening keynote at 9:00 AM: Ready, with notes`. Si el resultado cambia antes
   de que empiece, una línea más lo dice: `Now not ready (was Ready)` o `Ready now (was Not ready)`.
-- Pon `vertical: education`, `business`, `courts` o `worship` en `policy.yaml` y cambian las palabras: class,
+- Pon `vertical: events`, `education`, `business`, `courts` o `worship` en `policy.yaml` y cambian las palabras: class,
   meeting, hearing, service.
 
 ## Cómo funciona
@@ -240,8 +240,9 @@ asistentes de IA deben leer [AGENTS.md](AGENTS.md). Las preguntas e ideas van en
 
 ## Estado
 
-Versión 0.1.0, todavía sin publicar. Las pruebas unitarias y de replay pasan. Hasta ahora Fleetwatch solo se ha
-ejecutado contra la flota de ejemplo guardada: falta la primera ejecución contra un equipo real. Lo que sigue está
+Versión 0.1.0, todavía sin publicar. Las pruebas unitarias y de replay pasan. Fleetwatch ya hizo una ejecución en vivo, de solo
+lectura, contra un equipo real y una ejecución larga y estable después. El agente no se deja corriendo y la próxima
+ejecución en vivo requiere un inicio de sesión nuevo. Lo que sigue está
 en los hitos [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) y
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2), incluida una interfaz de voz que aún no
 existe. El asistente opcional que propone cambios para que una persona los apruebe está construido, pero sin
