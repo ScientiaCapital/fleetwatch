@@ -19,6 +19,11 @@ Security → Report a vulnerability on this repo
 Problems in Epiphan products, Epiphan Edge, or the Epiphan MCP server belong to Epiphan. Contact
 [Epiphan support](https://www.epiphan.com/support/).
 
+## Supported versions
+
+Fleetwatch has not tagged a release yet; until it does, fixes go to `main`. After the first release, only the
+newest release gets security fixes.
+
 ## Trust model
 
 Fleetwatch runs as one process on a machine you control, as your user, with one Epiphan Edge sign-in for one
