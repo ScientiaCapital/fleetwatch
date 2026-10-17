@@ -69,3 +69,18 @@ def test_little_space_never_makes_a_room_not_ready(warning):
     r = check(pearl(warnings=[warning]), EVENT)
     assert r.verdict == NOTES
     assert "space" in r.notes[0]
+
+
+def test_already_recording_before_the_event_is_a_note():
+    r = check(pearl(recording=True), EVENT, now=NOW)
+    assert r.verdict == NOTES
+    assert "Already recording" in r.notes[0]
+
+
+def test_recording_during_the_event_is_not_a_note():
+    r = check(pearl(recording=True), EVENT, now=EVENT.start + timedelta(minutes=5))
+    assert r.verdict == READY
+
+
+def test_without_a_now_the_recording_note_is_skipped():
+    assert check(pearl(recording=True), EVENT).verdict == READY

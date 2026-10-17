@@ -1,6 +1,8 @@
 """Ready / Ready, with notes / Not ready, from what we can read without touching the room.
 Ported from the Edge Claude Kit's /check-room. Space never makes a room Not ready."""
 
+from datetime import datetime
+
 from fleetwatch.epiphan.parse import STORAGE_WARNINGS
 from fleetwatch.model import Device, Event, Readiness
 from fleetwatch.policy import Policy
@@ -8,7 +10,8 @@ from fleetwatch.policy import Policy
 READY, NOTES, NOT_READY = "Ready", "Ready, with notes", "Not ready"
 
 
-def check(device: Device, event: Event, policy: Policy | None = None) -> Readiness:
+def check(device: Device, event: Event, policy: Policy | None = None, now: datetime | None = None) -> Readiness:
+    """`now` lets the check say a room is already recording before the event starts; without it that note is skipped."""
     word = (policy or Policy()).event_word
     blockers: list[str] = []
     notes: list[str] = []
@@ -25,7 +28,7 @@ def check(device: Device, event: Event, policy: Policy | None = None) -> Readine
         bad = [c.name for c in device.channels.values() if "channel_no_signal" in c.warnings]
         if bad:
             blockers.append(f"No picture on {', '.join(bad)}")
-        if device.recording and event.start > device_now(event):
+        if now is not None and device.recording and event.start > now:
             notes.append(f"Already recording; the scheduled {word} may start a second file")
         if "source_no_signal" in device.warnings and not bad:
             notes.append("One input has no signal (not used by a channel, as far as we can see)")
@@ -33,8 +36,3 @@ def check(device: Device, event: Event, policy: Policy | None = None) -> Readine
             notes.append("Little local space left; fine when recordings upload to your CMS")
     verdict = NOT_READY if blockers else (NOTES if notes else READY)
     return Readiness(event=event, device_name=device.name, verdict=verdict, notes=tuple(blockers + notes))
-
-
-def device_now(event: Event):
-    """The reference 'now' is the event's start; kept as a hook for tests."""
-    return event.start

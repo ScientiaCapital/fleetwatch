@@ -115,7 +115,7 @@ def _room(d: KnownDevice, state: State, policy: Policy, fleet: Fleet | None, now
     live = fleet.devices.get(d.id) if fleet else None
     event = fleet.events.get(d.id) if fleet else None
     if live is not None and event is not None and event.start >= now:
-        r = readiness_check(live, event, policy)
+        r = readiness_check(live, event, policy, now)
         lines = [f"{d.name} · {event.title} at {_when(event.start)}: {r.verdict}"]
         lines += [f"- {n}" for n in r.notes]
         return "\n".join(lines + _notes(d, state))

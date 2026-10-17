@@ -133,7 +133,7 @@ async def tick(
             not dev.online and now < event.start <= now + lead
         ):
             was = state.readiness_verdict(event.key)
-            r = readiness_check(dev, event, policy)
+            r = readiness_check(dev, event, policy, now)
             if r.verdict == was:  # the same verdict never reposts, even with different reasons
                 continue
             if notifier.post(render_readiness(r, was)):
