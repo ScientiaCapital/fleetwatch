@@ -108,7 +108,7 @@ async def tick(
         new = [f for f in new if f.priority is Priority.FIX_FIRST]
         reminders, resolved = [], []
     notes = state.notes_by_device({f.device_id for f in new + reminders})
-    text = render_digest(new, reminders, resolved, first_run=first_run and not quiet, notes=notes)
+    text = render_digest(new, reminders, resolved, first_run=first_run and not quiet, notes=notes, lang=policy.language)
     if text and notifier.post(text):
         state.mark_sent(new + reminders, now)
         state.audit(
@@ -136,7 +136,7 @@ async def tick(
             r = readiness_check(dev, event, policy, now)
             if r.verdict == was:  # the same verdict never reposts, even with different reasons
                 continue
-            if notifier.post(render_readiness(r, was)):
+            if notifier.post(render_readiness(r, was, policy.language)):
                 state.record_readiness(r, now)
                 state.audit("readiness", {"event": event.key, "verdict": r.verdict, "was": was}, now)
     return text

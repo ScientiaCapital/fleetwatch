@@ -43,7 +43,8 @@ tests/install_update.sh                           # install.sh updates: main, ta
 
 ## Style
 
-- Messages to people use plain words. Priority is Fix first, Fix soon, or When convenient. Storage warnings
+- Messages to people use plain words. Priority is Fix first, Fix soon, or When convenient (in Spanish: Arreglar primero,
+  Arreglar pronto, Cuando convenga). Text for people goes in `src/fleetwatch/i18n.py` in both languages. Storage warnings
   are an FYI line. See `src/fleetwatch/notify/digest.py`.
 - The product name is Fleetwatch (capital F only, never FleetWatch). The display name is
   "Fleetwatch for Epiphan Edge".
@@ -66,5 +67,6 @@ tests/install_update.sh                           # install.sh updates: main, ta
 | `src/fleetwatch/heartbeat.py` | One tick: read, diff, post once |
 | `src/fleetwatch/state.py` | SQLite: open items, what was posted when, audit log |
 | `src/fleetwatch/notify/` | Digest templates; Slack, Teams, or console |
+| `src/fleetwatch/i18n.py` | English and Spanish text for findings, the digest and before-event lines; `language` in `policy.yaml` picks one |
 | `deploy/` | launchd agent, systemd unit, `install.sh` |
 | `tests/fixtures/` | Redacted, renamed fleet sample used by replay mode |

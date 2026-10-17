@@ -7,11 +7,11 @@ locally and upload afterwards, so a full disk is routine.
 from datetime import timedelta
 
 from fleetwatch.epiphan.parse import STORAGE_WARNINGS
+from fleetwatch.i18n import say
 from fleetwatch.model import Device, Finding, Fleet, Priority
 from fleetwatch.policy import Policy
 
 PEARL_FAMILY = ("pearl-2", "pearl 2", "pearl mini", "pearl nano", "pearl nexus")
-CAMERA_OFFLINE_IMPACT = "Its picture may be missing from the Pearl channels that use it, and Edge can't control it"
 
 
 def firmware_family(model: str) -> str:
@@ -44,86 +44,49 @@ def in_scope(d: Device, policy: Policy) -> bool:
     return not policy.groups or d.group in policy.groups
 
 
+def _finding(policy: Policy, d: Device, key: str, priority: Priority, rule: str, **kw: str) -> Finding:
+    """One finding for a device. `rule` names its three messages in i18n.py: what, impact and fix."""
+    return Finding(
+        key=f"{d.id}:{key}",
+        priority=priority,
+        device_id=d.id,
+        device_name=d.name,
+        what=say(policy, f"scan.{rule}.what", name=d.name, **kw),
+        impact=say(policy, f"scan.{rule}.impact", name=d.name, **kw),
+        fix=say(policy, f"scan.{rule}.fix", name=d.name, **kw),
+    )
+
+
 def _offline(d: Device, policy: Policy) -> Finding:
     recording = [c.name for c in d.channels.values() if c.recording]
     if d.is_camera:
         # An EC20 doesn't record or stream by itself. The Pearl channel that uses it raises its own
         # Fix first "No picture" item, so the camera itself is Fix soon.
-        return Finding(
-            key=f"{d.id}:offline",
-            priority=Priority.FIX_SOON,
-            device_id=d.id,
-            device_name=d.name,
-            what=f"{d.name} is offline",
-            impact=CAMERA_OFFLINE_IMPACT,
-            fix="Check power (PoE) and the network cable at the camera",
-        )
+        return _finding(policy, d, "offline", Priority.FIX_SOON, "camera_offline")
     if recording:
-        return Finding(
-            key=f"{d.id}:offline-recording",
-            priority=Priority.FIX_FIRST,
-            device_id=d.id,
-            device_name=d.name,
-            what=f"{d.name} is offline but still shows {', '.join(recording)} recording",
-            impact="Edge can't see or stop that recording, and it won't upload until the unit is back",
-            fix="Check power and network at the unit",
+        return _finding(
+            policy, d, "offline-recording", Priority.FIX_FIRST, "offline_recording", channels=", ".join(recording)
         )
-    return Finding(
-        key=f"{d.id}:offline",
-        priority=Priority.FIX_FIRST,
-        device_id=d.id,
-        device_name=d.name,
-        what=f"{d.name} is offline",
-        impact=f"{policy.events_word.capitalize()} in that room won't record or stream until it's back",
-        fix="Check power and the network cable at the unit",
-    )
+    return _finding(policy, d, "offline", Priority.FIX_FIRST, "offline")
 
 
 def _signal(d: Device, policy: Policy) -> list[Finding]:
     """No picture on a channel (Fix first), or an input with no signal that no channel uses (When convenient)."""
     findings = [
-        Finding(
-            key=f"{d.id}:{c.id}:no-signal",
-            priority=Priority.FIX_FIRST,
-            device_id=d.id,
-            device_name=d.name,
-            what=f"No picture on {c.name} in {d.name}",
-            impact=f"The next {policy.event_word} on that channel records a blank screen",
-            fix="Check the camera or the HDMI/SDI cable feeding it",
-        )
+        _finding(policy, d, f"{c.id}:no-signal", Priority.FIX_FIRST, "no_signal", channel=c.name)
         for c in d.channels.values()
         if "channel_no_signal" in c.warnings
     ]
     if "source_no_signal" in d.warnings and not findings:
-        findings.append(
-            Finding(
-                key=f"{d.id}:idle-input",
-                priority=Priority.WHEN_CONVENIENT,
-                device_id=d.id,
-                device_name=d.name,
-                what=f"An input on {d.name} has no signal",
-                impact="Nothing, if that input isn't used by a channel",
-                fix="Unplug it or tidy the cable when you're next in the room",
-            )
-        )
+        findings.append(_finding(policy, d, "idle-input", Priority.WHEN_CONVENIENT, "idle_input"))
     return findings
 
 
-def _firmware(d: Device, newest: dict[str, str]) -> list[Finding]:
+def _firmware(d: Device, newest: dict[str, str], policy: Policy) -> list[Finding]:
     fam = firmware_family(d.model)
     if not (d.firmware and fam in newest and _version(d.firmware) < _version(newest[fam])):
         return []
-    return [
-        Finding(
-            key=f"{d.id}:firmware",
-            priority=Priority.FIX_SOON,
-            device_id=d.id,
-            device_name=d.name,
-            what=f"{d.name} runs firmware {d.firmware}; others like it run {newest[fam]}",
-            impact="Works fine today; keeps the fleet consistent",
-            fix="Update firmware when the room is free",
-        )
-    ]
+    return [_finding(policy, d, "firmware", Priority.FIX_SOON, "firmware", firmware=d.firmware, newest=newest[fam])]
 
 
 def _system(d: Device, fleet: Fleet, policy: Policy) -> list[Finding]:
@@ -134,40 +97,14 @@ def _system(d: Device, fleet: Fleet, policy: Policy) -> list[Finding]:
     findings: list[Finding] = []
     t = policy.thresholds
     if sysinfo.cpu_load_pct is not None and sysinfo.cpu_load_pct >= t.cpu_load_pct:
-        findings.append(
-            Finding(
-                key=f"{d.id}:cpu",
-                priority=Priority.FIX_SOON,
-                device_id=d.id,
-                device_name=d.name,
-                what=f"{d.name} is working hard (CPU at {sysinfo.cpu_load_pct:.0f}%)",
-                impact="Streams may stutter if it stays this high",
-                fix="Check for an unused channel or a layout that's too heavy",
-            )
-        )
+        findings.append(_finding(policy, d, "cpu", Priority.FIX_SOON, "cpu", pct=f"{sysinfo.cpu_load_pct:.0f}"))
     if sysinfo.cpu_temp_c is not None and sysinfo.cpu_temp_c >= t.cpu_temp_c:
-        findings.append(
-            Finding(
-                key=f"{d.id}:temp",
-                priority=Priority.FIX_SOON,
-                device_id=d.id,
-                device_name=d.name,
-                what=f"{d.name} is running warm ({sysinfo.cpu_temp_c:.0f}°C)",
-                impact="It may slow down to cool off",
-                fix="Check the vents and airflow around it",
-            )
-        )
+        findings.append(_finding(policy, d, "temp", Priority.FIX_SOON, "temp", temp=f"{sysinfo.cpu_temp_c:.0f}"))
     if sysinfo.up_since and fleet.taken_at - sysinfo.up_since <= timedelta(minutes=t.recent_reboot_minutes):
         mins = int((fleet.taken_at - sysinfo.up_since).total_seconds() // 60)
         findings.append(
-            Finding(
-                key=f"{d.id}:reboot:{sysinfo.up_since.isoformat()[:16]}",
-                priority=Priority.FIX_SOON,
-                device_id=d.id,
-                device_name=d.name,
-                what=f"{d.name} restarted about {mins} minutes ago",
-                impact="Anything that was recording then stopped",
-                fix="Check it came back with the right settings",
+            _finding(
+                policy, d, f"reboot:{sysinfo.up_since.isoformat()[:16]}", Priority.FIX_SOON, "reboot", mins=str(mins)
             )
         )
     return findings
@@ -185,7 +122,7 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
         if not d.online:
             findings.append(_offline(d, policy))
             continue
-        findings += _signal(d, policy) + _firmware(d, newest) + _system(d, fleet, policy)
+        findings += _signal(d, policy) + _firmware(d, newest, policy) + _system(d, fleet, policy)
 
     if storage_count:
         findings.append(
@@ -194,8 +131,7 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
                 priority=Priority.WHEN_CONVENIENT,
                 device_id="",
                 device_name="",
-                what=f"FYI: {storage_count} {'Pearl has' if storage_count == 1 else 'Pearls have'} little or no local space left. "
-                "That's normal when recordings upload to your CMS.",
+                what=say(policy, "scan.storage.one" if storage_count == 1 else "scan.storage.many", n=storage_count),
                 fyi=True,
             )
         )
