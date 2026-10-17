@@ -44,6 +44,135 @@ def in_scope(d: Device, policy: Policy) -> bool:
     return not policy.groups or d.group in policy.groups
 
 
+def _offline(d: Device, policy: Policy) -> Finding:
+    recording = [c.name for c in d.channels.values() if c.recording]
+    if d.is_camera:
+        # An EC20 doesn't record or stream by itself. The Pearl channel that uses it raises its own
+        # Fix first "No picture" item, so the camera itself is Fix soon.
+        return Finding(
+            key=f"{d.id}:offline",
+            priority=Priority.FIX_SOON,
+            device_id=d.id,
+            device_name=d.name,
+            what=f"{d.name} is offline",
+            impact=CAMERA_OFFLINE_IMPACT,
+            fix="Check power (PoE) and the network cable at the camera",
+        )
+    if recording:
+        return Finding(
+            key=f"{d.id}:offline-recording",
+            priority=Priority.FIX_FIRST,
+            device_id=d.id,
+            device_name=d.name,
+            what=f"{d.name} is offline but still shows {', '.join(recording)} recording",
+            impact="Edge can't see or stop that recording, and it won't upload until the unit is back",
+            fix="Check power and network at the unit",
+        )
+    return Finding(
+        key=f"{d.id}:offline",
+        priority=Priority.FIX_FIRST,
+        device_id=d.id,
+        device_name=d.name,
+        what=f"{d.name} is offline",
+        impact=f"{policy.events_word.capitalize()} in that room won't record or stream until it's back",
+        fix="Check power and the network cable at the unit",
+    )
+
+
+def _signal(d: Device, policy: Policy) -> list[Finding]:
+    """No picture on a channel (Fix first), or an input with no signal that no channel uses (When convenient)."""
+    findings = [
+        Finding(
+            key=f"{d.id}:{c.id}:no-signal",
+            priority=Priority.FIX_FIRST,
+            device_id=d.id,
+            device_name=d.name,
+            what=f"No picture on {c.name} in {d.name}",
+            impact=f"The next {policy.event_word} on that channel records a blank screen",
+            fix="Check the camera or the HDMI/SDI cable feeding it",
+        )
+        for c in d.channels.values()
+        if "channel_no_signal" in c.warnings
+    ]
+    if "source_no_signal" in d.warnings and not findings:
+        findings.append(
+            Finding(
+                key=f"{d.id}:idle-input",
+                priority=Priority.WHEN_CONVENIENT,
+                device_id=d.id,
+                device_name=d.name,
+                what=f"An input on {d.name} has no signal",
+                impact="Nothing, if that input isn't used by a channel",
+                fix="Unplug it or tidy the cable when you're next in the room",
+            )
+        )
+    return findings
+
+
+def _firmware(d: Device, newest: dict[str, str]) -> list[Finding]:
+    fam = firmware_family(d.model)
+    if not (d.firmware and fam in newest and _version(d.firmware) < _version(newest[fam])):
+        return []
+    return [
+        Finding(
+            key=f"{d.id}:firmware",
+            priority=Priority.FIX_SOON,
+            device_id=d.id,
+            device_name=d.name,
+            what=f"{d.name} runs firmware {d.firmware}; others like it run {newest[fam]}",
+            impact="Works fine today; keeps the fleet consistent",
+            fix="Update firmware when the room is free",
+        )
+    ]
+
+
+def _system(d: Device, fleet: Fleet, policy: Policy) -> list[Finding]:
+    """Busy CPU, a hot unit, or a recent restart, from the system status read."""
+    sysinfo = fleet.system.get(d.id)
+    if not sysinfo:
+        return []
+    findings: list[Finding] = []
+    t = policy.thresholds
+    if sysinfo.cpu_load_pct is not None and sysinfo.cpu_load_pct >= t.cpu_load_pct:
+        findings.append(
+            Finding(
+                key=f"{d.id}:cpu",
+                priority=Priority.FIX_SOON,
+                device_id=d.id,
+                device_name=d.name,
+                what=f"{d.name} is working hard (CPU at {sysinfo.cpu_load_pct:.0f}%)",
+                impact="Streams may stutter if it stays this high",
+                fix="Check for an unused channel or a layout that's too heavy",
+            )
+        )
+    if sysinfo.cpu_temp_c is not None and sysinfo.cpu_temp_c >= t.cpu_temp_c:
+        findings.append(
+            Finding(
+                key=f"{d.id}:temp",
+                priority=Priority.FIX_SOON,
+                device_id=d.id,
+                device_name=d.name,
+                what=f"{d.name} is running warm ({sysinfo.cpu_temp_c:.0f}°C)",
+                impact="It may slow down to cool off",
+                fix="Check the vents and airflow around it",
+            )
+        )
+    if sysinfo.up_since and fleet.taken_at - sysinfo.up_since <= timedelta(minutes=t.recent_reboot_minutes):
+        mins = int((fleet.taken_at - sysinfo.up_since).total_seconds() // 60)
+        findings.append(
+            Finding(
+                key=f"{d.id}:reboot:{sysinfo.up_since.isoformat()[:16]}",
+                priority=Priority.FIX_SOON,
+                device_id=d.id,
+                device_name=d.name,
+                what=f"{d.name} restarted about {mins} minutes ago",
+                impact="Anything that was recording then stopped",
+                fix="Check it came back with the right settings",
+            )
+        )
+    return findings
+
+
 def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
     findings: list[Finding] = []
     newest = newest_firmware(fleet)
@@ -53,129 +182,10 @@ def scan(fleet: Fleet, policy: Policy) -> list[Finding]:
             continue
         if any(w in STORAGE_WARNINGS for w in d.warnings):
             storage_count += 1
-
         if not d.online:
-            recording = [c.name for c in d.channels.values() if c.recording]
-            if d.is_camera:
-                # An EC20 doesn't record or stream by itself. The Pearl channel that uses it raises its own
-                # Fix first "No picture" item, so the camera itself is Fix soon.
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:offline",
-                        priority=Priority.FIX_SOON,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} is offline",
-                        impact=CAMERA_OFFLINE_IMPACT,
-                        fix="Check power (PoE) and the network cable at the camera",
-                    )
-                )
-            elif recording:
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:offline-recording",
-                        priority=Priority.FIX_FIRST,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} is offline but still shows {', '.join(recording)} recording",
-                        impact="Edge can't see or stop that recording, and it won't upload until the unit is back",
-                        fix="Check power and network at the unit",
-                    )
-                )
-            else:
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:offline",
-                        priority=Priority.FIX_FIRST,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} is offline",
-                        impact=f"{policy.events_word.capitalize()} in that room won't record or stream until it's back",
-                        fix="Check power and the network cable at the unit",
-                    )
-                )
+            findings.append(_offline(d, policy))
             continue
-
-        for c in d.channels.values():
-            if "channel_no_signal" in c.warnings:
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:{c.id}:no-signal",
-                        priority=Priority.FIX_FIRST,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"No picture on {c.name} in {d.name}",
-                        impact=f"The next {policy.event_word} on that channel records a blank screen",
-                        fix="Check the camera or the HDMI/SDI cable feeding it",
-                    )
-                )
-        if "source_no_signal" in d.warnings and not any("channel_no_signal" in c.warnings for c in d.channels.values()):
-            findings.append(
-                Finding(
-                    key=f"{d.id}:idle-input",
-                    priority=Priority.WHEN_CONVENIENT,
-                    device_id=d.id,
-                    device_name=d.name,
-                    what=f"An input on {d.name} has no signal",
-                    impact="Nothing, if that input isn't used by a channel",
-                    fix="Unplug it or tidy the cable when you're next in the room",
-                )
-            )
-
-        fam = firmware_family(d.model)
-        if d.firmware and fam in newest and _version(d.firmware) < _version(newest[fam]):
-            findings.append(
-                Finding(
-                    key=f"{d.id}:firmware",
-                    priority=Priority.FIX_SOON,
-                    device_id=d.id,
-                    device_name=d.name,
-                    what=f"{d.name} runs firmware {d.firmware}; others like it run {newest[fam]}",
-                    impact="Works fine today; keeps the fleet consistent",
-                    fix="Update firmware when the room is free",
-                )
-            )
-
-        sysinfo = fleet.system.get(d.id)
-        if sysinfo:
-            t = policy.thresholds
-            if sysinfo.cpu_load_pct is not None and sysinfo.cpu_load_pct >= t.cpu_load_pct:
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:cpu",
-                        priority=Priority.FIX_SOON,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} is working hard (CPU at {sysinfo.cpu_load_pct:.0f}%)",
-                        impact="Streams may stutter if it stays this high",
-                        fix="Check for an unused channel or a layout that's too heavy",
-                    )
-                )
-            if sysinfo.cpu_temp_c is not None and sysinfo.cpu_temp_c >= t.cpu_temp_c:
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:temp",
-                        priority=Priority.FIX_SOON,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} is running warm ({sysinfo.cpu_temp_c:.0f}°C)",
-                        impact="It may slow down to cool off",
-                        fix="Check the vents and airflow around it",
-                    )
-                )
-            if sysinfo.up_since and fleet.taken_at - sysinfo.up_since <= timedelta(minutes=t.recent_reboot_minutes):
-                mins = int((fleet.taken_at - sysinfo.up_since).total_seconds() // 60)
-                findings.append(
-                    Finding(
-                        key=f"{d.id}:reboot:{sysinfo.up_since.isoformat()[:16]}",
-                        priority=Priority.FIX_SOON,
-                        device_id=d.id,
-                        device_name=d.name,
-                        what=f"{d.name} restarted about {mins} minutes ago",
-                        impact="Anything that was recording then stopped",
-                        fix="Check it came back with the right settings",
-                    )
-                )
+        findings += _signal(d, policy) + _firmware(d, newest) + _system(d, fleet, policy)
 
     if storage_count:
         findings.append(
