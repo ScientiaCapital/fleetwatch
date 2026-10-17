@@ -18,6 +18,7 @@ uv sync
 uv run python -m pytest -q
 uv run fleetwatch digest --replay tests/fixtures   # full heartbeat, no sign-in needed
 uv run ruff check . && uv run ruff format --check .
+uvx pre-commit run --all-files                     # ruff, shellcheck, actionlint and zizmor, as in CI
 ```
 
 You don't need an Epiphan account to work on most of the code. Replay mode and the tests cover the heartbeat.
@@ -46,6 +47,16 @@ You don't need an Epiphan account to work on most of the code. Replay mode and t
   titles; there is no hand-edited CHANGELOG.
 - CI must be green: lint, tests on macOS and Linux (x86 and ARM), the redaction suite, the replay run, the
   install dry run and the security scans.
+
+## Cutting a release (maintainer)
+
+1. In one PR, set the same version in `pyproject.toml` and `src/fleetwatch/__init__.py`. A test fails if they differ.
+2. After it merges, tag `main` and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
+3. The tag runs the Docker workflow: it builds and attests the image, pushes it to GHCR, and creates the GitHub
+   Release with generated notes. A tag with a hyphen, such as `v0.2.0-rc1`, is a pre-release: it doesn't move
+   `latest`, and the installer skips it.
+4. The installer installs the newest final tag, so check `deploy/install.sh --dry-run` and a clean Docker build
+   before you push the tag.
 
 ## Using an AI assistant
 
