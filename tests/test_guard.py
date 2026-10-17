@@ -1,6 +1,7 @@
 """The agent can only ever call read tools. The guard lives in the client, before anything reaches the network."""
 
 import ast
+import asyncio
 import json
 from pathlib import Path
 
@@ -180,3 +181,12 @@ async def test_epiphan_client_refuses_every_write_even_with_propose_and_a_sandbo
         with pytest.raises(ToolNotAllowed):
             await client.call(tool, {"device_ids": ["0a1b2c3d"]})
     assert sdk.calls == []
+
+
+def test_a_closed_client_refuses_the_raw_session_and_reads():
+    """raw_session is the unguarded path for the v0.2 executor, so it must never hand back a session that isn't open."""
+    client = EpiphanClient("https://example.invalid/mcp", load_tool_policy(ROOT / "tool_policy.yaml"), static_token="x")
+    with pytest.raises(RuntimeError, match="async with"):
+        client.raw_session()
+    with pytest.raises(RuntimeError, match="async with"):
+        asyncio.run(client.call("get_devices_in_my_team"))
