@@ -27,7 +27,7 @@ guarda sí puede escribir, así que usa una cuenta con el mínimo acceso.
   <img alt="Un resumen de Fleetwatch y dos revisiones antes de un evento, de la demo sin conexión" src="docs/assets/digest-replay.svg" width="720">
 </p>
 
-<p align="center"><sub>De <code>fleetwatch digest --replay tests/fixtures</code>: una flota de ejemplo, sin datos reales. Los mensajes están en inglés.</sub></p>
+<p align="center"><sub>De <code>fleetwatch digest --replay tests/fixtures</code>: una flota de ejemplo, sin datos reales. Los mensajes salen en inglés por defecto; con `language: es` en `policy.yaml` salen en español.</sub></p>
 
 ## Qué incluye
 
@@ -49,11 +49,10 @@ e instala el servicio siempre activo. Puedes [leer el script](install.sh) antes.
 curl -fsSL https://raw.githubusercontent.com/ScientiaCapital/fleetwatch/main/install.sh | bash
 ```
 
-Instala la última versión publicada (mientras no exista la primera, la rama `main`); agrega `-s -- --ref main` para
-la rama de desarrollo.
+Instala la última versión publicada; agrega `-s -- --ref main` para la rama de desarrollo.
 
 ¿Prefieres Docker? Desde un clon del repositorio, `docker compose run --rm fleetwatch login` y luego
-`docker compose up -d`. Mientras no exista la primera versión, Compose construye la imagen localmente.
+`docker compose up -d`. Compose descarga la imagen publicada de GitHub Container Registry.
 
 | Nivel | Plataforma | Se ejecuta como |
 |---|---|---|
@@ -88,8 +87,7 @@ desarrollo). Si clonaste el repositorio tú mismo, ejecuta `git pull && uv sync`
 En Docker, `docker compose pull && docker compose up -d` descarga la imagen más reciente de GitHub Container
 Registry y reinicia el contenedor. El volumen `fleetwatch-state` conserva el inicio de sesión y el historial. Para
 quedarte en una versión, cambia `image:` en `compose.yaml` a una etiqueta de versión, como
-`ghcr.io/scientiacapital/fleetwatch:0.1.0`, o `:0.1` para recibir sus correcciones. Mientras no exista la primera
-versión no hay imagen que descargar, así que ejecuta `docker compose up -d --build`.
+`ghcr.io/scientiacapital/fleetwatch:0.1.0`, o `:0.1` para recibir sus correcciones.
 
 Después, `fleetwatch doctor` muestra la versión en su primera línea. Cada versión en
 [GitHub Releases](https://github.com/ScientiaCapital/fleetwatch/releases) dice qué cambió.
@@ -143,6 +141,9 @@ FYI: 3 Pearls have little or no local space left. That's normal when recordings 
   de que empiece, una línea más lo dice: `Now not ready (was Ready)` o `Ready now (was Not ready)`.
 - Pon `vertical: events`, `education`, `business`, `courts` o `worship` en `policy.yaml` y cambian las palabras: class,
   meeting, hearing, service.
+- Pon `language: es` y el resumen, las revisiones antes de cada evento y las respuestas de `ask` salen en español. Las
+  prioridades dicen Arreglar primero, Arreglar pronto y Cuando convenga. Lo que se guarda no cambia, así que cambiar el
+  idioma nunca vuelve a publicar nada.
 
 ## Cómo funciona
 
@@ -204,8 +205,8 @@ en [SECURITY.md](SECURITY.md) (en inglés). Reporta vulnerabilidades en privado 
 
 ### Asistente (v0.2, opcional)
 
-Construido, pero sin publicar, y probado solo con simulaciones: un servidor de Epiphan simulado y un modelo simulado.
-No se ha ejecutado con un equipo real ni con la API real de Anthropic.
+Incluido en la versión 0.1.0, pero apagado por defecto, y probado solo con simulaciones: un servidor de Epiphan simulado
+y un modelo simulado. No se ha ejecutado con un equipo real ni con la API real de Anthropic.
 
 Si configuras `FLEETWATCH_ANTHROPIC_API_KEY`, `fleetwatch ask` usa Claude Haiku 5.5 para responder en palabras
 simples, en inglés o en español. Lee la flota con la misma protección de solo lectura. No puede cambiar nada. Cuando
@@ -214,7 +215,8 @@ simples, en inglés o en español. Lee la flota con la misma protección de solo
 - Una persona aprueba cada cambio, uno por uno, en una página local: `fleetwatch approve --serve`. Ver
   [Approving changes](docs/approving-changes.md) (en inglés).
 - Los cambios se ejecutan solo en un equipo de pruebas (sandbox), con un inicio de sesión aparte
-  (`fleetwatch login --sandbox`).
+  (`fleetwatch login --sandbox`). Epiphan indica que las llamadas de escritura necesitan un plan Epiphan Edge Premium,
+  así que ese equipo debe tenerlo.
 - Cada aprobación sirve una sola vez, vence a los cinco minutos y queda ligada a la herramienta y a los argumentos
   exactos.
 - Las herramientas disruptivas, como un reinicio o una actualización de firmware, se rechazan cerca de un evento
@@ -240,13 +242,13 @@ asistentes de IA deben leer [AGENTS.md](AGENTS.md). Las preguntas e ideas van en
 
 ## Estado
 
-Versión 0.1.0, todavía sin publicar. Las pruebas unitarias y de replay pasan. Fleetwatch ya hizo una ejecución en vivo, de solo
+La versión 0.1.0 ya está publicada. Las pruebas unitarias y de replay pasan. Fleetwatch ya hizo una ejecución en vivo, de solo
 lectura, contra un equipo real y una ejecución larga y estable después. El agente no se deja corriendo y la próxima
 ejecución en vivo requiere un inicio de sesión nuevo. Lo que sigue está
 en los hitos [Sprint 2](https://github.com/ScientiaCapital/fleetwatch/milestone/1) y
 [Sprint 3](https://github.com/ScientiaCapital/fleetwatch/milestone/2), incluida una interfaz de voz que aún no
-existe. El asistente opcional que propone cambios para que una persona los apruebe está construido, pero sin
-publicar, y su conexión al chat sigue en curso. No se ha probado con un equipo real. No ejecutará acciones
+existe. El asistente opcional que propone cambios para que una persona los apruebe está incluido en la versión 0.1.0, pero
+apagado por defecto, y su conexión al chat sigue en curso. No se ha probado con un equipo real. No ejecutará acciones
 disruptivas sin supervisión. La protección, la ejecución en seco y la ocultación de secretos se quedan.
 
 ## Agradecimientos

@@ -55,7 +55,9 @@ you picked, including reboots and firmware updates on plans that allow them. Fle
 but anyone who copies the token could. So:
 
 - Sign in with an account made for Fleetwatch, with the least access that still sees the rooms you watch, in a
-  team that holds only those devices.
+  team that holds only those devices. Epiphan's team roles are Owner, Admin, and Operator, so give it the Operator
+  role. On a Premium plan you can also set the Operator to Limited access, which restricts it to specific groups
+  (see [Set up and manage teams](https://kb.epiphan.com/cloud-edge/set-up-and-manage-teams)).
 - Treat the token store like a password: run Fleetwatch as its own user, and don't copy `~/.fleetwatch` around.
 - `fleetwatch doctor` shows an INFO line, "Sign-in can write", as a reminder, with the granted scope when Epiphan
   reports one.
@@ -68,7 +70,9 @@ uv run fleetwatch login --sandbox
 
 This is for v0.2, the assistant that proposes changes a person approves
 ([design](design/approved-writes.md)). It needs a sandbox team: an Edge team that holds only test devices. Don't
-use it with the team you watch.
+use it with the team you watch. Epiphan's documentation says a Premium plan is needed for write MCP calls
+([Epiphan MCP capabilities](https://kb.epiphan.com/cloud-edge/epiphan-mcp-capabilities)), so the sandbox team needs an
+Epiphan Edge Premium plan.
 
 - It's the same sign-in flow as `fleetwatch login`. Pick the sandbox team when Epiphan asks.
 - The token is kept apart from the normal one: `FLEETWATCH_SANDBOX_TOKEN_FILE` (default
