@@ -53,7 +53,7 @@ dev = [
     "ruff>=0.16.10",
 ]
 docs = [
-    "zensical==0.0.68",
+    "zensical==0.0.70",
 ]
 
 [tool.pytest.ini_options]
