@@ -26,12 +26,13 @@ from mcp.client.auth import OAuthClientProvider
 from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata, OAuthMetadata, ProtectedResourceMetadata
 from pydantic import ValidationError
 
-from fleetwatch.epiphan.token_store import FileTokenStorage, RefreshLock, TokenStore
+from fleetwatch.epiphan.token_store import FileTokenStorage, RefreshBusy, RefreshLock, TokenStore
 from fleetwatch.redact import MASK, redact
 
 __all__ = [
     "FileTokenStorage",
     "LoginAuth",
+    "RefreshBusy",
     "Revocation",
     "TokenStore",
     "make_provider",
@@ -56,6 +57,8 @@ def _query(url_or_query: str) -> dict[str, list[str]]:
 
 
 SIGN_IN_EXPIRED = "Sign-in expired: run fleetwatch login"
+# A token refresh must finish well inside another process's wait for the refresh lock (#162).
+REFRESH_TIMEOUT_S = 20  # tests/test_reliability.py checks it stays below LOCK_WAIT_S
 
 log = logging.getLogger(__name__)
 
@@ -188,13 +191,26 @@ class _Provider(OAuthClientProvider):
         if not self.context.is_token_valid() and self.context.can_refresh_token():
             lock = _ask(self.context.storage, "refresh_lock")
             if lock is not None:
-                await lock.acquire()
-                self._refresh_lock = lock
+                try:
+                    if await lock.acquire():
+                        self._refresh_lock = lock
+                except RefreshBusy as e:
+                    # Never refresh without the lock (#162). The other process may have saved a new token by now.
+                    await self._adopt_newer_token()
+                    if not self.context.is_token_valid():
+                        log.warning("%s", e)  # the MCP client may report only a timeout for this beat
+                        raise
             await self._adopt_newer_token()
+            if self.context.is_token_valid():
+                self._unlock()  # no refresh goes out, so the lock must not span this process's own request
         flow = super()._auth_flow(request)
         try:
             req = await flow.__anext__()
             while True:
+                if req is not request and "timeout" not in req.extensions:
+                    # httpx times only the request it was given, not one an auth flow adds: a refresh with no
+                    # timeout could hold the lock forever while another process waits (#162).
+                    req.extensions = {**req.extensions, "timeout": httpx2.Timeout(REFRESH_TIMEOUT_S).as_dict()}
                 req = await flow.asend((yield req))
         except StopAsyncIteration:
             return
