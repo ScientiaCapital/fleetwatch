@@ -699,6 +699,35 @@ async def test_a_server_error_on_refresh_is_not_dead(tmp_path: Path):
     assert not provider.dead and not store.is_dead()
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"json": {"error": "invalid_request"}},
+        {"json": {"error": "temporarily_unavailable"}},
+        {"json": {"message": "bad gateway upstream"}},
+        {"json": ["invalid_grant"]},
+        {"text": "<html>400 Bad Request</html>"},
+        {"text": "invalid_grant"},
+        {},
+    ],
+    ids=["invalid_request", "temporarily_unavailable", "no-error-field", "list", "html", "bare-text", "empty"],
+)
+async def test_a_400_that_is_not_invalid_grant_is_a_failed_beat_not_dead(tmp_path: Path, answer: dict, caplog):
+    """#120: only `invalid_grant` means the refresh token is gone. Any other 400 retries next beat."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    store = await _expired_store(tmp_path, _metadata())
+    provider = make_provider(URL, store, 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    with caplog.at_level(logging.WARNING):
+        await flow.asend(httpx2.Response(400, request=refresh, **answer))
+    await flow.aclose()
+    assert not provider.dead and not store.is_dead()
+    assert "next heartbeat" in caplog.text
+    assert "bad gateway upstream" not in caplog.text and "<html>" not in caplog.text, "the body is never logged"
+
+
 async def test_a_new_sign_in_clears_the_dead_mark(tmp_path: Path):
     s = FileTokenStorage(tmp_path / "t.json")
     s.mark_dead()
