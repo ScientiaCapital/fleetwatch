@@ -41,7 +41,7 @@ SANDBOX_SERVICE = "fleetwatch-epiphan-sandbox"  # the v0.2 sandbox sign-in's own
 CHUNK = 1500  # bytes of JSON per Keychain item: 3000 hex chars, well inside a 4095-char `security -i` line
 NOT_FOUND = 44  # `security` exit code for "item not found"
 TIMEOUT_S = 30
-LOCK_WAIT_S = 30  # how long a refresh waits for another process's refresh before going ahead anyway
+LOCK_WAIT_S = 30  # how long a refresh waits for another process's refresh; then this beat fails, not refreshes
 
 log = logging.getLogger(__name__)
 
@@ -74,20 +74,28 @@ def _umask(mask: int) -> Iterator[None]:
         os.umask(old)
 
 
+class RefreshBusy(RuntimeError):
+    """Another process held the refresh lock too long. Refreshing anyway could spend its refresh token (#162)."""
+
+
 class RefreshLock:
     """One token refresh at a time across processes (`run` plus a cron `digest` or `sweep`): an flock on an empty
     0600 file beside the token. Epiphan rotates the refresh token, so the second process to send the same one
     gets invalid_grant; with the lock, the second waits, re-reads the store and finds the first one's new token.
 
-    Waiting polls, so the event loop stays free. A wait that runs out goes ahead with a warning: a lock must never
-    stop a heartbeat. The kernel drops the lock with its process, so none goes stale."""
+    Waiting polls, so the event loop stays free. A wait that runs out raises `RefreshBusy`: going ahead would send
+    a refresh token the other process may already have spent, and Epiphan would refuse it for good (#162). That
+    beat fails and the next one tries again. The kernel drops the lock with its process, so none goes stale."""
 
     def __init__(self, path: Path):
         self.path = path
         self._fd: int | None = None
 
-    async def acquire(self, timeout_s: float = LOCK_WAIT_S) -> bool:
-        """True once held. False after `timeout_s`, or if the lock file can't be opened: the caller carries on."""
+    async def acquire(self, timeout_s: float | None = None) -> bool:
+        """True once held. False if the lock file can't be opened (the caller carries on: no process can hold it
+        then). Raises `RefreshBusy` if another process holds it longer than `timeout_s` (default LOCK_WAIT_S)."""
+        if timeout_s is None:
+            timeout_s = LOCK_WAIT_S
         try:
             _private_dir(self.path.parent)
             fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
@@ -101,12 +109,10 @@ class RefreshLock:
             except BlockingIOError:
                 if time.monotonic() >= deadline:
                     os.close(fd)
-                    log.warning(
-                        "Another Fleetwatch process has held the token refresh lock %s for %ss; refreshing without it",
-                        self.path,
-                        timeout_s,
+                    raise RefreshBusy(
+                        f"Another Fleetwatch process has held the token refresh lock {self.path} for {timeout_s}s; "
+                        "not refreshing now, the next heartbeat tries again"
                     )
-                    return False
                 await asyncio.sleep(0.2)
             else:
                 self._fd = fd
