@@ -173,7 +173,7 @@ class _Provider(OAuthClientProvider):
     - the OAuth endpoints discovered at sign-in. The SDK discovers them only after an HTTP 401, which Epiphan never
       sends, so after a restart a refresh would go to a guessed `<origin>/token`.
 
-    It also notices when Epiphan refuses the refresh token (HTTP 400 or 401, typically `invalid_grant`). That
+    It also notices when Epiphan refuses the refresh token (HTTP 401, or 400 with `invalid_grant`). That
     can't fix itself, so the store is marked dead and `fleetwatch run` stops instead of restarting forever.
 
     And it refreshes one process at a time. `run` and a cron `digest` can wake with the same expired token, and
@@ -292,12 +292,14 @@ class _Provider(OAuthClientProvider):
         if ok:
             self.dead = False
             self._save_endpoints()
-        elif response.status_code in (400, 401):
+        elif _refused(response):
             self.dead = True
             mark = getattr(self.context.storage, "mark_dead", None)
             if callable(mark):
                 mark()
             log.error("Epiphan refused the refresh token (HTTP %s). %s", response.status_code, SIGN_IN_EXPIRED)
+        else:
+            log.warning("The token refresh failed (HTTP %s); the next heartbeat tries again", response.status_code)
         return ok
 
     async def mark_expired(self) -> bool:
@@ -308,6 +310,21 @@ class _Provider(OAuthClientProvider):
             return False
         self.context.token_expiry_time = 1.0  # in the past; 0 or None would mean "never expires" to the SDK
         return True
+
+
+def _refused(response: httpx2.Response) -> bool:
+    """True when the refresh token itself is gone: HTTP 401, or HTTP 400 with `invalid_grant` (RFC 6749 5.2).
+    Any other 400 (a malformed request, a server-side hiccup) can clear up, so it is a failed beat, not dead (#120).
+    The body is read for that one field and never logged."""
+    if response.status_code == 401:
+        return True
+    if response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+    except (ValueError, httpx2.ResponseNotRead):
+        return False
+    return isinstance(body, dict) and body.get("error") == "invalid_grant"
 
 
 def _ask(storage: object, method: str):
