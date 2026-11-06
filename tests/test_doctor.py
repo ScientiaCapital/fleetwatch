@@ -74,6 +74,7 @@ def test_other_stores_report_where_the_token_is(tmp_path, monkeypatch):
         def has_tokens(self):
             return True
 
+    _sandbox_in_tmp(monkeypatch)
     monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: Store())
     c = by_name(run(settings(tmp_path, token_store="keychain")))["Sign-in"]
     assert c.status == OK and "Keychain" in c.detail
@@ -86,6 +87,7 @@ def test_token_store_trouble_fails(tmp_path, monkeypatch):
     def broken(kind, path):
         raise TokenStoreError("Keychain: the keychain is locked")
 
+    _sandbox_in_tmp(monkeypatch)
     monkeypatch.setattr(doctor, "make_token_store", broken)
     c = by_name(run(settings(tmp_path, token_store="keychain")))["Sign-in"]
     assert c.status == FAIL and "locked" in c.detail
@@ -215,6 +217,14 @@ def test_no_sign_in_no_write_warning(tmp_path):
     assert "Sign-in can write" not in by_name(run(settings(tmp_path)))
 
 
+def _sandbox_in_tmp(monkeypatch) -> None:
+    """With token_store="keychain", doctor's sandbox row would build a real Keychain store: keep it on the file."""
+    from fleetwatch.epiphan import executor
+    from fleetwatch.epiphan.token_store import FileTokenStorage
+
+    monkeypatch.setattr(executor, "sandbox_store", lambda s: FileTokenStorage(s.sandbox_token_file))
+
+
 def _keychain_store(tokens: bool):
     from fleetwatch.epiphan.token_store import KeychainTokenStorage
 
@@ -228,6 +238,9 @@ def _keychain_store(tokens: bool):
         def expires_at(self):
             return None
 
+        def is_dead(self):
+            return False
+
     return Store()
 
 
@@ -235,6 +248,7 @@ def test_keychain_token_says_same_user_programs_can_read_it(tmp_path, monkeypatc
     # The Keychain items trust /usr/bin/security, so any program running as this macOS user can read them.
     from fleetwatch import doctor
 
+    _sandbox_in_tmp(monkeypatch)
     monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: _keychain_store(tokens=True))
     row = by_name(run(settings(tmp_path, token_store="keychain")))["Keychain access"]
     assert row.status == INFO and "same macOS user" in row.detail and "own user" in row.detail
@@ -245,6 +259,7 @@ def test_no_keychain_row_when_signed_out_or_on_another_store(tmp_path, monkeypat
 
     signed_in(tmp_path)
     assert "Keychain access" not in by_name(run(settings(tmp_path)))
+    _sandbox_in_tmp(monkeypatch)
     monkeypatch.setattr(doctor, "make_token_store", lambda kind, path: _keychain_store(tokens=False))
     assert "Keychain access" not in by_name(run(settings(tmp_path, token_store="keychain")))
 
