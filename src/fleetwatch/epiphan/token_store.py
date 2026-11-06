@@ -6,8 +6,9 @@ that's why Linux uses `systemd-creds encrypt` rather than a read-only `LoadCrede
 
 The secret never goes in a process's argv, where other users could read it with `ps`. Keychain writes go to
 `security -i` on stdin, hex-encoded; reads come back on stdout. `security -i` reads at most 4095 characters a
-line, so the JSON is split across a few items (`part-0`, `part-1`, ...). systemd-creds reads and writes on
-stdin/stdout too.
+line, so the JSON is split across a few items. Each save writes a new generation of them (`g-<id>-0`, `g-<id>-1`,
+...) and then points the `index` item at it, so a reader never sees half of one save and half of another.
+systemd-creds reads and writes on stdin/stdout too.
 
 `FLEETWATCH_TOKEN_STORE=auto` picks the Keychain on macOS, systemd-creds on Linux with systemd 256 or later
 (the first with `--user`), and the file everywhere else, Docker included. A token already in the file moves into
@@ -22,6 +23,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -40,6 +42,8 @@ SERVICE = "fleetwatch-epiphan"  # Keychain service name and systemd-creds creden
 SANDBOX_SERVICE = "fleetwatch-epiphan-sandbox"  # the v0.2 sandbox sign-in's own slot, never shared with SERVICE
 CHUNK = 1500  # bytes of JSON per Keychain item: 3000 hex chars, well inside a 4095-char `security -i` line
 NOT_FOUND = 44  # `security` exit code for "item not found"
+INDEX = "index"  # the Keychain item naming the current generation of parts
+READ_ATTEMPTS = 3  # a reader that keeps landing mid-save gives up after this many tries
 TIMEOUT_S = 30
 LOCK_WAIT_S = 30  # how long a refresh waits for another process's refresh; then this beat fails, not refreshes
 
@@ -291,42 +295,106 @@ class KeychainTokenStorage(_JsonStore):
         self._keychain = [keychain] if keychain else []  # a test keychain file; normally the default one
         self.where = f"macOS Keychain (service {service})"
 
+    def _find(self, account: str) -> str | None:
+        """One item's secret, or None if there is no such item."""
+        r = _run(["security", "find-generic-password", "-s", self.service, "-a", account, "-w", *self._keychain])
+        if r.returncode == NOT_FOUND:
+            return None
+        if r.returncode:
+            raise TokenStoreError(f"Keychain: {r.stderr.strip() or f'security exited {r.returncode}'}")
+        return r.stdout.rstrip("\n")
+
+    def _index(self) -> dict | None:
+        """The `index` item: which generation of parts holds the current JSON. None in an older layout."""
+        raw = self._find(INDEX)
+        if raw is None:
+            return None
+        try:
+            index = json.loads(raw)
+        except ValueError:
+            return None
+        ok = isinstance(index, dict) and isinstance(index.get("gen"), str) and isinstance(index.get("parts"), int)
+        return index if ok else None
+
     def _load(self) -> dict:
+        """The JSON a save left whole. A save writes a new generation of parts and only then points the index at
+        it (#121), so a reader sees the old JSON or the new one. A reader that lands as the writer removes the old
+        generation reads the index again."""
+        for _ in range(READ_ATTEMPTS):
+            index = self._index()
+            if index is None:
+                return self._load_legacy()
+            parts = [self._find(f"{index['gen']}-{i}") for i in range(index["parts"])]
+            if None in parts:
+                continue  # a newer save removed this generation while we read it
+            try:
+                return json.loads("".join(parts))
+            except ValueError:
+                continue
+        raise TokenStoreError("Keychain: the saved sign-in kept changing while it was read; try again")
+
+    def _load_legacy(self) -> dict:
+        """The layout before #121: `part-0`, `part-1`, ... written in place. Read once; the next save replaces it."""
         parts = []
         for i in itertools.count():
-            r = _run(
-                ["security", "find-generic-password", "-s", self.service, "-a", f"part-{i}", "-w", *self._keychain]
-            )
-            if r.returncode == NOT_FOUND:
+            part = self._find(f"part-{i}")
+            if part is None:
                 break
-            if r.returncode:
-                raise TokenStoreError(f"Keychain: {r.stderr.strip() or f'security exited {r.returncode}'}")
-            parts.append(r.stdout.rstrip("\n"))
+            parts.append(part)
         try:
             return json.loads("".join(parts)) if parts else {}
-        except ValueError:  # half-written: treat as signed out
+        except ValueError:  # half-written by an older build: treat as signed out
             return {}
+
+    def _add(self, items: dict[str, str]) -> int:
+        """Write items through `security -i` on stdin (hex), so no secret is in argv. Returns the exit code."""
+        kc = " ".join(self._keychain)
+        script = "".join(
+            f"add-generic-password -U -s {self.service} -a {account} -X {value.encode().hex()} {kc}\n"
+            for account, value in items.items()
+        )
+        return _run(["security", "-i"], stdin=script).returncode
 
     def _save(self, data: dict) -> None:
         text = json.dumps(data)  # ASCII only, so a chunk boundary never splits a character
         chunks = [text[i : i + CHUNK] for i in range(0, len(text), CHUNK)]
-        kc = " ".join(self._keychain)
-        script = "".join(
-            f"add-generic-password -U -s {self.service} -a part-{i} -X {c.encode().hex()} {kc}\n"
-            for i, c in enumerate(chunks)
-        )
-        r = _run(["security", "-i"], stdin=script)
-        if r.returncode:
-            raise TokenStoreError(f"Keychain: couldn't save the token (security exited {r.returncode})")
-        self._drop(start=len(chunks))
+        old = self._index()
+        gen = f"g-{secrets.token_hex(4)}"
+        if self._add({f"{gen}-{i}": c for i, c in enumerate(chunks)}):
+            self._delete_gen(gen, len(chunks))  # best effort: the index still names the old, whole generation
+            raise TokenStoreError("Keychain: couldn't save the token (security refused it)")
+        if self._add({INDEX: json.dumps({"gen": gen, "parts": len(chunks)})}):
+            self._delete_gen(gen, len(chunks))
+            raise TokenStoreError("Keychain: couldn't save the token (security refused the index)")
+        if old is not None:
+            self._delete_gen(old["gen"], old["parts"])
+        else:
+            self._delete_prefix("part-")  # the layout before #121, now replaced
 
-    def _drop(self, start: int = 0) -> None:
-        for i in itertools.count(start):
-            r = _run(["security", "delete-generic-password", "-s", self.service, "-a", f"part-{i}", *self._keychain])
-            if r.returncode == NOT_FOUND:
+    def _delete(self, account: str) -> bool:
+        """Delete one item. False if it wasn't there."""
+        r = _run(["security", "delete-generic-password", "-s", self.service, "-a", account, *self._keychain])
+        if r.returncode == NOT_FOUND:
+            return False
+        if r.returncode:
+            raise TokenStoreError(f"Keychain: {r.stderr.strip() or f'security exited {r.returncode}'}")
+        return True
+
+    def _delete_gen(self, gen: str, parts: int) -> None:
+        for i in range(parts):
+            self._delete(f"{gen}-{i}")
+
+    def _delete_prefix(self, prefix: str) -> None:
+        for i in itertools.count():
+            if not self._delete(f"{prefix}{i}"):
                 return
-            if r.returncode:
-                raise TokenStoreError(f"Keychain: {r.stderr.strip() or f'security exited {r.returncode}'}")
+
+    def _drop(self) -> None:
+        index = self._index()
+        if index is not None:
+            self._delete_gen(index["gen"], index["parts"])
+        self._delete(INDEX)
+        self._delete_prefix("part-")
 
 
 class SystemdCredsTokenStorage(_JsonStore):
