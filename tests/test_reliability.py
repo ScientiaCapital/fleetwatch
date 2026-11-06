@@ -610,6 +610,83 @@ async def test_refresh_lock_is_released_after_the_refresh(tmp_path: Path):
     await flow_a.aclose()
 
 
+async def test_the_refresh_request_has_a_timeout_shorter_than_the_lock_wait(tmp_path: Path):
+    """#162: httpx gives requests an auth flow yields no timeout, so a stuck refresh held the lock forever and the
+    other process's wait ran out. The refresh carries its own timeout, well inside the other process's wait."""
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import make_provider
+
+    provider = make_provider(URL, await _expired_store(tmp_path, _metadata()), 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    assert str(refresh.url) == TOKEN_URL
+    timeout = refresh.extensions.get("timeout")
+    assert timeout, "a refresh with no timeout can hold the lock forever"
+    assert all(v is not None and v < token_store.LOCK_WAIT_S for v in timeout.values()), timeout
+    await flow.aclose()
+
+
+async def test_a_lock_wait_that_runs_out_does_not_refresh(tmp_path: Path, monkeypatch):
+    """#162: two processes that both send the same refresh token kill the sign-in (Epiphan rotates it). When the
+    other process holds the lock too long, this beat fails and the next one tries again; no refresh goes out."""
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import RefreshBusy, make_provider
+
+    monkeypatch.setattr(token_store, "LOCK_WAIT_S", 0.3)
+    await _expired_store(tmp_path, _metadata())
+    held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await held.acquire()
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    with pytest.raises(RefreshBusy):
+        await flow.__anext__()
+    assert not a.dead
+    held.release()
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await other.acquire(timeout_s=1), "the failed beat left the lock free"
+    other.release()
+
+
+async def test_a_lock_wait_that_runs_out_still_uses_a_token_the_other_process_saved(tmp_path: Path, monkeypatch):
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import make_provider
+
+    monkeypatch.setattr(token_store, "LOCK_WAIT_S", 0.3)
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    await a._initialize()  # A has the expired token in memory
+    held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await held.acquire()
+    await FileTokenStorage(tmp_path / "t.json").set_tokens(
+        OAuthToken(access_token="FAKENEW", refresh_token="FAKER2", expires_in=3600)
+    )  # the other process refreshed and is still finishing up
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    main = await flow.__anext__()
+    assert str(main.url) == URL and main.headers["Authorization"] == "Bearer FAKENEW", "no refresh, the saved token"
+    held.release()
+    await flow.aclose()
+
+
+async def test_the_lock_is_not_held_through_the_request_when_no_refresh_goes_out(tmp_path: Path):
+    """#162: after waiting for the lock, a process that finds the other one's new token sends no refresh. It must
+    let go of the lock at once, not hold it through its own (possibly slow) tool call."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    await a._initialize()
+    await FileTokenStorage(tmp_path / "t.json").set_tokens(
+        OAuthToken(access_token="FAKENEW", refresh_token="FAKER2", expires_in=3600)
+    )
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    main = await flow.__anext__()  # A's tool call is now in flight
+    assert str(main.url) == URL
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await other.acquire(timeout_s=1), "free while A's tool call is in flight"
+    other.release()
+    await flow.aclose()
+
+
 async def test_no_stored_metadata_falls_back_to_the_guess_with_a_warning(tmp_path: Path, caplog):
     from fleetwatch.epiphan.auth import make_provider
 

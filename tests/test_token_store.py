@@ -1,7 +1,6 @@
 """Token stores: file, macOS Keychain, systemd-creds. `subprocess.run` is faked; the real keychain is never touched."""
 
 import base64
-import logging
 import shlex
 import subprocess
 import sys
@@ -168,16 +167,17 @@ def test_systemd_creds_version(creds):
 # --- the refresh lock --------------------------------------------------------------------------------------------
 
 
-async def test_refresh_lock_waits_then_gives_way(tmp_path, caplog):
-    """Two processes (`run`, a cron `digest`) refresh one at a time. A wait that runs out goes ahead with a
-    warning: a lock must never stop a heartbeat. The kernel drops the lock with its process, so none goes stale."""
+async def test_refresh_lock_waits_then_refuses(tmp_path):
+    """Two processes (`run`, a cron `digest`) refresh one at a time. A wait that runs out raises instead of going
+    ahead: refreshing without the lock can spend the other process's refresh token (#162). The kernel drops the
+    lock with its process, so none goes stale."""
     held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
     assert await held.acquire(timeout_s=1)
     other = FileTokenStorage(tmp_path / "t.json").refresh_lock()  # a different open file: contends like a process
     started = time.monotonic()
-    with caplog.at_level(logging.WARNING):
-        assert not await other.acquire(timeout_s=0.4)
-    assert time.monotonic() - started < 2 and "refresh lock" in caplog.text
+    with pytest.raises(ts.RefreshBusy, match="refresh lock"):
+        await other.acquire(timeout_s=0.4)
+    assert time.monotonic() - started < 2
     other.release()  # nothing held: a no-op
     held.release()
     assert await other.acquire(timeout_s=0.4)
