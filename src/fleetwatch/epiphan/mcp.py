@@ -36,7 +36,13 @@ class SignInDead(SignInExpired):
 
 # Epiphan reports an expired or missing sign-in inside the tool result, not as an HTTP 401. Only an error result,
 # or a plain-text (non-JSON) one, is checked: a JSON result carries device names, which are untrusted text.
-_UNAUTHORIZED = re.compile(r"\b401\b|unauthori[sz]ed|invalid[_ ]token|token (?:has )?expired", re.IGNORECASE)
+# A bare "401" isn't enough, because an error can quote a name such as "Room 401" (#119): the number must follow a
+# status word ("Error: 401", "HTTP/1.1 401", "status 401", '"code": "401"').
+_UNAUTHORIZED = re.compile(
+    r"\b(?:error|status(?:_?code)?|code|http(?:/\d(?:\.\d)?)?)\W{0,4}401\b"
+    r"|unauthori[sz]ed|invalid[_ ]token|token (?:has )?expired",
+    re.IGNORECASE,
+)
 
 
 class _HttpTransport:

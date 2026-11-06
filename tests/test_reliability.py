@@ -156,6 +156,55 @@ async def test_a_device_named_401_is_not_an_auth_error(tmp_path: Path):
     assert c._client.calls == 1
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Error: device 'Room 401 Pearl Mini' is offline",
+        "Error executing tool: channel 401 not found on Lab 401",
+        "Error: source Studio-401 has no signal",
+        '{"error": "no such device", "name": "Room 401"}',
+    ],
+)
+async def test_an_error_naming_401_is_not_a_sign_in_problem(tmp_path: Path, text: str):
+    """#119: a "401" in a name inside an error result must not force a refresh (AGENTS.md rule 4)."""
+    c = await _signed_in_client(tmp_path)
+    c._client = _FakeSDK([(True, text)])
+    refreshes = []
+
+    async def spy() -> bool:
+        refreshes.append(1)
+        return True
+
+    c._force_refresh = spy
+    with pytest.raises(RuntimeError) as e:
+        await c.call("get_devices_in_my_team")
+    assert not isinstance(e.value, SignInExpired)
+    assert refreshes == [] and c._client.calls == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Error: 401 Unauthorized",
+        "Error: 401",
+        "HTTP 401",
+        "HTTP/1.1 401",
+        "status 401",
+        '{"status": 401}',
+        '{"code": "401"}',
+        "status_code=401",
+        "Error: invalid_token",
+        "Error: token has expired",
+    ],
+)
+async def test_a_status_401_or_auth_word_is_still_a_sign_in_problem(tmp_path: Path, text: str):
+    c = await _signed_in_client(tmp_path)
+    c._client = _FakeSDK([(True, text)])
+    with pytest.raises(SignInExpired):
+        await c.call("get_devices_in_my_team")
+    assert c._client.calls == 2, "refreshed once and retried once"
+
+
 def test_doctor_shows_token_expiry_without_the_token(tmp_path: Path):
     from fleetwatch.doctor import run_checks
     from tests.test_doctor import by_name, settings
