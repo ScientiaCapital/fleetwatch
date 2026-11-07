@@ -62,7 +62,7 @@ Instala la última versión publicada; agrega `-s -- --ref main` para la rama de
 | 2 | Linux x86_64, macOS en Intel | systemd / launchd |
 
 En cada pull request, la integración continua (CI) ejecuta las pruebas y la instalación de prueba en equipos macOS
-(Apple Silicon) y Linux aarch64 de GitHub, ejecuta las pruebas con Python 3.12 y 3.13, y construye y ejecuta la
+(Apple Silicon) y Linux aarch64 de GitHub, ejecuta las pruebas con Python 3.12, 3.13 y 3.14, y construye y ejecuta la
 imagen de Docker para amd64 y para arm64 (arm64 con emulación). Todavía no se ha probado en una Raspberry Pi 5 ni en
 una Mac mini reales. Guías paso a paso (en inglés):
 [Mac mini](https://scientiacapital.github.io/fleetwatch/mac-mini/),

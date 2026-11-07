@@ -71,7 +71,7 @@ Compose pulls the release image from the GitHub Container Registry.
 | 2 | Linux x86_64, macOS on Intel | systemd / launchd |
 
 On every pull request, continuous integration (CI) runs the tests and the installer dry run on GitHub-hosted macOS
-(Apple Silicon) and Linux aarch64 machines, runs the tests on Python 3.12 and 3.13, and builds and runs the Docker
+(Apple Silicon) and Linux aarch64 machines, runs the tests on Python 3.12, 3.13 and 3.14, and builds and runs the Docker
 image for amd64 and for arm64 (arm64 under emulation). A real Raspberry Pi 5 and Mac mini haven't been checked yet.
 Step-by-step guides:
 [Mac mini](https://scientiacapital.github.io/fleetwatch/mac-mini/),
