@@ -203,3 +203,19 @@ def test_history_in_spanish(tmp_path):
         == "Todavía no hay historial. Empieza con el primer heartbeat."
     )
     assert render_history(state, NOW - timedelta(days=7), NOW) == "No history yet. It starts with the first heartbeat."
+
+
+@pytest.mark.parametrize(
+    ("mins", "en", "es"),
+    [
+        (0, "Room 204 Pearl Mini restarted just now", "Room 204 Pearl Mini se reinició hace un momento"),
+        (1, "Room 204 Pearl Mini restarted about 1 minute ago", "Room 204 Pearl Mini se reinició hace un minuto"),
+        (2, "Room 204 Pearl Mini restarted about 2 minutes ago", "Room 204 Pearl Mini se reinició hace unos 2 minutos"),
+    ],
+)
+def test_a_restart_says_minute_or_minutes(mins, en, es):
+    """#126: the soak showed "restarted about 1 minutes ago"."""
+    from fleetwatch.i18n import minutes_ago
+
+    assert t("en", "scan.reboot.what", name="Room 204 Pearl Mini", ago=minutes_ago("en", mins)) == en
+    assert t("es", "scan.reboot.what", name="Room 204 Pearl Mini", ago=minutes_ago("es", mins)) == es

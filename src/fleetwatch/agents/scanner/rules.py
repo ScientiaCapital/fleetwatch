@@ -7,7 +7,7 @@ locally and upload afterwards, so a full disk is routine.
 from datetime import timedelta
 
 from fleetwatch.epiphan.parse import STORAGE_WARNINGS
-from fleetwatch.i18n import say
+from fleetwatch.i18n import minutes_ago, say
 from fleetwatch.model import Device, Finding, Fleet, Priority
 from fleetwatch.policy import Policy
 
@@ -104,7 +104,12 @@ def _system(d: Device, fleet: Fleet, policy: Policy) -> list[Finding]:
         mins = int((fleet.taken_at - sysinfo.up_since).total_seconds() // 60)
         findings.append(
             _finding(
-                policy, d, f"reboot:{sysinfo.up_since.isoformat()[:16]}", Priority.FIX_SOON, "reboot", mins=str(mins)
+                policy,
+                d,
+                f"reboot:{sysinfo.up_since.isoformat()[:16]}",
+                Priority.FIX_SOON,
+                "reboot",
+                ago=minutes_ago(policy.language, mins),
             )
         )
     return findings
