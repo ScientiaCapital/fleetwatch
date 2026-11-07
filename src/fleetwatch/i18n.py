@@ -179,10 +179,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Check the vents and airflow around it",
         "es": "Revisa las rejillas y la ventilación a su alrededor",
     },
-    "scan.reboot.what": {
-        "en": "{name} restarted about {mins} minutes ago",
-        "es": "{name} se reinició hace unos {mins} minutos",
-    },
+    "scan.reboot.what": {"en": "{name} restarted {ago}", "es": "{name} se reinició {ago}"},
+    "ago.now": {"en": "just now", "es": "hace un momento"},
+    "ago.one_minute": {"en": "about 1 minute ago", "es": "hace un minuto"},
+    "ago.minutes": {"en": "about {mins} minutes ago", "es": "hace unos {mins} minutos"},
     "scan.reboot.impact": {
         "en": "Anything that was recording then stopped",
         "es": "Lo que se estaba grabando en ese momento se detuvo",
@@ -395,6 +395,15 @@ def vocab(lang: str, vertical: str) -> dict[str, str]:
 
 def t(lang: str, key: str, **kw: Any) -> str:
     return MESSAGES[key][_lang(lang)].format(**kw)
+
+
+def minutes_ago(lang: str, mins: int) -> str:
+    """ "just now", "about 1 minute ago", "about 5 minutes ago" (#126: the soak showed "1 minutes")."""
+    if mins <= 0:
+        return t(lang, "ago.now")
+    if mins == 1:
+        return t(lang, "ago.one_minute")
+    return t(lang, "ago.minutes", mins=mins)
 
 
 def say(policy: Any, key: str, **kw: Any) -> str:
