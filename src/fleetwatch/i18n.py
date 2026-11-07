@@ -332,6 +332,30 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "sweep: {offline} offline, {behind} behind on firmware",
         "es": "revisión nocturna: {offline} sin conexión, {behind} con firmware atrasado",
     },
+    # --- fleetwatch status and status --check ------------------------------------------------------------------
+    "status.signed_in": {"en": "Signed in: yes", "es": "Sesión iniciada: sí"},
+    "status.signed_out": {
+        "en": "Signed in: no (run fleetwatch login)",
+        "es": "Sesión iniciada: no (ejecuta fleetwatch login)",
+    },
+    "status.open_items": {"en": "Open items: {n}  ({date} UTC)", "es": "Pendientes: {n}  ({date} UTC)"},
+    "status.off_schema": {
+        "en": "Off-schema results from Epiphan: {tools} (read anyway; last 24 h)",
+        "es": "Resultados de Epiphan fuera del esquema: {tools} (se leyeron de todos modos; últimas 24 h)",
+    },
+    "status.last_failed": {
+        "en": "Last heartbeat failed at {when}: {reason}",
+        "es": "El último heartbeat falló el {when}: {reason}",
+    },
+    "status.no_heartbeat": {
+        "en": "No heartbeat yet (expected every {mins} min)",
+        "es": "Todavía no hay ningún heartbeat (se espera uno cada {mins} min)",
+    },
+    "status.heartbeat_ok": {"en": "Last heartbeat {ago} min ago", "es": "Último heartbeat hace {ago} min"},
+    "status.heartbeat_late": {
+        "en": "Last heartbeat {ago} min ago; expected every {mins} min",
+        "es": "Último heartbeat hace {ago} min; se espera uno cada {mins} min",
+    },
     # --- room notes --------------------------------------------------------------------------------------------
     "notes.empty": {"en": "That note is empty. Nothing saved.", "es": "Esa nota está vacía. No se guardó nada."},
     "notes.no_room": {

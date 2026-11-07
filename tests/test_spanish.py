@@ -219,3 +219,60 @@ def test_a_restart_says_minute_or_minutes(mins, en, es):
 
     assert t("en", "scan.reboot.what", name="Room 204 Pearl Mini", ago=minutes_ago("en", mins)) == en
     assert t("es", "scan.reboot.what", name="Room 204 Pearl Mini", ago=minutes_ago("es", mins)) == es
+
+
+def _status_out(tmp_path, monkeypatch, capsys, language: str) -> str:
+    from fleetwatch import cli
+    from fleetwatch.state import State
+
+    db = tmp_path / "state.db"
+    state = State(db)
+    item = Finding(
+        key="d:offline", priority=Priority.FIX_FIRST, device_id="d", device_name="Room 204", what="Room 204 is offline"
+    )
+    state.reconcile([item], NOW, timedelta(hours=4))
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW)
+    state.db.close()
+    policy = tmp_path / "policy.yaml"
+    policy.write_text(f"language: {language}\n")
+    monkeypatch.setenv("FLEETWATCH_STATE_DB", str(db))
+    monkeypatch.setenv("FLEETWATCH_POLICY_FILE", str(policy))
+    monkeypatch.setenv("FLEETWATCH_TOKEN_STORE", "file")
+    monkeypatch.setenv("FLEETWATCH_TOKEN_FILE", str(tmp_path / "t.json"))
+    monkeypatch.delenv("FLEETWATCH_EPIPHAN_TOKEN", raising=False)
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "status"])
+    cli.main()
+    return capsys.readouterr().out
+
+
+def test_status_in_english(tmp_path, monkeypatch, capsys):
+    out = _status_out(tmp_path, monkeypatch, capsys, "en")
+    assert "Signed in: no (run fleetwatch login)" in out and "Open items: 1  (" in out
+    assert "  Fix first: Room 204 is offline" in out
+    assert "Last heartbeat failed at " in out and "KeyError: 'Uptime'" in out
+
+
+def test_status_in_spanish(tmp_path, monkeypatch, capsys):
+    out = _status_out(tmp_path, monkeypatch, capsys, "es")
+    assert "Sesión iniciada: no (ejecuta fleetwatch login)" in out and "Pendientes: 1  (" in out
+    assert "  Arreglar primero: Room 204 is offline" in out, "the stored item text stays as it was saved"
+    assert "El último heartbeat falló el " in out and "KeyError: 'Uptime'" in out
+    for english in ("Signed in", "Open items", "Fix first", "Last heartbeat failed"):
+        assert english not in out, english
+
+
+def test_status_check_in_spanish():
+    from fleetwatch.heartbeat import health
+    from fleetwatch.state import State
+
+    state = State(":memory:")
+    assert health(state, 180, now=NOW, lang="es") == (
+        False,
+        "Todavía no hay ningún heartbeat (se espera uno cada 3 min)",
+    )
+    state.snapshot(NOW, devices=3, online=3)
+    assert health(state, 180, now=NOW + timedelta(minutes=2), lang="es") == (True, "Último heartbeat hace 2 min")
+    assert health(state, 180, now=NOW + timedelta(minutes=10), lang="es") == (
+        False,
+        "Último heartbeat hace 10 min; se espera uno cada 3 min",
+    )

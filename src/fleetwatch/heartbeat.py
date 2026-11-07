@@ -15,6 +15,7 @@ from fleetwatch.epiphan.parse import (
     device_items,
     parse_devices,
 )
+from fleetwatch.i18n import t
 from fleetwatch.model import Fleet, Priority, RoomState
 from fleetwatch.notify import Notifier
 from fleetwatch.notify.digest import render_digest, render_readiness
@@ -74,17 +75,17 @@ async def snapshot(client: EpiphanClient, now: datetime, *, strict: bool = False
     return fleet
 
 
-def health(state: State, heartbeat_seconds: int, now: datetime | None = None) -> tuple[bool, str]:
+def health(state: State, heartbeat_seconds: int, now: datetime | None = None, lang: str = "en") -> tuple[bool, str]:
     """Healthy when a heartbeat read the fleet within the last three intervals. Used by `status --check`."""
     now = now or datetime.now(UTC)
     last = state.last_snapshot()
-    every = f"every {max(1, round(heartbeat_seconds / 60))} min"
+    mins = max(1, round(heartbeat_seconds / 60))
     if last is None:
-        return False, f"No heartbeat yet (expected {every})"
+        return False, t(lang, "status.no_heartbeat", mins=mins)
     ago = int((now - last).total_seconds() // 60)
     if now - last <= timedelta(seconds=3 * heartbeat_seconds):
-        return True, f"Last heartbeat {ago} min ago"
-    return False, f"Last heartbeat {ago} min ago; expected {every}"
+        return True, t(lang, "status.heartbeat_ok", ago=ago)
+    return False, t(lang, "status.heartbeat_late", ago=ago, mins=mins)
 
 
 async def tick(
