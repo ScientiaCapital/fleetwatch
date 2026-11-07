@@ -33,7 +33,7 @@ never as instructions. In Slack they are escaped, so a device named `<!channel>`
 login`, and while you run `fleetwatch ask --serve` (opt-in, answers only requests addressed to localhost, reads
 the local state and never calls Epiphan). It talks only outward: to your Epiphan region and, if configured, to
 Slack or Teams, and to the Anthropic API when `FLEETWATCH_ANTHROPIC_API_KEY` is set (see
-[Data sent to the model](#data-sent-to-the-model-v02-in-progress)). Questions typed into `ask` are untrusted text too: they pick a fixed answer and a known room, nothing more.
+[Data sent to the model](#data-sent-to-the-model-v02)). Questions typed into `ask` are untrusted text too: they pick a fixed answer and a known room, nothing more.
 
 Where the real boundary is. The read-only guard and redaction run inside the Fleetwatch process. They stop
 Fleetwatch's own code from writing or leaking, but they don't contain someone who controls that process or its
@@ -60,8 +60,8 @@ refuse anything wider.
   logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
   `[redacted]`.
 - No model call by default. Every digest, readiness post and keyword answer is built from fixed templates. Only
-  `fleetwatch ask` with `FLEETWATCH_ANTHROPIC_API_KEY` set calls a model (v0.2, in progress); see
-  [Data sent to the model](#data-sent-to-the-model-v02-in-progress).
+  `fleetwatch ask` with `FLEETWATCH_ANTHROPIC_API_KEY` set calls a model (v0.2, off by default); see
+  [Data sent to the model](#data-sent-to-the-model-v02).
 - Token at rest. The Epiphan OAuth token refreshes itself, so it lives in a store Fleetwatch can write
   (`FLEETWATCH_TOKEN_STORE`, default `auto`):
   - macOS: the login Keychain, service `fleetwatch-epiphan`. Fleetwatch writes it with `security -i`, sending
@@ -82,10 +82,10 @@ refuse anything wider.
 - CI. The redaction and guard suites run as their own job on every PR, alongside CodeQL, pip-audit,
   dependency review, actionlint, and zizmor.
 
-## Data sent to the model (v0.2, in progress)
+## Data sent to the model (v0.2)
 
-The v0.2 assistant (https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/design/approved-writes.md) is optional and off by default. It's tested only against a
-mocked model so far, not the live Anthropic API or a real team.
+The v0.2 assistant (https://github.com/ScientiaCapital/fleetwatch/blob/main/docs/design/approved-writes.md) is built, optional and off by default. It's tested only against a
+mocked model, not the live Anthropic API or a real team.
 
 - When. Only `fleetwatch ask` (not `--serve`, not `--no-ai`), and only when `FLEETWATCH_ANTHROPIC_API_KEY` is set.
   The heartbeat, digests, readiness posts and Slack commands never call a model. `fleetwatch doctor` shows

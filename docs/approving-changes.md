@@ -1,8 +1,8 @@
 # Approving changes (v0.2)
 
-!!! note "In progress"
-    This is part of v0.2 and is tested only against a fake Epiphan server and sample data. It hasn't run against a
-    real team. Fleetwatch v0.1 stays read-only.
+!!! note "Off by default, tested only against fakes"
+    This is v0.2. It ships in 0.1.0 but stays off until you turn it on, and it is tested only against a fake Epiphan
+    server and sample data. It hasn't run against a real team. With it off, Fleetwatch only reads.
 
 When the assistant wants a device changed, it can only propose the change. A person approves each one on a local
 page, one at a time. Nothing runs until you press Approve.
