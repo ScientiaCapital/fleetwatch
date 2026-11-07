@@ -25,7 +25,10 @@ _ATTENTION = {"attention", "wrong", "broken", "problem", "problems", "issue", "i
               "problemas", "atención", "falla", "fallas"}  # fmt: skip
 _LAST = {"last", "digest", "summary", "recap", "último", "ultimo", "resumen"}
 _READY = {"ready", "listo", "lista", "listos", "preparado", "preparada"}
-_FILLER = {"is", "are", "the", "a", "ready", "check", "for", "now", "how", "está", "esta", "listo", "lista", "next"}
+# Spanish says "offline" in two words, as the answers do (ask.room.offline): "¿Qué está sin conexión?"
+_OFFLINE_PHRASES = ("sin conexión", "sin conexion", "fuera de línea", "fuera de linea")
+_FILLER = {"is", "are", "the", "a", "ready", "check", "for", "now", "how", "está", "esta", "listo", "lista", "next",
+           "todo", "en", "el", "la"}  # fmt: skip
 
 HELP = t("en", "ask.help")  # the English text; answer() picks the language
 
@@ -49,13 +52,13 @@ def answer(question: str, state: State, policy: Policy, fleet: Fleet | None = No
     named = _named_in(q, state.devices())
     if named:
         return scrub_text(_rooms(named, state, policy, fleet, now, lang))
-    if words & _OFFLINE:
+    if words & _OFFLINE or any(p in q for p in _OFFLINE_PHRASES):
         return scrub_text(_offline(state, lang))
     if words & _ATTENTION:
         return scrub_text(_attention(state, lang))
     if words & _LAST:
         return scrub_text(_last_digest(state, lang))
-    if words & _READY or q.startswith(("is ", "check ", "how is ", "está ", "esta ")):
+    if words & _READY or q.startswith(("is ", "check ", "how is ", "está ", "esta ", "¿está ", "¿esta ")):
         rooms = _guess_rooms(q, state)
         if not rooms:
             return t(lang, "ask.no_room")

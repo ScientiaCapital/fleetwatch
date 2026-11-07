@@ -75,3 +75,47 @@ def test_large_body_and_unknown_paths(server):
 
 def test_render_without_answer_has_no_answer_block():
     assert 'class="answer"' not in render()
+
+
+FOOTER = "Fleetwatch for Epiphan Edge · not an officially supported Epiphan product"
+
+
+def test_render_in_english_by_default():
+    page = render(rooms=["Room 204"])
+    assert '<html lang="en">' in page and "<h1>Ask Fleetwatch</h1>" in page
+    assert '<button name="q" value="What&#x27;s offline?">What&#x27;s offline?</button>' in page
+    assert '<button name="q" value="Is Room 204 ready?">Is Room 204 ready?</button>' in page
+    assert 'aria-label="Your question"' in page and ">Ask</button>" in page and FOOTER in page
+
+
+def test_render_in_spanish_keeps_the_licensing_footer_in_english():
+    page = render("Todo en orden.", "¿Qué necesita atención?", ['Sala "B" <img>'], "Última revisión: 09:00.", "es")
+    assert '<html lang="es">' in page and "<title>Pregúntale a Fleetwatch</title>" in page
+    assert "Solo lectura. Las respuestas vienen del último heartbeat" in page
+    for label in ("¿Qué necesita atención?", "¿Qué está sin conexión?", "Último resumen"):
+        assert f'<button name="q" value="{label}">{label}</button>' in page
+    assert "¿Todo listo en Sala &quot;B&quot; &lt;img&gt;?" in page and "<img>" not in page
+    assert 'placeholder="¿Todo listo en la Sala 204?" aria-label="Tu pregunta"' in page
+    assert ">Preguntar</button>" in page and FOOTER in page
+    for english in ("Ask Fleetwatch", "Read-only", "What needs attention", "offline?", "Last digest", "Your question"):
+        assert english not in page, english
+
+
+def test_an_unknown_language_falls_back_to_english():
+    assert '<html lang="en">' in render(lang="fr") and "<h1>Ask Fleetwatch</h1>" in render(lang="fr")
+
+
+def test_the_spanish_server_serves_the_spanish_page():
+    port = _free_port()
+    httpd = HTTPServer(
+        ("127.0.0.1", port), make_handler(lambda q: "Todo en orden.", lambda: ["Sala 1"], port, lang="es")
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        status, body, _ = _req(port, "GET", "/")
+        assert status == 200 and "¿Todo listo en Sala 1?" in body and "<h1>Pregúntale a Fleetwatch</h1>" in body
+        status, body, _ = _req(port, "POST", "/ask", urlencode({"q": "¿Qué está sin conexión?"}))
+        assert status == 200 and "Todo en orden." in body and ">Preguntar</button>" in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
