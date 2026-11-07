@@ -332,6 +332,23 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "sweep: {offline} offline, {behind} behind on firmware",
         "es": "revisión nocturna: {offline} sin conexión, {behind} con firmware atrasado",
     },
+    # --- the ask page (fleetwatch ask --serve). Each button's question goes to ask.answer() as written. -----------
+    "page.title": {"en": "Ask Fleetwatch", "es": "Pregúntale a Fleetwatch"},
+    "page.sub": {
+        "en": "Read-only. Answers come from the last heartbeat; nothing here changes a device.",
+        "es": "Solo lectura. Las respuestas vienen del último heartbeat; nada aquí cambia un equipo.",
+    },
+    "page.attention": {"en": "What needs attention?", "es": "¿Qué necesita atención?"},
+    "page.offline": {"en": "What's offline?", "es": "¿Qué está sin conexión?"},
+    "page.last_digest": {"en": "Last digest", "es": "Último resumen"},
+    "page.room": {"en": "Is {room} ready?", "es": "¿Todo listo en {room}?"},
+    "page.placeholder": {"en": "Is Main Stage ready?", "es": "¿Todo listo en la Sala 204?"},
+    "page.your_question": {"en": "Your question", "es": "Tu pregunta"},
+    "page.ask": {"en": "Ask", "es": "Preguntar"},
+    "page.serving": {
+        "en": "Ask Fleetwatch: {url}  (Ctrl+C to stop)",
+        "es": "Pregúntale a Fleetwatch: {url}  (Ctrl+C para detener)",
+    },
     # --- fleetwatch status and status --check ------------------------------------------------------------------
     "status.signed_in": {"en": "Signed in: yes", "es": "Sesión iniciada: sí"},
     "status.signed_out": {

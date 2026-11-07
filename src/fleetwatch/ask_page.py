@@ -10,13 +10,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
 from fleetwatch.ask import MAX_QUESTION
+from fleetwatch.i18n import LANGUAGES, t
 
 MAX_BODY = 4096
+# The page's own words, from i18n.py as page.<word>.
+_WORDS = ("title", "sub", "attention", "offline", "last_digest", "placeholder", "your_question", "ask")
 
 _PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ask Fleetwatch</title>
+<title>{title}</title>
 <style>
 :root {{ --bg:#f6f8fa; --card:#fff; --fg:#1f2328; --muted:#57606a; --line:#d0d7de; --accent:#1f6feb; }}
 @media (prefers-color-scheme: dark) {{
@@ -42,18 +45,18 @@ pre {{ margin:0; white-space: pre-wrap; word-wrap: break-word;
 footer {{ color: var(--muted); font-size: 14px; margin-top: 28px; }}
 </style></head>
 <body><main>
-<h1>Ask Fleetwatch</h1>
-<p class="sub">Read-only. Answers come from the last heartbeat; nothing here changes a device. {checked}</p>
+<h1>{title}</h1>
+<p class="sub">{sub} {checked}</p>
 <form class="row" method="post" action="/ask">
-  <button name="q" value="What needs attention?">What needs attention?</button>
-  <button name="q" value="What's offline?">What's offline?</button>
-  <button name="q" value="Last digest">Last digest</button>
+  <button name="q" value="{attention}">{attention}</button>
+  <button name="q" value="{offline}">{offline}</button>
+  <button name="q" value="{last_digest}">{last_digest}</button>
 </form>
 {rooms}
 <form class="row" method="post" action="/ask">
-  <input type="text" name="q" maxlength="{max_q}" placeholder="Is Main Stage ready?" aria-label="Your question"
+  <input type="text" name="q" maxlength="{max_q}" placeholder="{placeholder}" aria-label="{your_question}"
     autocomplete="off" autofocus>
-  <button class="primary" type="submit">Ask</button>
+  <button class="primary" type="submit">{ask}</button>
 </form>
 {answer}
 <footer>Fleetwatch for Epiphan Edge · not an officially supported Epiphan product</footer>
@@ -62,26 +65,39 @@ footer {{ color: var(--muted); font-size: 14px; margin-top: 28px; }}
 
 
 def render(
-    answer: str | None = None, question: str | None = None, rooms: list[str] | None = None, checked: str = ""
+    answer: str | None = None,
+    question: str | None = None,
+    rooms: list[str] | None = None,
+    checked: str = "",
+    lang: str = "en",
 ) -> str:
+    lang = lang if lang in LANGUAGES else "en"
     room_buttons = ""
     if rooms:
-        buttons = "".join(
-            f'<button name="q" value="Is {html.escape(r, quote=True)} ready?">Is {html.escape(r)} ready?</button>'
-            for r in rooms
-        )
-        room_buttons = f'<form class="row" method="post" action="/ask">{buttons}</form>'
+        buttons = []
+        for r in rooms:
+            q = t(lang, "page.room", room=r)
+            buttons.append(f'<button name="q" value="{html.escape(q, quote=True)}">{html.escape(q)}</button>')
+        room_buttons = f'<form class="row" method="post" action="/ask">{"".join(buttons)}</form>'
     block = ""
     if answer is not None:
         block = (
             '<section class="answer" aria-live="polite">'
             f"<h2>{html.escape(question or '')}</h2><pre>{html.escape(answer)}</pre></section>"
         )
-    return _PAGE.format(rooms=room_buttons, answer=block, max_q=MAX_QUESTION, checked=html.escape(checked))
+    # The footer stays English in every language: it is the licensing line (NOTICE).
+    words = {k: html.escape(t(lang, f"page.{k}"), quote=True) for k in _WORDS}
+    return _PAGE.format(
+        rooms=room_buttons, answer=block, max_q=MAX_QUESTION, checked=html.escape(checked), lang=lang, **words
+    )
 
 
 def make_handler(
-    ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int, checked: Callable[[], str] = lambda: ""
+    ask: Callable[[str], str],
+    rooms: Callable[[], list[str]],
+    port: int,
+    checked: Callable[[], str] = lambda: "",
+    lang: str = "en",
 ):
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
@@ -117,7 +133,7 @@ def make_handler(
             if self.path != "/":
                 self._send(404, "Not found", "text/plain; charset=utf-8")
                 return
-            self._send(200, render(rooms=rooms(), checked=checked()))
+            self._send(200, render(rooms=rooms(), checked=checked(), lang=lang))
 
         def do_POST(self):
             if not self._host_ok():
@@ -137,16 +153,20 @@ def make_handler(
                 return
             form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
             q = (form.get("q") or [""])[0][:MAX_QUESTION]
-            self._send(200, render(ask(q), q, rooms(), checked()))
+            self._send(200, render(ask(q), q, rooms(), checked(), lang))
 
     return Handler
 
 
 def serve(
-    ask: Callable[[str], str], rooms: Callable[[], list[str]], port: int, checked: Callable[[], str] = lambda: ""
+    ask: Callable[[str], str],
+    rooms: Callable[[], list[str]],
+    port: int,
+    checked: Callable[[], str] = lambda: "",
+    lang: str = "en",
 ) -> None:
-    httpd = HTTPServer(("127.0.0.1", port), make_handler(ask, rooms, port, checked))
-    print(f"Ask Fleetwatch: http://127.0.0.1:{port}/  (Ctrl+C to stop)")
+    httpd = HTTPServer(("127.0.0.1", port), make_handler(ask, rooms, port, checked, lang))
+    print(t(lang, "page.serving", url=f"http://127.0.0.1:{port}/"))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

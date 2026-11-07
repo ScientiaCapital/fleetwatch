@@ -340,7 +340,7 @@ async def _ask(settings: Settings, question: str, replay: str | None, serve: boo
         with_events = [fleet.devices[i].name for i in fleet.events if i in fleet.devices] if fleet else []
         return (with_events or [d.name for d in state.devices() if d.online])[:8]
 
-    serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state, lang=policy.language))
+    serve_page(ask, rooms, settings.ask_port, lambda: last_checked(state, lang=policy.language), policy.language)
 
 
 async def _live_assistant(settings: Settings, key: str, question: str, state: State, policy) -> str:

@@ -104,6 +104,20 @@ def test_the_language_setting_answers_an_english_question_in_spanish(known):
     assert "Not ready" in ask(known, "is Courtroom ready")
 
 
+def test_the_spanish_ask_page_buttons_get_spanish_answers(known):
+    """Each button on the Spanish ask page sends its own label as the question (ask_page.render)."""
+    from fleetwatch.i18n import t
+
+    assert ask(known, t("es", "page.attention")).startswith("Arreglar primero (")
+    offline = ask(known, t("es", "page.offline"))
+    assert offline.splitlines()[0].endswith("sin conexión:") and "- Room 312 Pearl Mini" in offline
+    assert ask(known, t("es", "page.last_digest")).startswith(("Último resumen", "Todavía no se ha publicado"))
+    room = ask(known, t("es", "page.room", room="Courtroom"))
+    assert room.startswith("Courtroom · LAW 210 a las ") and "No está listo" in room
+    typed = ask(known, t("es", "page.placeholder"))  # "¿Todo listo en la Sala 204?" finds the Room 204 devices
+    assert typed.startswith("Room 204 EC20: sin conexión") and "Room 204 Pearl Mini: sin conexión" in typed
+
+
 def test_nonsense_and_empty_get_help(known):
     assert ask(known, "tell me a joke") == HELP
     assert ask(known, "   ") == HELP
