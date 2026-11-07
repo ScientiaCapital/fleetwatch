@@ -3,7 +3,10 @@
 import json
 import os
 import re
+from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from fleetwatch.config import Settings
 from fleetwatch.doctor import FAIL, INFO, OK, WARN, exit_code, run_checks
@@ -461,3 +464,80 @@ def test_proposal_queue_warns_when_the_hourly_cap_is_reached(tmp_path):
     _fill_queue(tmp_path, pending=0, expired=10)
     c = by_name(run(settings(tmp_path)))["Proposal queue"]
     assert c.status == WARN and "full" in c.detail and "10 of 10 in the last hour" in c.detail
+
+
+# --- language: es -------------------------------------------------------------------------------------------------
+def _es_policy(tmp_path: Path, extra: str = "") -> Path:
+    p = tmp_path / "policy.yaml"
+    p.write_text("language: es\n" + extra)
+    return p
+
+
+def test_doctor_in_spanish(tmp_path, capsys):
+    from fleetwatch.doctor import print_report
+
+    _signed_in_with(tmp_path, authorization_response_iss_parameter_supported=False)
+    s = settings(tmp_path, policy_file=_es_policy(tmp_path))
+    checks = run_checks(s, reach=lambda url: False, service=lambda: (OK, "running"), lang="es")
+    rows = by_name(checks)
+    assert [c.status for c in checks] == [c.status for c in run(s, reach=False)], "the status words never change"
+    assert rows["Política"].detail == "solo observa, heartbeat cada 180 s"
+    assert rows["Protección de solo lectura"].detail.endswith("se rechaza toda herramienta de escritura")
+    assert rows["Inicio de sesión"].detail.startswith("token en ") and "(modo 600)" in rows["Inicio de sesión"].detail
+    assert rows["Emisor del inicio de sesión"].detail.endswith("su redirección envía iss: no")
+    assert rows["Sesión del sandbox"].detail == "ninguna, así que ningún cambio puede ejecutarse"
+    assert rows["Registro de auditoría"].detail == "todavía no hay historial"
+    assert rows["Conexión con Epiphan"].status == WARN and rows["Conexión con Epiphan"].detail.startswith(
+        "no se puede conectar con "
+    )
+    assert rows["Slack"].detail == "sin token: lo muestra en la consola" and rows["Teams"].detail == "sin configurar"
+    assert rows["Asistente"].detail == "apagado (sin clave de API)"
+    print_report(checks, lang="es")
+    out = capsys.readouterr().out
+    assert out.rstrip().endswith("Nada está roto. 1 por revisar.")
+    for english in ("Read-only guard", "Sign-in", "not signed in", "observe-only", "every write tool", "can't reach"):
+        assert english not in out, english
+    for word in ("OK  ", "INFO", "WARN"):
+        assert word in out
+
+
+def test_doctor_in_spanish_keeps_commands_and_says_plurals(tmp_path):
+    p = _es_policy(tmp_path, "autonomy: propose\nslack:\n  allowed_user_ids: [U0000000001, U0000000002]\n")
+    signed_in(tmp_path, mode=0o644)
+    s = settings(tmp_path, policy_file=p, write_device_ids="0a1b2c3d, 0a1b2c3d-1", slack_app_token="xapp-1-test")
+    rows = by_name(run_checks(s, reach=lambda url: True, service=lambda: (OK, "running"), lang="es"))
+    assert rows["Inicio de sesión"].status == FAIL and "ejecuta  chmod 600 " in rows["Inicio de sesión"].detail
+    fence = rows["Límite de cambios"]
+    assert fence.status == FAIL and fence.detail.startswith("1 entrada de FLEETWATCH_WRITE_DEVICE_IDS no es un ID")
+    assert rows["Comandos de Slack"].detail == "encendido, responde a 2 usuarios"
+    s = settings(tmp_path, policy_file=p, write_device_ids="0a1b2c3d, 0e0f1a2b")
+    assert by_name(run_checks(s, reach=lambda url: True, service=lambda: (OK, "running"), lang="es"))[
+        "Límite de cambios"
+    ].detail == ("2 equipos del sandbox en la lista permitida")
+
+
+def test_doctor_in_spanish_passes_errors_through_as_written(tmp_path):
+    from fleetwatch.state import State
+
+    s = settings(tmp_path, policy_file=_es_policy(tmp_path))
+    state = State(s.state_db)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC))
+    state.db.close()
+    row = by_name(run_checks(s, reach=lambda url: True, service=lambda: (OK, "running"), lang="es"))["Último heartbeat"]
+    assert row.status == WARN and row.detail.startswith("falló el ") and row.detail.endswith("scan: KeyError: 'Uptime'")
+
+
+def test_the_doctor_command_uses_the_policy_language_and_english_when_it_cannot_load(tmp_path, monkeypatch, capsys):
+    from fleetwatch import cli, doctor
+
+    seen = []
+    monkeypatch.setattr(doctor, "run_checks", lambda s, lang="en": seen.append(lang) or [doctor.Check("x", OK, "")])
+    monkeypatch.setenv("FLEETWATCH_POLICY_FILE", str(_es_policy(tmp_path)))
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "doctor"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert "Todo bien." in capsys.readouterr().out
+    (tmp_path / "policy.yaml").write_text("language: fr\n")
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert seen == ["es", "en"] and "All good." in capsys.readouterr().out
