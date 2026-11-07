@@ -354,6 +354,67 @@ async def test_three_failed_beats_in_a_row_exit_75():
     assert log.count("fail") == 3 and "ok" not in log
 
 
+async def _run_unreadable(monkeypatch, bad_beats: int, good_beats: int = 0, lang: str = "en"):
+    """`bad_beats` beats where the scanner chokes on what Epiphan sent, then `good_beats` that work."""
+    from fleetwatch import heartbeat
+    from fleetwatch.runner import run_loop
+
+    real_scan, calls = heartbeat.scan, []
+
+    def scan(fleet, policy):
+        calls.append(1)
+        if len(calls) <= bad_beats:
+            raise KeyError("Uptime")  # a shape Fleetwatch doesn't know yet
+        return real_scan(fleet, policy)
+
+    monkeypatch.setattr(heartbeat, "scan", scan)
+    script = ["ok"] * (bad_beats + good_beats)
+    state, out = State(), Capture()
+
+    async def sleep(_):
+        if not script:
+            raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(
+            lambda: _ScriptedClient(script, []),
+            state,
+            Policy(quiet_start=None, quiet_end=None, language=lang),
+            out,
+            first_run=False,
+            sleep=sleep,
+        )
+    return state, out.posts
+
+
+async def test_a_fleet_it_cannot_parse_says_so_once_and_keeps_beating(monkeypatch):
+    """#124: a shape Fleetwatch doesn't know failed every beat, exited 75 every third, and posted nothing. A restart
+    can't fix it: say so once in the channel and keep trying, without a restart loop."""
+    state, posts = await _run_unreadable(monkeypatch, bad_beats=7)  # no SystemExit
+    cant = [p for p in posts if "can't read the fleet" in p]
+    assert len(cant) == 1, posts
+    assert "Uptime" not in cant[0], "the reason stays on the host; the channel gets a fixed line"
+    failed = state.recent_audit("beat_failed", limit=10)
+    assert len(failed) == 7 and "KeyError" in failed[0][1]["reason"]
+
+
+async def test_reading_again_after_an_unreadable_fleet_says_so(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=3, good_beats=1)
+    assert [p for p in posts if "can't read the fleet" in p]
+    assert [p for p in posts if "can read the fleet again" in p]
+
+
+async def test_two_unreadable_beats_post_nothing(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=2, good_beats=1)
+    assert not [p for p in posts if "read the fleet" in p], "a blip stays in the log"
+
+
+async def test_the_unreadable_line_is_in_spanish_when_the_language_is(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=3, good_beats=1, lang="es")
+    assert [p for p in posts if "no puede leer la flota" in p]
+    assert [p for p in posts if "ya puede leer la flota" in p]
+
+
 async def test_a_good_beat_resets_the_failure_count():
     log, err = await _run(["fail", "fail", "ok", "fail", "fail", "ok"])
     assert not isinstance(err, SystemExit), "never three in a row"
@@ -883,3 +944,44 @@ def test_doctor_says_sign_in_again_when_the_token_is_dead(tmp_path: Path):
 def test_systemd_does_not_restart_a_dead_sign_in():
     unit = (ROOT / "deploy/fleetwatch.service").read_text()
     assert "Restart=on-failure" in unit and "RestartPreventExitStatus=78" in unit
+
+
+# --- #124: the last failed beat, for `status` and `doctor` ------------------------------------------------------
+def test_last_failed_beat_is_shown_until_a_good_beat_follows():
+    state = State()
+    assert state.last_failed_beat() is None
+    state.snapshot(NOW, 4, 4)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW + timedelta(minutes=3))
+    at, reason = state.last_failed_beat()
+    assert at == NOW + timedelta(minutes=3) and "KeyError" in reason
+    state.snapshot(NOW + timedelta(minutes=6), 4, 4)
+    assert state.last_failed_beat() is None, "a good beat since: nothing to show"
+
+
+def test_doctor_warns_about_a_failing_heartbeat(tmp_path: Path):
+    from fleetwatch.config import Settings
+    from fleetwatch.doctor import WARN, run_checks
+
+    db = tmp_path / "state.db"
+    state = State(db)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW)
+    state.db.close()
+    s = Settings(_env_file=None, state_db=db, policy_file=ROOT / "policy.yaml", token_store="file",
+                 token_file=tmp_path / "t.json", sandbox_token_file=tmp_path / "s.json")  # fmt: skip
+    rows = {c.name: c for c in run_checks(s, reach=lambda url: True, service=lambda: ("OK", "running"))}
+    row = rows["Last heartbeat"]
+    assert row.status == WARN and "KeyError" in row.detail
+
+
+def test_status_prints_the_last_failed_beat(tmp_path: Path, monkeypatch, capsys):
+    from fleetwatch import cli
+
+    db = tmp_path / "state.db"
+    state = State(db)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW)
+    state.db.close()
+    monkeypatch.setenv("FLEETWATCH_STATE_DB", str(db))
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "status"])
+    cli.main()
+    out = capsys.readouterr().out
+    assert "Last heartbeat failed" in out and "KeyError" in out

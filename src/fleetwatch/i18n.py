@@ -238,6 +238,17 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "All clear. Nothing needs attention right now.",
         "es": "Todo en orden. Nada requiere atención por ahora.",
     },
+    # --- fleetwatch run: the fleet can't be read (#124) -------------------------------------------------------------
+    "run.cant_read": {
+        "en": "Fleetwatch can't read the fleet: the last {n} heartbeats couldn't make sense of what Epiphan sent. "
+        "It keeps trying. Run fleetwatch status on its host for the reason.",
+        "es": "Fleetwatch no puede leer la flota: las últimas {n} revisiones no entendieron lo que envió Epiphan. "
+        "Sigue intentando. Ejecuta fleetwatch status en su equipo para ver el motivo.",
+    },
+    "run.can_read_again": {
+        "en": "Fleetwatch can read the fleet again.",
+        "es": "Fleetwatch ya puede leer la flota de nuevo.",
+    },
     "readiness.at": {"en": "at {when}", "es": "a las {when}"},
     "readiness.at_one": {"en": "at {when}", "es": "a la {when}"},  # Spanish says "a la 1:05", not "a las 1:05"
     "readiness.was": {"en": "(was {was})", "es": "(antes: {was})"},

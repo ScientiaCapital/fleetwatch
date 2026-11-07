@@ -53,5 +53,16 @@ posts nothing. Fleetwatch logs a warning and keeps every open item open, so a ba
 Back to normal. The next heartbeat opens a fresh connection to Epiphan. After three failed heartbeats in a row,
 `fleetwatch run` exits with code 75, and launchd, systemd, or Docker starts it again.
 
+A device list Fleetwatch can't make sense of (a shape it doesn't know yet) is different: a restart would read the
+same thing. Fleetwatch keeps trying every heartbeat without restarting. After three in a row it posts one line:
+
+```
+Fleetwatch can't read the fleet: the last 3 heartbeats couldn't make sense of what Epiphan sent. It keeps trying.
+Run fleetwatch status on its host for the reason.
+```
+
+and "Fleetwatch can read the fleet again." once a heartbeat works. The reason stays on the host:
+`fleetwatch status` and `fleetwatch doctor` show the last failed heartbeat and why, until a good one follows.
+
 `fleetwatch ask` and the `ask --serve` page show when the fleet was last read ("Last checked 14:05"), so an old
 answer looks old.

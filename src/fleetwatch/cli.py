@@ -660,6 +660,9 @@ def main() -> None:
         )
         for f in items:
             print(f"  {f.priority.value}: {f.what}")
+        if failed := state.last_failed_beat():
+            at, reason = failed
+            print(f"Last heartbeat failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
 
 
 if __name__ == "__main__":

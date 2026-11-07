@@ -640,6 +640,17 @@ class State:
         row = self.db.execute("SELECT at FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
         return _dt(row["at"]) if row else None
 
+    def last_failed_beat(self) -> tuple[datetime, str] | None:
+        """When the last heartbeat failed and why (redacted), if no good beat has come since (#124)."""
+        failed = self.recent_audit("beat_failed", limit=1)
+        if not failed:
+            return None
+        at, detail = failed[0]
+        good = self.last_snapshot()
+        if good is not None and good >= at:
+            return None
+        return at, str(detail.get("reason", ""))
+
     def last_snapshot_count(self) -> int | None:
         """How many devices the last successful heartbeat read, or None before the first."""
         row = self.db.execute("SELECT devices FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
