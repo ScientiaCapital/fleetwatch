@@ -1,6 +1,10 @@
 """`fleetwatch doctor`: is this machine ready to watch the fleet? Read-only, no sign-in, no Epiphan tool calls.
 
 Each check is OK, WARN (works, but worth a look) or FAIL (fix before relying on it). Exit code 1 on any FAIL.
+
+Row names and details follow `language` in policy.yaml (`lang`, from i18n.py); OK/WARN/FAIL/INFO never change. An
+exception's text (`str(e)`) and a stored failure reason pass through untranslated: they are what the library or
+the heartbeat said, and the person may need to search for them as written.
 """
 
 import logging
@@ -14,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -25,6 +30,7 @@ from fleetwatch.epiphan.token_store import (
     TokenStoreError,
     make_token_store,
 )
+from fleetwatch.i18n import t
 from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
 from fleetwatch.runner import LAUNCHD_LABEL
@@ -41,72 +47,79 @@ class Check:
     detail: str
 
 
-def _version() -> Check:
+def _name(lang: str, row: str) -> str:
+    return t(lang, f"doctor.name.{row}")
+
+
+def _say(lang: str, msg: str, **kw: Any) -> str:
+    return t(lang, f"doctor.{msg}", **kw)
+
+
+def _version(lang: str = "en") -> Check:
     try:
         v = version("fleetwatch")
     except PackageNotFoundError:
-        v = "unknown"
-    return Check("Version", OK, f"fleetwatch {v}, Python {platform.python_version()} on {platform.machine()}")
+        v = _say(lang, "version.unknown")
+    detail = _say(lang, "version", v=v, py=platform.python_version(), machine=platform.machine())
+    return Check(_name(lang, "version"), OK, detail)
 
 
-def _policy(s: Settings) -> Check:
+def _policy(s: Settings, lang: str = "en") -> Check:
+    name = _name(lang, "policy")
     try:
         p = load_policy(s.policy_file)
     except Exception as e:  # noqa: BLE001  (any load error is the check's FAIL detail)
-        return Check("Policy", FAIL, f"{s.policy_file}: {e}")
-    mode = (
-        "autonomy: propose: the assistant may propose changes for a person to approve; the heartbeat stays "
-        "observe-only, and nothing runs without an approval"
-        if p.proposes
-        else "observe-only"
-    )
-    return Check("Policy", OK, f"{mode}, heartbeat every {p.heartbeat_seconds} s")
+        return Check(name, FAIL, f"{s.policy_file}: {e}")
+    mode = _say(lang, "policy.propose" if p.proposes else "policy.observe")
+    return Check(name, OK, _say(lang, "policy.ok", mode=mode, n=p.heartbeat_seconds))
 
 
-def _guard(s: Settings) -> Check:
+def _guard(s: Settings, lang: str = "en") -> Check:
+    name = _name(lang, "guard")
     try:
         tools = load_tools(s.tool_policy_file)
     except Exception as e:  # noqa: BLE001  (any load error is the check's FAIL detail)
-        return Check("Read-only guard", FAIL, str(e))  # the message names the file
+        return Check(name, FAIL, str(e))  # the message names the file
     leaked = sorted(t for t in KNOWN_WRITE_TOOLS | tools.write | tools.disruptive if tools.is_read(t))
     if leaked:
-        return Check("Read-only guard", FAIL, f"write tools on the read list: {', '.join(leaked)}")
-    return Check("Read-only guard", OK, f"{len(tools.read)} read tools allowed; every write tool is refused")
+        return Check(name, FAIL, _say(lang, "guard.leaked", tools=", ".join(leaked)))
+    return Check(name, OK, _say(lang, "guard.ok", n=len(tools.read)))
 
 
-def _redaction() -> Check:
+def _redaction(lang: str = "en") -> Check:
     secret = "live_sk_doctor_selftest_123"
     out = redact(f"rtmp://ingest.example.com/app/{secret} streaming_key={secret}")
     if secret in str(out):
-        return Check("Redaction", FAIL, "a test stream key got through redact()")
-    return Check("Redaction", OK, "stream keys and credentialed URLs are masked")
+        return Check(_name(lang, "redaction"), FAIL, _say(lang, "redaction.fail"))
+    return Check(_name(lang, "redaction"), OK, _say(lang, "redaction.ok"))
 
 
-def _sign_in(s: Settings) -> Check:
+def _sign_in(s: Settings, lang: str = "en") -> Check:
+    name = _name(lang, "sign_in")
     if reveal(s.epiphan_token):
-        return Check("Sign-in", OK, "static token from FLEETWATCH_EPIPHAN_TOKEN")
+        return Check(name, OK, _say(lang, "sign_in.static"))
     try:
         store = make_token_store(s.token_store, s.token_file)
         signed_in = store.has_tokens()
     except (TokenStoreError, ValueError) as e:
-        return Check("Sign-in", FAIL, str(e))
+        return Check(name, FAIL, str(e))
     if not signed_in:
-        return Check("Sign-in", WARN, "not signed in: run  fleetwatch login")
+        return Check(name, WARN, _say(lang, "sign_in.none"))
     if not isinstance(store, FileTokenStorage):  # the file-mode check below is for the plain file only
-        return Check("Sign-in", OK, f"token in {store.where}")
+        return Check(name, OK, _say(lang, "sign_in.store", where=store.where))
     f = s.token_file
     mode = stat.S_IMODE(os.stat(f).st_mode)
     if mode & 0o077:
-        return Check("Sign-in", FAIL, f"{f} is readable by other users (mode {mode:o}): run  chmod 600 {f}")
-    return Check("Sign-in", OK, f"token in {f} (mode 600)")
+        return Check(name, FAIL, _say(lang, "sign_in.readable", f=f, mode=f"{mode:o}"))
+    return Check(name, OK, _say(lang, "sign_in.file", f=f))
 
 
-def _write_capable(s: Settings) -> Check | None:
+def _write_capable(s: Settings, lang: str = "en") -> Check | None:
     """Epiphan Edge has no read-only OAuth scope: whatever signed in can make changes if the account can. The guard
     keeps Fleetwatch from writing; this row says what a stolen token could do. Offline, never shows the token."""
-    advice = "the Edge sign-in can make changes if the account can; use a least-access account (docs/sign-in.md)"
+    name, advice = _name(lang, "write_capable"), _say(lang, "write_capable")
     if reveal(s.epiphan_token):
-        return Check("Sign-in can write", INFO, advice)
+        return Check(name, INFO, advice)
     try:
         store = make_token_store(s.token_store, s.token_file)
         if not store.has_tokens():
@@ -114,10 +127,10 @@ def _write_capable(s: Settings) -> Check | None:
         scope = getattr(store, "granted_scope", lambda: None)()
     except (TokenStoreError, ValueError):
         return None  # the Sign-in row already reports it
-    return Check("Sign-in can write", INFO, f"{advice}; granted scope: {scope}" if scope else advice)
+    return Check(name, INFO, _say(lang, "write_capable.scope", advice=advice, scope=scope) if scope else advice)
 
 
-def _issuer(s: Settings) -> Check | None:
+def _issuer(s: Settings, lang: str = "en") -> Check | None:
     """The issuer saved at sign-in and whether Epiphan says its redirect sends `iss` (RFC 9207, #13). Offline: read
     from the endpoints `login` saved, which hold no secrets. None without a stored sign-in."""
     if reveal(s.epiphan_token):
@@ -131,13 +144,14 @@ def _issuer(s: Settings) -> Check | None:
         return None  # the Sign-in row already reports it
     meta = oauth.get("metadata") if isinstance(oauth.get("metadata"), dict) else {}
     issuer = meta.get("issuer") if isinstance(meta.get("issuer"), str) else None
-    sends = {True: "yes", False: "no"}.get(meta.get("authorization_response_iss_parameter_supported"), "not stated")
+    sends = {True: "yes", False: "no"}.get(meta.get("authorization_response_iss_parameter_supported"), "unstated")
+    name = _name(lang, "issuer")
     if issuer is None:
-        return Check("Sign-in issuer", INFO, "not saved yet; the next fleetwatch login saves it")
-    return Check("Sign-in issuer", INFO, f"expected {redact(issuer)}; Epiphan says its redirect sends iss: {sends}")
+        return Check(name, INFO, _say(lang, "issuer.none"))
+    return Check(name, INFO, _say(lang, f"issuer.{sends}", issuer=redact(issuer)))
 
 
-def _keychain_access(s: Settings) -> Check | None:
+def _keychain_access(s: Settings, lang: str = "en") -> Check | None:
     """The Keychain items trust /usr/bin/security, so any program running as this macOS user can read them without
     a prompt. Only the operating-system user keeps other software out (SECURITY.md, Trust model)."""
     if reveal(s.epiphan_token):
@@ -148,14 +162,10 @@ def _keychain_access(s: Settings) -> Check | None:
             return None
     except (TokenStoreError, ValueError):
         return None  # the Sign-in row already reports it
-    return Check(
-        "Keychain access",
-        INFO,
-        "any program running as the same macOS user can read the token; give Fleetwatch its own user (docs/mac-mini.md)",
-    )
+    return Check(_name(lang, "keychain"), INFO, _say(lang, "keychain"))
 
 
-def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
+def _token_expiry(s: Settings, now: datetime | None = None, lang: str = "en") -> Check | None:
     """When the stored access token runs out, read offline from the store. Never shows the token itself."""
     if reveal(s.epiphan_token):
         return None
@@ -167,23 +177,24 @@ def _token_expiry(s: Settings, now: datetime | None = None) -> Check | None:
         dead = getattr(store, "is_dead", lambda: False)()
     except (TokenStoreError, ValueError):
         return None  # the Sign-in row already reports it
+    name = _name(lang, "token_expiry")
     if dead:
-        return Check("Token expiry", FAIL, "Epiphan refused the refresh token: sign in again with  fleetwatch login")
+        return Check(name, FAIL, _say(lang, "expiry.dead"))
     if when is None:
-        return Check("Token expiry", OK, "not recorded yet; saved with the next refresh")
+        return Check(name, OK, _say(lang, "expiry.unknown"))
     now = now or datetime.now(UTC)
     local = when.astimezone().strftime("%Y-%m-%d %H:%M")
     if when <= now:
-        return Check("Token expiry", OK, f"expired {local}; the next heartbeat will refresh it")
-    return Check("Token expiry", OK, f"{local} (refreshes itself before then)")
+        return Check(name, OK, _say(lang, "expiry.expired", when=local))
+    return Check(name, OK, _say(lang, "expiry.ok", when=local))
 
 
-def _sandbox(s: Settings) -> Check:
+def _sandbox(s: Settings, lang: str = "en") -> Check:
     """The v0.2 sandbox sign-in, in its own slot: the only sign-in an approved change may run on. Offline; never
     shows the token. INFO either way: with none, nothing can change, which is what v0.1 wants."""
     from fleetwatch.epiphan.executor import sandbox_store
 
-    name = "Sandbox sign-in"
+    name = _name(lang, "sandbox")
     try:
         store = sandbox_store(s)
         signed_in = store.has_tokens()
@@ -192,61 +203,46 @@ def _sandbox(s: Settings) -> Check:
     except TokenStoreError as e:
         return Check(name, WARN, str(e))
     if not signed_in:
-        return Check(name, INFO, "none, so no change can run")
+        return Check(name, INFO, _say(lang, "sandbox.none"))
     if isinstance(store, FileTokenStorage) and stat.S_IMODE(os.stat(store.path).st_mode) & 0o077:
-        f = store.path
-        return Check(name, FAIL, f"{f} is readable by other users: run  chmod 600 {f}")
-    return Check(name, INFO, f"signed in, token in {store.where}; only changes a person approves (v0.2) use it")
+        return Check(name, FAIL, _say(lang, "sandbox.readable", f=store.path))
+    return Check(name, INFO, _say(lang, "sandbox.ok", where=store.where))
 
 
-def _fence(s: Settings) -> Check:
+def _fence(s: Settings, lang: str = "en") -> Check:
     """v0.2: with autonomy: propose, a change needs a fence (docs/design/approved-writes.md, "Fence"). Offline."""
     from fleetwatch.fence import Fence
 
-    name = "Write fence"
+    name = _name(lang, "fence")
     try:
         p = load_policy(s.policy_file)
     except (OSError, ValueError):
-        return Check(name, WARN, "can't tell until policy.yaml loads")
+        return Check(name, WARN, _say(lang, "fence.no_policy"))
     if not p.proposes:
-        return Check(name, INFO, "not needed: autonomy is observe, so no change can be proposed")
+        return Check(name, INFO, _say(lang, "fence.observe"))
     fence = Fence.from_settings(s)
     if fence.invalid:
         shown = ", ".join(repr(e[:40]) for e in fence.invalid[:3])
         n = len(fence.invalid)
-        return Check(
-            name,
-            FAIL,
-            f"{n} {'entry' if n == 1 else 'entries'} in FLEETWATCH_WRITE_DEVICE_IDS "
-            f"{'isn' if n == 1 else 'aren'}'t a device ID ({shown}). List master device IDs only, comma-separated: "
-            "8 to 32 characters, 0-9 and a-f. A channel ID such as 0a1b2c3d-1 doesn't go here.",
-        )
+        return Check(name, FAIL, _say(lang, "fence.invalid.one" if n == 1 else "fence.invalid.many", n=n, shown=shown))
     if not fence.is_set:
-        return Check(
-            name,
-            FAIL,
-            "autonomy: propose needs a fence, or every change is refused: list the sandbox devices in "
-            "FLEETWATCH_WRITE_DEVICE_IDS (or set FLEETWATCH_WRITE_TEAM_ID)",
-        )
+        return Check(name, FAIL, _say(lang, "fence.unset"))
     if not fence.device_ids:
-        return Check(
-            name,
-            WARN,
-            "only a team ID is set. Epiphan may not report one, and then every change is refused: also list the "
-            "sandbox devices in FLEETWATCH_WRITE_DEVICE_IDS",
-        )
-    detail = f"{len(fence.device_ids)} sandbox device(s) on the allowlist"
-    return Check(name, OK, detail + ("; a team ID is also set" if fence.team_id else ""))
+        return Check(name, WARN, _say(lang, "fence.team_only"))
+    n = len(fence.device_ids)
+    detail = _say(lang, "fence.ok.one" if n == 1 else "fence.ok.many", n=n)
+    return Check(name, OK, detail + (_say(lang, "fence.team_too") if fence.team_id else ""))
 
 
-def _state_dir(s: Settings) -> Check:
+def _state_dir(s: Settings, lang: str = "en") -> Check:
     d = s.state_db.parent
+    name = _name(lang, "state_dir")
     if d.exists() and not os.access(d, os.W_OK):
-        return Check("State folder", FAIL, f"{d} is not writable")
-    return Check("State folder", OK, f"{d}" + ("" if d.exists() else " (created on first run)"))
+        return Check(name, FAIL, _say(lang, "state_dir.unwritable", d=d))
+    return Check(name, OK, f"{d}" if d.exists() else _say(lang, "state_dir.new", d=d))
 
 
-def _last_beat(s: Settings) -> Check | None:
+def _last_beat(s: Settings, lang: str = "en") -> Check | None:
     """Offline: the last failed heartbeat and its reason (redacted when it was recorded), if none has worked since."""
     if not s.state_db.exists():
         return None
@@ -261,32 +257,33 @@ def _last_beat(s: Settings) -> Check | None:
     if failed is None:
         return None
     at, reason = failed
-    return Check("Last heartbeat", WARN, f"failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
+    return Check(
+        _name(lang, "last_beat"), WARN, _say(lang, "last_beat", when=f"{at.astimezone():%Y-%m-%d %H:%M}", reason=reason)
+    )
 
 
-def _audit_log(s: Settings) -> Check:
+def _audit_log(s: Settings, lang: str = "en") -> Check:
     """Offline: walks the audit hash chain. Names the first broken row's ID and nothing from its content."""
+    name = _name(lang, "audit")
     if not s.state_db.exists():
-        return Check("Audit log", OK, "no history yet")
+        return Check(name, OK, _say(lang, "audit.none"))
     try:
-        from fleetwatch.state import State
-
         state = State(s.state_db)
         try:
             bad = state.verify_audit()
         finally:
             state.db.close()
     except Exception as e:  # noqa: BLE001  (a locked or unreadable file is a finding, not a crash)
-        return Check("Audit log", FAIL, f"couldn't read the audit log ({type(e).__name__})")
+        return Check(name, FAIL, _say(lang, "audit.unreadable", error=type(e).__name__))
     if bad is None:
-        return Check("Audit log", OK, "no row has been changed or removed")
-    return Check("Audit log", FAIL, f"row {bad} doesn't match the one before it: the log was edited or damaged")
+        return Check(name, OK, _say(lang, "audit.ok"))
+    return Check(name, FAIL, _say(lang, "audit.bad", row=bad))
 
 
-def _proposal_queue(s: Settings) -> Check:
+def _proposal_queue(s: Settings, lang: str = "en") -> Check:
     """Offline: how full the v0.2 proposal queue is, from the same limits State enforces. Warns when the assistant
     can't add a proposal, so a refused one isn't a mystery."""
-    name = "Proposal queue"
+    name = _name(lang, "queue")
     pending, hour, max_pending, max_hour = 0, 0, MAX_PENDING, PROPOSALS_PER_HOUR
     if s.state_db.exists():
         try:
@@ -296,74 +293,69 @@ def _proposal_queue(s: Settings) -> Check:
             finally:
                 state.db.close()
         except Exception as e:  # noqa: BLE001  (a locked or unreadable file is a finding, not a crash)
-            return Check(name, WARN, f"couldn't read the proposal queue ({type(e).__name__})")
-    counts = f"{pending} of {max_pending} waiting, {hour} of {max_hour} in the last hour"
+            return Check(name, WARN, _say(lang, "queue.unreadable", error=type(e).__name__))
+    counts = _say(lang, "queue.counts", pending=pending, max_pending=max_pending, hour=hour, max_hour=max_hour)
     if pending >= max_pending:
-        return Check(name, WARN, f"full: {counts}. The assistant can't propose more until you approve or deny one")
+        return Check(name, WARN, _say(lang, "queue.full_pending", counts=counts))
     if hour >= max_hour:
-        return Check(name, WARN, f"full: {counts}. The assistant can't propose more until the hour passes")
+        return Check(name, WARN, _say(lang, "queue.full_hour", counts=counts))
     return Check(name, INFO, counts)
 
 
-def _reach(name: str, url: str, reach: Callable[[str], bool]) -> Check:
+def _reach(name: str, url: str, reach: Callable[[str], bool], lang: str = "en") -> Check:
     host = urlparse(url).netloc or url
     if reach(url):
         return Check(name, OK, host)
-    return Check(name, WARN, f"can't reach {host}: check the network, DNS or a proxy")
+    return Check(name, WARN, _say(lang, "reach.fail", host=host))
 
 
-def _mask(key: str) -> str:
+def _mask(key: str, lang: str = "en") -> str:
     """Enough of a key to tell two apart, never enough to use: its prefix and last four characters."""
-    return f"{key[:7]}…{key[-4:]}" if len(key) >= 20 else "set"
+    return f"{key[:7]}…{key[-4:]}" if len(key) >= 20 else _say(lang, "assistant.key_set")
 
 
-def _assistant(s: Settings) -> Check:
+def _assistant(s: Settings, lang: str = "en") -> Check:
     """Whether `fleetwatch ask` sends the question and redacted fleet data to Anthropic. Offline: no API call."""
     key = reveal(s.anthropic_api_key)
     if not key:
-        return Check("Assistant", INFO, "off (no API key)")
-    return Check(
-        "Assistant",
-        INFO,
-        f"on, model {s.ai_model}, sends redacted fleet data to the Anthropic API (key {_mask(key)}; "
-        "leave FLEETWATCH_ANTHROPIC_API_KEY empty to turn it off)",
-    )
+        return Check(_name(lang, "assistant"), INFO, _say(lang, "assistant.off"))
+    return Check(_name(lang, "assistant"), INFO, _say(lang, "assistant.on", model=s.ai_model, mask=_mask(key, lang)))
 
 
-def _slack(s: Settings) -> Check:
-    return Check(
-        "Slack", OK, f"posts to {s.slack_channel}" if reveal(s.slack_bot_token) else "no token: prints to the console"
-    )
+def _slack(s: Settings, lang: str = "en") -> Check:
+    if reveal(s.slack_bot_token):
+        return Check("Slack", OK, _say(lang, "slack.posts", channel=s.slack_channel))
+    return Check("Slack", OK, _say(lang, "slack.console"))  # "Slack" and "Teams" are names, the same in Spanish
 
 
-def _teams(s: Settings) -> Check:
+def _teams(s: Settings, lang: str = "en") -> Check:
     """Never shows or calls the webhook: the URL is the credential."""
     url = s.teams_webhook_url.get_secret_value() if s.teams_webhook_url else ""
     if not url:
-        return Check("Teams", OK, "not configured")
+        return Check("Teams", OK, _say(lang, "teams.none"))
     if not url.startswith("https://"):
-        return Check("Teams", WARN, "FLEETWATCH_TEAMS_WEBHOOK_URL should start with https://")
-    return Check("Teams", OK, "configured")
+        return Check("Teams", WARN, _say(lang, "teams.https"))
+    return Check("Teams", OK, _say(lang, "teams.ok"))
 
 
-def _slack_commands(s: Settings) -> Check:
+def _slack_commands(s: Settings, lang: str = "en") -> Check:
     """/fleetwatch over Socket Mode. Offline: checks the token's shape (never prints it) and the allowlist."""
-    name = "Slack commands"
+    name = _name(lang, "slack_commands")
     if not reveal(s.slack_app_token):
-        return Check(name, OK, "off (set FLEETWATCH_SLACK_APP_TOKEN to answer /fleetwatch)")
+        return Check(name, OK, _say(lang, "slack_commands.off"))
     if not reveal(s.slack_app_token).startswith("xapp-"):
-        return Check(name, FAIL, "FLEETWATCH_SLACK_APP_TOKEN must be an app-level token starting xapp-")
+        return Check(name, FAIL, _say(lang, "slack_commands.xapp"))
     try:
         p = load_policy(s.policy_file)
     except Exception:  # noqa: BLE001  (the Policy row already reports it)
-        return Check(name, WARN, "can't read the allowlist until policy.yaml loads")
+        return Check(name, WARN, _say(lang, "slack_commands.no_policy"))
     if p.slack_allowed_usergroup and not reveal(s.slack_bot_token):
-        return Check(name, WARN, "slack.allowed_usergroup needs FLEETWATCH_SLACK_BOT_TOKEN (usergroups:read)")
+        return Check(name, WARN, _say(lang, "slack_commands.group_needs_bot"))
     if not p.slack_allowed_user_ids and not p.slack_allowed_usergroup:
-        return Check(name, WARN, "nobody is allowed yet: add slack.allowed_user_ids in policy.yaml")
+        return Check(name, WARN, _say(lang, "slack_commands.nobody"))
     n = len(p.slack_allowed_user_ids)
-    who = [f"{n} user{'s' if n != 1 else ''}"] + (["a user group"] if p.slack_allowed_usergroup else [])
-    return Check(name, OK, f"on, answers {' and '.join(who)}")
+    key = ("one" if n == 1 else "many") + ("_group" if p.slack_allowed_usergroup else "")
+    return Check(name, OK, _say(lang, f"slack_commands.{key}", n=n))
 
 
 def can_reach(url: str) -> bool:
@@ -390,65 +382,67 @@ def _restart_command() -> str:
     return "systemctl --user restart fleetwatch"
 
 
-def service_status() -> tuple[str, str]:
+def service_status(lang: str = "en") -> tuple[str, str]:
     system = platform.system()
     if system == "Darwin" and shutil.which("launchctl"):
         r = subprocess.run(
             ["launchctl", "print", f"gui/{os.getuid()}/{LAUNCHD_LABEL}"], capture_output=True, text=True, check=False
         )
         if r.returncode != 0:
-            return WARN, "launchd agent not installed: run  deploy/install.sh"
-        return (
-            (OK, "launchd agent running")
-            if "state = running" in r.stdout
-            else (WARN, "launchd agent loaded, not running")
-        )
+            return WARN, _say(lang, "service.launchd_missing")
+        if "state = running" in r.stdout:
+            return OK, _say(lang, "service.launchd_running")
+        return WARN, _say(lang, "service.launchd_stopped")
     if system == "Linux" and shutil.which("systemctl"):
         r = subprocess.run(
             ["systemctl", "--user", "is-active", "fleetwatch"], capture_output=True, text=True, check=False
         )
         state = r.stdout.strip() or "unknown"
         if state == "active":
-            return OK, "systemd user unit active"
-        return WARN, f"systemd user unit {state}: run  deploy/install.sh  (or check  journalctl --user -u fleetwatch)"
+            return OK, _say(lang, "service.systemd_active")
+        return WARN, _say(lang, "service.systemd_other", state=state)
     if os.path.exists("/.dockerenv"):
-        return OK, "running in a container"
-    return WARN, f"no launchd or systemd here ({system}); run  fleetwatch run  yourself"
+        return OK, _say(lang, "service.container")
+    return WARN, _say(lang, "service.none", system=system)
 
 
 def run_checks(
     s: Settings,
     *,
     reach: Callable[[str], bool] = can_reach,
-    service: Callable[[], tuple[str, str]] = service_status,
+    service: Callable[[], tuple[str, str]] | None = None,
+    lang: str = "en",
 ) -> list[Check]:
     for name in ("httpx", "httpx2"):  # can_reach uses httpx; the MCP SDK uses its httpx2 fork
         logging.getLogger(name).setLevel(logging.WARNING)  # keep the report to one line per check
     checks = [
-        _version(),
-        _policy(s),
-        _guard(s),
-        _redaction(),
-        _sign_in(s),
-        *filter(None, [_write_capable(s), _issuer(s), _keychain_access(s), _token_expiry(s)]),
-        _sandbox(s),
-        _fence(s),
-        _state_dir(s),
-        _audit_log(s),
-        *filter(None, [_last_beat(s)]),
-        _proposal_queue(s),
-        _slack(s),
-        _slack_commands(s),
-        _teams(s),
-        _assistant(s),
+        _version(lang),
+        _policy(s, lang),
+        _guard(s, lang),
+        _redaction(lang),
+        _sign_in(s, lang),
+        *filter(
+            None,
+            [_write_capable(s, lang), _issuer(s, lang), _keychain_access(s, lang), _token_expiry(s, lang=lang)],
+        ),
+        _sandbox(s, lang),
+        _fence(s, lang),
+        _state_dir(s, lang),
+        _audit_log(s, lang),
+        *filter(None, [_last_beat(s, lang)]),
+        _proposal_queue(s, lang),
+        _slack(s, lang),
+        _slack_commands(s, lang),
+        _teams(s, lang),
+        _assistant(s, lang),
     ]
-    checks.append(_reach("Epiphan reachable", s.epiphan_mcp_url, reach))
+    checks.append(_reach(_name(lang, "epiphan_reach"), s.epiphan_mcp_url, reach, lang))
     if reveal(s.slack_bot_token):
-        checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))
-    status, detail = service()
+        checks.append(_reach(_name(lang, "slack_reach"), "https://slack.com/api/api.test", reach, lang))
+    status, detail = service() if service else service_status(lang)
     if _sign_in_dead(s):  # #122: the agent stopped on purpose; say why and how to start it again
-        status, detail = WARN, f"stopped: sign-in expired. Run  fleetwatch login, then  {_restart_command()}"
-    checks.append(Check("Service", status, detail))
+        status, detail = WARN, _say(lang, "service.dead", restart=_restart_command())
+    checks.append(Check(_name(lang, "service"), status, detail))
     return checks
 
 
@@ -456,7 +450,7 @@ def exit_code(checks: list[Check]) -> int:
     return 1 if any(c.status == FAIL for c in checks) else 0
 
 
-def print_report(checks: list[Check], out=None) -> None:
+def print_report(checks: list[Check], out=None, lang: str = "en") -> None:
     out = out or sys.stdout
     width = max(len(c.name) for c in checks)
     for c in checks:
@@ -464,9 +458,9 @@ def print_report(checks: list[Check], out=None) -> None:
     fails = sum(c.status == FAIL for c in checks)
     warns = sum(c.status == WARN for c in checks)
     if fails:
-        summary = f"{fails} to fix before relying on Fleetwatch" + (f", {warns} to look at." if warns else ".")
+        summary = _say(lang, "summary.fix_look" if warns else "summary.fix", fails=fails, warns=warns)
     elif warns:
-        summary = f"Nothing broken. {warns} to look at."
+        summary = _say(lang, "summary.look", warns=warns)
     else:
-        summary = "All good."
+        summary = _say(lang, "summary.ok")
     print(f"\n{summary}", file=out)

@@ -685,8 +685,12 @@ def main() -> None:
     elif args.command == "doctor":
         from fleetwatch.doctor import exit_code, print_report, run_checks
 
-        checks = run_checks(settings)
-        print_report(checks)
+        try:
+            lang = load_policy(settings.policy_file).language
+        except Exception:  # noqa: BLE001  (doctor still runs, in English; its Policy row reports the error)
+            lang = "en"
+        checks = run_checks(settings, lang=lang)
+        print_report(checks, lang=lang)
         raise SystemExit(exit_code(checks))
     elif args.check:
         from fleetwatch.heartbeat import health

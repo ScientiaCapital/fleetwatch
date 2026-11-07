@@ -373,6 +373,296 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Last heartbeat {ago} min ago; expected every {mins} min",
         "es": "Último heartbeat hace {ago} min; se espera uno cada {mins} min",
     },
+    # --- fleetwatch doctor: row names, then details. OK/WARN/FAIL/INFO stay as they are (exit codes, tests). -----
+    "doctor.name.version": {"en": "Version", "es": "Versión"},
+    "doctor.name.policy": {"en": "Policy", "es": "Política"},
+    "doctor.name.guard": {"en": "Read-only guard", "es": "Protección de solo lectura"},
+    "doctor.name.redaction": {"en": "Redaction", "es": "Ocultamiento de secretos"},
+    "doctor.name.sign_in": {"en": "Sign-in", "es": "Inicio de sesión"},
+    "doctor.name.write_capable": {"en": "Sign-in can write", "es": "La sesión puede hacer cambios"},
+    "doctor.name.issuer": {"en": "Sign-in issuer", "es": "Emisor del inicio de sesión"},
+    "doctor.name.keychain": {"en": "Keychain access", "es": "Acceso al llavero"},
+    "doctor.name.token_expiry": {"en": "Token expiry", "es": "Vencimiento del token"},
+    "doctor.name.sandbox": {"en": "Sandbox sign-in", "es": "Sesión del sandbox"},
+    "doctor.name.fence": {"en": "Write fence", "es": "Límite de cambios"},
+    "doctor.name.state_dir": {"en": "State folder", "es": "Carpeta de estado"},
+    "doctor.name.last_beat": {"en": "Last heartbeat", "es": "Último heartbeat"},
+    "doctor.name.audit": {"en": "Audit log", "es": "Registro de auditoría"},
+    "doctor.name.queue": {"en": "Proposal queue", "es": "Cola de propuestas"},
+    "doctor.name.slack_commands": {"en": "Slack commands", "es": "Comandos de Slack"},
+    "doctor.name.assistant": {"en": "Assistant", "es": "Asistente"},
+    "doctor.name.epiphan_reach": {"en": "Epiphan reachable", "es": "Conexión con Epiphan"},
+    "doctor.name.slack_reach": {"en": "Slack reachable", "es": "Conexión con Slack"},
+    "doctor.name.service": {"en": "Service", "es": "Servicio"},
+    "doctor.version": {
+        "en": "fleetwatch {v}, Python {py} on {machine}",
+        "es": "fleetwatch {v}, Python {py} en {machine}",
+    },
+    "doctor.version.unknown": {"en": "unknown", "es": "desconocida"},
+    "doctor.policy.propose": {
+        "en": "autonomy: propose: the assistant may propose changes for a person to approve; the heartbeat stays "
+        "observe-only, and nothing runs without an approval",
+        "es": "autonomy: propose: el asistente puede proponer cambios para que una persona los apruebe; el heartbeat "
+        "solo observa y nada se ejecuta sin una aprobación",
+    },
+    "doctor.policy.observe": {"en": "observe-only", "es": "solo observa"},
+    "doctor.policy.ok": {"en": "{mode}, heartbeat every {n} s", "es": "{mode}, heartbeat cada {n} s"},
+    "doctor.guard.leaked": {
+        "en": "write tools on the read list: {tools}",
+        "es": "herramientas de escritura en la lista de lectura: {tools}",
+    },
+    "doctor.guard.ok": {
+        "en": "{n} read tools allowed; every write tool is refused",
+        "es": "{n} herramientas de lectura permitidas; se rechaza toda herramienta de escritura",
+    },
+    "doctor.redaction.fail": {
+        "en": "a test stream key got through redact()",
+        "es": "una clave de transmisión de prueba pasó por redact() sin ocultarse",
+    },
+    "doctor.redaction.ok": {
+        "en": "stream keys and credentialed URLs are masked",
+        "es": "las claves de transmisión y las URL con credenciales se ocultan",
+    },
+    "doctor.sign_in.static": {
+        "en": "static token from FLEETWATCH_EPIPHAN_TOKEN",
+        "es": "token fijo de FLEETWATCH_EPIPHAN_TOKEN",
+    },
+    "doctor.sign_in.none": {
+        "en": "not signed in: run  fleetwatch login",
+        "es": "no has iniciado sesión: ejecuta  fleetwatch login",
+    },
+    "doctor.sign_in.store": {"en": "token in {where}", "es": "token en {where}"},
+    "doctor.sign_in.readable": {
+        "en": "{f} is readable by other users (mode {mode}): run  chmod 600 {f}",
+        "es": "otros usuarios pueden leer {f} (modo {mode}): ejecuta  chmod 600 {f}",
+    },
+    "doctor.sign_in.file": {"en": "token in {f} (mode 600)", "es": "token en {f} (modo 600)"},
+    "doctor.write_capable": {
+        "en": "the Edge sign-in can make changes if the account can; use a least-access account (docs/sign-in.md)",
+        "es": "la sesión de Edge puede hacer cambios si la cuenta puede; usa una cuenta con el mínimo acceso "
+        "(docs/sign-in.md)",
+    },
+    "doctor.write_capable.scope": {
+        "en": "{advice}; granted scope: {scope}",
+        "es": "{advice}; alcance otorgado: {scope}",
+    },
+    "doctor.issuer.none": {
+        "en": "not saved yet; the next fleetwatch login saves it",
+        "es": "aún no se guarda; el próximo fleetwatch login lo guarda",
+    },
+    "doctor.issuer.yes": {
+        "en": "expected {issuer}; Epiphan says its redirect sends iss: yes",
+        "es": "se espera {issuer}; Epiphan dice que su redirección envía iss: sí",
+    },
+    "doctor.issuer.no": {
+        "en": "expected {issuer}; Epiphan says its redirect sends iss: no",
+        "es": "se espera {issuer}; Epiphan dice que su redirección envía iss: no",
+    },
+    "doctor.issuer.unstated": {
+        "en": "expected {issuer}; Epiphan says its redirect sends iss: not stated",
+        "es": "se espera {issuer}; Epiphan no dice si su redirección envía iss",
+    },
+    "doctor.keychain": {
+        "en": "any program running as the same macOS user can read the token; give Fleetwatch its own user "
+        "(docs/mac-mini.md)",
+        "es": "cualquier programa que se ejecute con el mismo usuario de macOS puede leer el token; dale a "
+        "Fleetwatch su propio usuario (docs/mac-mini.md)",
+    },
+    "doctor.expiry.dead": {
+        "en": "Epiphan refused the refresh token: sign in again with  fleetwatch login",
+        "es": "Epiphan rechazó el token de renovación: vuelve a iniciar sesión con  fleetwatch login",
+    },
+    "doctor.expiry.unknown": {
+        "en": "not recorded yet; saved with the next refresh",
+        "es": "aún no se registra; se guarda con la próxima renovación",
+    },
+    "doctor.expiry.expired": {
+        "en": "expired {when}; the next heartbeat will refresh it",
+        "es": "venció el {when}; el próximo heartbeat lo renovará",
+    },
+    "doctor.expiry.ok": {
+        "en": "{when} (refreshes itself before then)",
+        "es": "{when} (se renueva solo antes de esa hora)",
+    },
+    "doctor.sandbox.none": {
+        "en": "none, so no change can run",
+        "es": "ninguna, así que ningún cambio puede ejecutarse",
+    },
+    "doctor.sandbox.readable": {
+        "en": "{f} is readable by other users: run  chmod 600 {f}",
+        "es": "otros usuarios pueden leer {f}: ejecuta  chmod 600 {f}",
+    },
+    "doctor.sandbox.ok": {
+        "en": "signed in, token in {where}; only changes a person approves (v0.2) use it",
+        "es": "sesión iniciada, token en {where}; solo la usan los cambios que una persona aprueba (v0.2)",
+    },
+    "doctor.fence.no_policy": {
+        "en": "can't tell until policy.yaml loads",
+        "es": "no se puede saber hasta que cargue policy.yaml",
+    },
+    "doctor.fence.observe": {
+        "en": "not needed: autonomy is observe, so no change can be proposed",
+        "es": "no hace falta: autonomy es observe, así que no se puede proponer ningún cambio",
+    },
+    "doctor.fence.invalid.one": {
+        "en": "{n} entry in FLEETWATCH_WRITE_DEVICE_IDS isn't a device ID ({shown}). List master device IDs only, "
+        "comma-separated: 8 to 32 characters, 0-9 and a-f. A channel ID such as 0a1b2c3d-1 doesn't go here.",
+        "es": "{n} entrada de FLEETWATCH_WRITE_DEVICE_IDS no es un ID de equipo ({shown}). Escribe solo IDs de "
+        "equipo principales, separados por comas: de 8 a 32 caracteres, 0-9 y a-f. Un ID de canal como "
+        "0a1b2c3d-1 no va aquí.",
+    },
+    "doctor.fence.invalid.many": {
+        "en": "{n} entries in FLEETWATCH_WRITE_DEVICE_IDS aren't a device ID ({shown}). List master device IDs only, "
+        "comma-separated: 8 to 32 characters, 0-9 and a-f. A channel ID such as 0a1b2c3d-1 doesn't go here.",
+        "es": "{n} entradas de FLEETWATCH_WRITE_DEVICE_IDS no son IDs de equipo ({shown}). Escribe solo IDs de "
+        "equipo principales, separados por comas: de 8 a 32 caracteres, 0-9 y a-f. Un ID de canal como "
+        "0a1b2c3d-1 no va aquí.",
+    },
+    "doctor.fence.unset": {
+        "en": "autonomy: propose needs a fence, or every change is refused: list the sandbox devices in "
+        "FLEETWATCH_WRITE_DEVICE_IDS (or set FLEETWATCH_WRITE_TEAM_ID)",
+        "es": "autonomy: propose necesita un límite, o se rechaza todo cambio: escribe los equipos del sandbox en "
+        "FLEETWATCH_WRITE_DEVICE_IDS (o configura FLEETWATCH_WRITE_TEAM_ID)",
+    },
+    "doctor.fence.team_only": {
+        "en": "only a team ID is set. Epiphan may not report one, and then every change is refused: also list the "
+        "sandbox devices in FLEETWATCH_WRITE_DEVICE_IDS",
+        "es": "solo hay un ID de team. Puede que Epiphan no informe ninguno, y entonces se rechaza todo cambio: "
+        "escribe también los equipos del sandbox en FLEETWATCH_WRITE_DEVICE_IDS",
+    },
+    "doctor.fence.ok.one": {
+        "en": "{n} sandbox device on the allowlist",
+        "es": "{n} equipo del sandbox en la lista permitida",
+    },
+    "doctor.fence.ok.many": {
+        "en": "{n} sandbox devices on the allowlist",
+        "es": "{n} equipos del sandbox en la lista permitida",
+    },
+    "doctor.fence.team_too": {"en": "; a team ID is also set", "es": "; también hay un ID de team"},
+    "doctor.state_dir.unwritable": {"en": "{d} is not writable", "es": "no se puede escribir en {d}"},
+    "doctor.state_dir.new": {"en": "{d} (created on first run)", "es": "{d} (se crea en la primera ejecución)"},
+    # {reason} is stored as it was recorded (redacted, in English): it passes through untranslated.
+    "doctor.last_beat": {"en": "failed at {when}: {reason}", "es": "falló el {when}: {reason}"},
+    "doctor.audit.none": {"en": "no history yet", "es": "todavía no hay historial"},
+    "doctor.audit.unreadable": {
+        "en": "couldn't read the audit log ({error})",
+        "es": "no se pudo leer el registro de auditoría ({error})",
+    },
+    "doctor.audit.ok": {
+        "en": "no row has been changed or removed",
+        "es": "ninguna fila se ha cambiado ni eliminado",
+    },
+    "doctor.audit.bad": {
+        "en": "row {row} doesn't match the one before it: the log was edited or damaged",
+        "es": "la fila {row} no coincide con la anterior: el registro se editó o se dañó",
+    },
+    "doctor.queue.unreadable": {
+        "en": "couldn't read the proposal queue ({error})",
+        "es": "no se pudo leer la cola de propuestas ({error})",
+    },
+    "doctor.queue.counts": {
+        "en": "{pending} of {max_pending} waiting, {hour} of {max_hour} in the last hour",
+        "es": "{pending} de {max_pending} en espera, {hour} de {max_hour} en la última hora",
+    },
+    "doctor.queue.full_pending": {
+        "en": "full: {counts}. The assistant can't propose more until you approve or deny one",
+        "es": "llena: {counts}. El asistente no puede proponer más hasta que apruebes o rechaces una",
+    },
+    "doctor.queue.full_hour": {
+        "en": "full: {counts}. The assistant can't propose more until the hour passes",
+        "es": "llena: {counts}. El asistente no puede proponer más hasta que pase la hora",
+    },
+    "doctor.reach.fail": {
+        "en": "can't reach {host}: check the network, DNS or a proxy",
+        "es": "no se puede conectar con {host}: revisa la red, el DNS o el proxy",
+    },
+    "doctor.assistant.off": {"en": "off (no API key)", "es": "apagado (sin clave de API)"},
+    "doctor.assistant.on": {
+        "en": "on, model {model}, sends redacted fleet data to the Anthropic API (key {mask}; "
+        "leave FLEETWATCH_ANTHROPIC_API_KEY empty to turn it off)",
+        "es": "encendido, modelo {model}, envía datos de la flota con los secretos ocultos a la API de Anthropic "
+        "(clave {mask}; deja FLEETWATCH_ANTHROPIC_API_KEY vacía para apagarlo)",
+    },
+    "doctor.assistant.key_set": {"en": "set", "es": "configurada"},
+    "doctor.slack.posts": {"en": "posts to {channel}", "es": "publica en {channel}"},
+    "doctor.slack.console": {
+        "en": "no token: prints to the console",
+        "es": "sin token: lo muestra en la consola",
+    },
+    "doctor.teams.none": {"en": "not configured", "es": "sin configurar"},
+    "doctor.teams.https": {
+        "en": "FLEETWATCH_TEAMS_WEBHOOK_URL should start with https://",
+        "es": "FLEETWATCH_TEAMS_WEBHOOK_URL debe empezar con https://",
+    },
+    "doctor.teams.ok": {"en": "configured", "es": "configurado"},
+    "doctor.slack_commands.off": {
+        "en": "off (set FLEETWATCH_SLACK_APP_TOKEN to answer /fleetwatch)",
+        "es": "apagado (configura FLEETWATCH_SLACK_APP_TOKEN para responder a /fleetwatch)",
+    },
+    "doctor.slack_commands.xapp": {
+        "en": "FLEETWATCH_SLACK_APP_TOKEN must be an app-level token starting xapp-",
+        "es": "FLEETWATCH_SLACK_APP_TOKEN debe ser un token de nivel de app que empiece con xapp-",
+    },
+    "doctor.slack_commands.no_policy": {
+        "en": "can't read the allowlist until policy.yaml loads",
+        "es": "no se puede leer la lista permitida hasta que cargue policy.yaml",
+    },
+    "doctor.slack_commands.group_needs_bot": {
+        "en": "slack.allowed_usergroup needs FLEETWATCH_SLACK_BOT_TOKEN (usergroups:read)",
+        "es": "slack.allowed_usergroup necesita FLEETWATCH_SLACK_BOT_TOKEN (usergroups:read)",
+    },
+    "doctor.slack_commands.nobody": {
+        "en": "nobody is allowed yet: add slack.allowed_user_ids in policy.yaml",
+        "es": "todavía no hay nadie permitido: agrega slack.allowed_user_ids en policy.yaml",
+    },
+    "doctor.slack_commands.one": {"en": "on, answers {n} user", "es": "encendido, responde a {n} usuario"},
+    "doctor.slack_commands.many": {"en": "on, answers {n} users", "es": "encendido, responde a {n} usuarios"},
+    "doctor.slack_commands.one_group": {
+        "en": "on, answers {n} user and a user group",
+        "es": "encendido, responde a {n} usuario y a un grupo de usuarios",
+    },
+    "doctor.slack_commands.many_group": {
+        "en": "on, answers {n} users and a user group",
+        "es": "encendido, responde a {n} usuarios y a un grupo de usuarios",
+    },
+    "doctor.service.launchd_missing": {
+        "en": "launchd agent not installed: run  deploy/install.sh",
+        "es": "el agente de launchd no está instalado: ejecuta  deploy/install.sh",
+    },
+    "doctor.service.launchd_running": {"en": "launchd agent running", "es": "el agente de launchd está funcionando"},
+    "doctor.service.launchd_stopped": {
+        "en": "launchd agent loaded, not running",
+        "es": "el agente de launchd está cargado, pero no está funcionando",
+    },
+    "doctor.service.systemd_active": {
+        "en": "systemd user unit active",
+        "es": "la unidad de usuario de systemd está activa",
+    },
+    # {state} is systemctl's own word (inactive, failed, ...), shown as it printed it.
+    "doctor.service.systemd_other": {
+        "en": "systemd user unit {state}: run  deploy/install.sh  (or check  journalctl --user -u fleetwatch)",
+        "es": "unidad de usuario de systemd en estado {state}: ejecuta  deploy/install.sh  "
+        "(o revisa  journalctl --user -u fleetwatch)",
+    },
+    "doctor.service.container": {"en": "running in a container", "es": "funcionando en un contenedor"},
+    "doctor.service.none": {
+        "en": "no launchd or systemd here ({system}); run  fleetwatch run  yourself",
+        "es": "aquí no hay launchd ni systemd ({system}); ejecuta  fleetwatch run  tú mismo",
+    },
+    "doctor.service.dead": {
+        "en": "stopped: sign-in expired. Run  fleetwatch login, then  {restart}",
+        "es": "detenido: la sesión venció. Ejecuta  fleetwatch login y luego  {restart}",
+    },
+    "doctor.summary.fix": {
+        "en": "{fails} to fix before relying on Fleetwatch.",
+        "es": "{fails} por arreglar antes de confiar en Fleetwatch.",
+    },
+    "doctor.summary.fix_look": {
+        "en": "{fails} to fix before relying on Fleetwatch, {warns} to look at.",
+        "es": "{fails} por arreglar antes de confiar en Fleetwatch, {warns} por revisar.",
+    },
+    "doctor.summary.look": {"en": "Nothing broken. {warns} to look at.", "es": "Nada está roto. {warns} por revisar."},
+    "doctor.summary.ok": {"en": "All good.", "es": "Todo bien."},
     # --- room notes --------------------------------------------------------------------------------------------
     "notes.empty": {"en": "That note is empty. Nothing saved.", "es": "Esa nota está vacía. No se guardó nada."},
     "notes.no_room": {
