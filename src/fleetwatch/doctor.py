@@ -226,6 +226,24 @@ def _state_dir(s: Settings) -> Check:
     return Check("State folder", OK, f"{d}" + ("" if d.exists() else " (created on first run)"))
 
 
+def _last_beat(s: Settings) -> Check | None:
+    """Offline: the last failed heartbeat and its reason (redacted when it was recorded), if none has worked since."""
+    if not s.state_db.exists():
+        return None
+    try:
+        state = State(s.state_db)
+        try:
+            failed = state.last_failed_beat()
+        finally:
+            state.db.close()
+    except Exception:  # noqa: BLE001  (the Audit log row reports an unreadable file)
+        return None
+    if failed is None:
+        return None
+    at, reason = failed
+    return Check("Last heartbeat", WARN, f"failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
+
+
 def _audit_log(s: Settings) -> Check:
     """Offline: walks the audit hash chain. Names the first broken row's ID and nothing from its content."""
     if not s.state_db.exists():
@@ -382,6 +400,7 @@ def run_checks(
         _fence(s),
         _state_dir(s),
         _audit_log(s),
+        *filter(None, [_last_beat(s)]),
         _proposal_queue(s),
         _slack(s),
         _slack_commands(s),
