@@ -452,6 +452,65 @@ async def test_slack_listener_still_closes_on_exit_75(monkeypatch):
     assert e.value.code == 75 and slash.closed
 
 
+class _Stop(Exception):
+    pass
+
+
+async def _one_run(monkeypatch, db: Path, now: datetime | None = None) -> list[str]:
+    """`fleetwatch run` for one beat on the calm sample, against the state in `db`; returns what it posted."""
+    from fleetwatch import cli
+    from fleetwatch.config import Settings
+    from fleetwatch.epiphan.replay import ReplayClient
+
+    out = Capture()
+    tools = load_tool_policy(ROOT / "tool_policy.yaml")
+    monkeypatch.setattr(
+        cli, "_make_client", lambda settings: ReplayClient(ROOT / "tests/fixtures/calm", tools, now=NOW)
+    )
+    monkeypatch.setattr(cli, "from_settings", lambda settings: out)
+
+    async def stop(_):
+        raise _Stop
+
+    monkeypatch.setattr("fleetwatch.runner._sleep", stop)
+    if now is not None:
+        monkeypatch.setattr("fleetwatch.cli.datetime", _FixedNow(now))
+    s = Settings(
+        _env_file=None, policy_file=ROOT / "policy.yaml", tool_policy_file=ROOT / "tool_policy.yaml", state_db=db
+    )
+    with pytest.raises(_Stop):
+        await cli._run(s)
+    return out.posts
+
+
+class _FixedNow:
+    def __init__(self, at: datetime):
+        self.at = at
+
+    def now(self, tz=None):
+        return self.at
+
+    def __getattr__(self, name):
+        return getattr(datetime, name)
+
+
+async def test_a_restart_on_a_calm_fleet_posts_all_clear_once(tmp_path: Path, monkeypatch):
+    """#123: every restart of a healthy fleet posted the first-run "All clear" again."""
+    first = await _one_run(monkeypatch, tmp_path / "state.db")
+    second = await _one_run(monkeypatch, tmp_path / "state.db")
+    assert len([p for p in first if "All clear" in p]) == 1
+    assert not [p for p in second if "All clear" in p], "a restart soon after a good beat says nothing new"
+
+
+async def test_all_clear_posts_again_after_a_long_gap(tmp_path: Path, monkeypatch):
+    """Back after more than a day without a good beat: say All clear again, so people know it's watching."""
+    db = tmp_path / "state.db"
+    await _one_run(monkeypatch, db)
+    later = datetime.now(UTC) + timedelta(days=2)
+    posts = await _one_run(monkeypatch, db, now=later)
+    assert [p for p in posts if "All clear" in p]
+
+
 # --- 4. shapes the parser doesn't know -----------------------------------------------------------------------
 def test_rfc3339_uptime_start_is_read(fleet):
     dev = next(iter(fleet.devices.values()))

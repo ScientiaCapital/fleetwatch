@@ -511,6 +511,18 @@ def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Setti
     raise SystemExit(code)
 
 
+ALL_CLEAR_GAP = timedelta(days=1)  # back after this long without a good beat: say All clear again
+
+
+def _says_all_clear(state: State, now: datetime) -> bool:
+    """Whether this start's first beat may post the first-run "All clear". Not on a restart soon after a good beat
+    (#123): a service manager restarting a calm fleet would repeat it in the channel every time."""
+    if state.open_findings():
+        return False
+    last = state.last_snapshot()
+    return last is None or now - last > ALL_CLEAR_GAP
+
+
 async def _run(settings: Settings) -> None:
     from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
     from fleetwatch.runner import EXIT_CONFIG, run_loop
@@ -529,7 +541,7 @@ async def _run(settings: Settings) -> None:
             state,
             policy,
             notifier,
-            first_run=not state.open_findings(),
+            first_run=_says_all_clear(state, datetime.now(UTC)),
             slash=slash,
             after_beat=lambda client: _maybe_sweep(client, state, policy, notifier),
         )
