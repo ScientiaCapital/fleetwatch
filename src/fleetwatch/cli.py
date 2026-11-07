@@ -658,6 +658,8 @@ def main() -> None:
         )
         for f in items:
             print(f"  {f.priority.value}: {f.what}")
+        if tools := state.schema_mismatch_tools(datetime.now(UTC) - timedelta(days=1)):
+            print(f"Off-schema results from Epiphan: {', '.join(tools)} (read anyway; last 24 h)")
         if failed := state.last_failed_beat():
             at, reason = failed
             print(f"Last heartbeat failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")

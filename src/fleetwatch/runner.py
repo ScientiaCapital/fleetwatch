@@ -23,7 +23,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, NoReturn
 
 from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
-from fleetwatch.epiphan.mcp import SignInDead
+from fleetwatch.epiphan.mcp import SignInDead, schema_mismatches
 from fleetwatch.heartbeat import UnreadableFleet, tick
 from fleetwatch.i18n import t
 from fleetwatch.notify import Notifier
@@ -88,6 +88,7 @@ async def run_loop(
     sleep = sleep or _sleep
     failures = unreadable = 0
     told = False  # the channel has been told Fleetwatch can't read the fleet
+    off_schema: set[str] = set()  # tools already in the audit log as off-schema in this process (#127)
     client = None
     try:
         while True:
@@ -102,6 +103,9 @@ async def run_loop(
                     client = fresh
                 await tick(client, state, policy, notifier, first_run=first_run, on_fleet=slash and slash.see)
                 failures = unreadable = 0
+                for tool in set(schema_mismatches()) - off_schema:  # for `status`, which runs in another process
+                    state.audit("schema_mismatch", {"tool": tool})
+                    off_schema.add(tool)
                 if told and notifier.post(t(policy.language, "run.can_read_again")):
                     told = False
             except SignInDead:

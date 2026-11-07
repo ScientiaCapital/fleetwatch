@@ -651,6 +651,15 @@ class State:
             return None
         return at, str(detail.get("reason", ""))
 
+    def schema_mismatch_tools(self, since: datetime) -> list[str]:
+        """Tools `fleetwatch run` saw return an off-schema result since `since` (#127). Tool names come from
+        Fleetwatch's own read list, never from Epiphan's data."""
+        rows = self.db.execute(
+            "SELECT DISTINCT json_extract(detail, '$.tool') AS tool FROM audit WHERE kind='schema_mismatch' AND at >= ?",
+            (_iso(since),),
+        ).fetchall()
+        return sorted(str(r["tool"]) for r in rows if r["tool"])
+
     def last_snapshot_count(self) -> int | None:
         """How many devices the last successful heartbeat read, or None before the first."""
         row = self.db.execute("SELECT devices FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
