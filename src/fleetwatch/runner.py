@@ -6,7 +6,9 @@ systemd (`Restart=on-failure`), launchd (`KeepAlive` on a failed exit) or Docker
 starts it again from clean. A good beat resets the count.
 
 A refresh token Epiphan refuses is different: restarting can't fix it. The process logs "Sign-in expired: run
-fleetwatch login" and exits with `EXIT_CONFIG` (78), which the systemd unit is told not to restart.
+fleetwatch login" and exits with `EXIT_CONFIG` (78), which the systemd unit is told not to restart. launchd has no
+such setting: its `KeepAlive` restarts any non-zero exit every 30 s, so under launchd the process exits 0 instead,
+which `SuccessfulExit=false` leaves stopped (#122).
 
 So is a fleet Fleetwatch can't make sense of (`UnreadableFleet`: the parser, scanner or reconcile step raised on what
 Epiphan sent). A restart reads the same data, so the process keeps beating on the same session. After
@@ -16,8 +18,9 @@ Epiphan sent). A restart reads the same data, so the process keeps beating on th
 
 import asyncio
 import logging
+import os
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, NoReturn
 
 from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
 from fleetwatch.epiphan.mcp import SignInDead
@@ -34,7 +37,33 @@ MAX_FAILED_BEATS = 3
 UNREADABLE_BEATS = 3  # unreadable beats in a row before the channel is told
 EXIT_TEMPFAIL = 75  # EX_TEMPFAIL from sysexits.h: try again later
 EXIT_CONFIG = 78  # EX_CONFIG: the sign-in is dead; systemd's RestartPreventExitStatus=78 stops the restarts
+LAUNCHD_LABEL = "dev.fleetwatch.agent"
 _sleep = asyncio.sleep
+
+
+def under_launchd() -> bool:
+    """True when launchd runs this process as Fleetwatch's agent: the plist says so, or (an older plist) launchd's
+    own XPC_SERVICE_NAME is our label."""
+    return (
+        os.environ.get("FLEETWATCH_SERVICE_MANAGER") == "launchd" or os.environ.get("XPC_SERVICE_NAME") == LAUNCHD_LABEL
+    )
+
+
+def dead_sign_in_exit_code() -> int:
+    return 0 if under_launchd() else EXIT_CONFIG
+
+
+def exit_dead_sign_in() -> NoReturn:
+    """Stop for good: only `fleetwatch login` fixes a refresh token Epiphan refused."""
+    log.error(SIGN_IN_EXPIRED)
+    code = dead_sign_in_exit_code()
+    if code == 0:
+        log.error(
+            "Stopping the launchd agent so it doesn't restart every 30 seconds. After fleetwatch login, start it "
+            "again with: launchctl kickstart gui/$(id -u)/%s",
+            LAUNCHD_LABEL,
+        )
+    raise SystemExit(code)
 
 
 async def _close(client: Any) -> None:
@@ -76,8 +105,7 @@ async def run_loop(
                 if told and notifier.post(t(policy.language, "run.can_read_again")):
                     told = False
             except SignInDead:
-                log.error(SIGN_IN_EXPIRED)
-                raise SystemExit(EXIT_CONFIG) from None
+                exit_dead_sign_in()
             except UnreadableFleet as e:  # Epiphan answered, so the session is fine: keep it, and don't exit
                 failures, unreadable = 0, unreadable + 1
                 reason = redact(str(e))

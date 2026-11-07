@@ -27,11 +27,11 @@ from fleetwatch.epiphan.token_store import (
 )
 from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
+from fleetwatch.runner import LAUNCHD_LABEL
 from fleetwatch.state import MAX_PENDING, PROPOSALS_PER_HOUR, State
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 INFO = "INFO"  # always worth knowing, never something to fix: not counted in the summary
-LAUNCHD_LABEL = "dev.fleetwatch.agent"
 
 
 @dataclass(frozen=True)
@@ -355,6 +355,21 @@ def can_reach(url: str) -> bool:
         return False
 
 
+def _sign_in_dead(s: Settings) -> bool:
+    if reveal(s.epiphan_token):
+        return False
+    try:
+        return bool(getattr(make_token_store(s.token_store, s.token_file), "is_dead", lambda: False)())
+    except (TokenStoreError, ValueError):
+        return False  # the Sign-in row already reports it
+
+
+def _restart_command() -> str:
+    if platform.system() == "Darwin":
+        return f"launchctl kickstart gui/$(id -u)/{LAUNCHD_LABEL}"
+    return "systemctl --user restart fleetwatch"
+
+
 def service_status() -> tuple[str, str]:
     system = platform.system()
     if system == "Darwin" and shutil.which("launchctl"):
@@ -411,6 +426,8 @@ def run_checks(
     if reveal(s.slack_bot_token):
         checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))
     status, detail = service()
+    if _sign_in_dead(s):  # #122: the agent stopped on purpose; say why and how to start it again
+        status, detail = WARN, f"stopped: sign-in expired. Run  fleetwatch login, then  {_restart_command()}"
     checks.append(Check("Service", status, detail))
     return checks
 

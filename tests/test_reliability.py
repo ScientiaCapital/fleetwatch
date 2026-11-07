@@ -885,9 +885,36 @@ async def test_in_band_401_with_a_dead_sign_in_raises_without_retry(tmp_path: Pa
     assert c._client.calls == 1
 
 
-async def test_dead_sign_in_exits_78_at_once(caplog):
+LAUNCHD_ENVS = {
+    "systemd": {},
+    "launchd-plist": {"FLEETWATCH_SERVICE_MANAGER": "launchd"},  # what deploy/dev.fleetwatch.agent.plist sets
+    "launchd-label": {"XPC_SERVICE_NAME": "dev.fleetwatch.agent"},  # what launchd sets for an older plist
+}
+
+
+def _service_env(monkeypatch, which: str) -> int:
+    """Set up the environment a service manager gives Fleetwatch; return the exit code a dead sign-in must use."""
+    for k in ("FLEETWATCH_SERVICE_MANAGER", "XPC_SERVICE_NAME"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in LAUNCHD_ENVS[which].items():
+        monkeypatch.setenv(k, v)
+    return 78 if which == "systemd" else 0  # #122: launchd restarts any non-zero exit, so stop it with 0
+
+
+def test_another_launchd_job_is_not_fleetwatchs(monkeypatch):
+    from fleetwatch.runner import dead_sign_in_exit_code
+
+    _service_env(monkeypatch, "systemd")
+    monkeypatch.setenv("XPC_SERVICE_NAME", "com.apple.Terminal")
+    assert dead_sign_in_exit_code() == 78
+
+
+@pytest.mark.parametrize("which", list(LAUNCHD_ENVS))
+async def test_dead_sign_in_exits_at_once(caplog, monkeypatch, which):
     from fleetwatch.epiphan.mcp import SignInDead
     from fleetwatch.runner import run_loop
+
+    code = _service_env(monkeypatch, which)
 
     class Dead(_ScriptedClient):
         async def call(self, tool, arguments=None):
@@ -898,13 +925,18 @@ async def test_dead_sign_in_exits_78_at_once(caplog):
 
     with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
         await run_loop(lambda: Dead([], []), State(), POLICY, Capture(), first_run=True, sleep=no_sleep)
-    assert e.value.code == 78
+    assert e.value.code == code
     assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
+    if code == 0:
+        assert any("launchctl kickstart" in r.getMessage() for r in caplog.records), "say how to start it again"
 
 
-async def test_run_with_a_dead_store_exits_78_before_calling_epiphan(tmp_path: Path, monkeypatch, caplog):
+@pytest.mark.parametrize("which", list(LAUNCHD_ENVS))
+async def test_run_with_a_dead_store_exits_before_calling_epiphan(tmp_path: Path, monkeypatch, caplog, which):
     from fleetwatch import cli
     from fleetwatch.config import Settings
+
+    code = _service_env(monkeypatch, which)
 
     FileTokenStorage(tmp_path / "t.json").mark_dead()
 
@@ -924,7 +956,7 @@ async def test_run_with_a_dead_store_exits_78_before_calling_epiphan(tmp_path: P
     )
     with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
         await cli._run(s)
-    assert e.value.code == 78
+    assert e.value.code == code
     assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
 
 
@@ -985,3 +1017,26 @@ def test_status_prints_the_last_failed_beat(tmp_path: Path, monkeypatch, capsys)
     cli.main()
     out = capsys.readouterr().out
     assert "Last heartbeat failed" in out and "KeyError" in out
+
+
+def test_doctor_service_row_says_stopped_when_the_sign_in_is_dead(tmp_path: Path):
+    """#122: with a dead sign-in the agent has stopped on purpose; say why, and how to start it again."""
+    from fleetwatch.config import Settings
+    from fleetwatch.doctor import run_checks
+
+    FileTokenStorage(tmp_path / "t.json").mark_dead()
+    s = Settings(_env_file=None, state_db=tmp_path / "state.db", policy_file=ROOT / "policy.yaml", token_store="file",
+                 token_file=tmp_path / "t.json", sandbox_token_file=tmp_path / "s.json")  # fmt: skip
+    rows = {
+        c.name: c
+        for c in run_checks(s, reach=lambda url: True, service=lambda: ("WARN", "launchd agent loaded, not running"))
+    }
+    assert "stopped: sign-in expired" in rows["Service"].detail and "fleetwatch login" in rows["Service"].detail
+
+
+def test_the_launchd_plist_says_launchd_is_running_it():
+    import plistlib
+
+    plist = plistlib.loads((ROOT / "deploy/dev.fleetwatch.agent.plist").read_bytes())
+    assert plist["EnvironmentVariables"]["FLEETWATCH_SERVICE_MANAGER"] == "launchd"
+    assert plist["KeepAlive"] == {"SuccessfulExit": False}, "exit 0 is what stops the restarts"
