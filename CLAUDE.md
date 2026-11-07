@@ -40,8 +40,10 @@ The v0.2 assistant, approval page and write executor ship in 0.1.0, off by defau
 and mocks: no sandbox sign-in, no write and no model API call has been made. Device-group tools are on the read and
 write lists but none can be proposed; the fence they need is designed in `docs/design/group-writes.md` and not built.
 
-`language: es` in `policy.yaml` puts findings, the digest, the Ready lines, `ask`, the sweep, history and notes in
-Spanish (`src/fleetwatch/i18n.py`). The ask page's own labels, `doctor` and the CLI status lines are still English.
+`language: es` in `policy.yaml` puts findings, the digest, the Ready lines, `ask` and its page, the sweep, history,
+notes, `status` and `doctor` in Spanish (`src/fleetwatch/i18n.py`). Still English: the `connect`, `login` and `logout`
+lines, the one-line notes from `digest`, `sweep` and `approve`, CLI help and errors, and the licensing footer. The
+approve page follows the browser's language.
 `scripts/redact_loop/` is a local, human-gated loop that scores `redact.py`; its dev set has gaps it hasn't closed yet.
 
 Open: #13 (what `iss` the sign-in reports), #15 installer on a real Pi 5 and Mac mini, #25 voice (not built), #82 local
