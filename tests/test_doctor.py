@@ -217,6 +217,56 @@ def test_no_sign_in_no_write_warning(tmp_path):
     assert "Sign-in can write" not in by_name(run(settings(tmp_path)))
 
 
+def _signed_in_with(tmp_path: Path, **meta) -> None:
+    """A stored sign-in whose saved endpoints carry `meta`. Every value is invented."""
+    f = tmp_path / "epiphan-oauth.json"
+    base = {
+        "issuer": "https://auth.example.invalid",
+        "authorization_endpoint": "https://auth.example.invalid/authorize",
+        "token_endpoint": "https://auth.example.invalid/token",
+    }
+    stored = {"tokens": {"access_token": "FAKEACCESS", "refresh_token": "FAKEREFRESH", "token_type": "Bearer"}}
+    stored["oauth"] = {"metadata": {**base, **meta}, "auth_server_url": "https://auth.example.invalid"}
+    f.write_text(json.dumps(stored))
+    os.chmod(f, 0o600)
+
+
+def test_sign_in_issuer_follows_sign_in_can_write(tmp_path):
+    _signed_in_with(tmp_path, authorization_response_iss_parameter_supported=True)
+    names = [c.name for c in run(settings(tmp_path))]
+    assert names.index("Sign-in issuer") == names.index("Sign-in can write") + 1
+
+
+def test_sign_in_issuer_shows_the_expected_issuer_and_that_epiphan_sends_it(tmp_path):
+    _signed_in_with(tmp_path, authorization_response_iss_parameter_supported=True)
+    row = by_name(run(settings(tmp_path)))["Sign-in issuer"]
+    assert row.status == INFO
+    assert row.detail == "expected https://auth.example.invalid; Epiphan says its redirect sends iss: yes"
+    assert "FAKEACCESS" not in row.detail and "FAKEREFRESH" not in row.detail
+
+
+def test_sign_in_issuer_when_epiphan_says_it_does_not_send_it(tmp_path):
+    _signed_in_with(tmp_path, authorization_response_iss_parameter_supported=False)
+    assert by_name(run(settings(tmp_path)))["Sign-in issuer"].detail.endswith("sends iss: no")
+
+
+def test_sign_in_issuer_not_stated(tmp_path):
+    _signed_in_with(tmp_path)  # the saved metadata leaves the field out
+    row = by_name(run(settings(tmp_path)))["Sign-in issuer"]
+    assert row.status == INFO and row.detail.endswith("sends iss: not stated")
+
+
+def test_sign_in_issuer_before_the_endpoints_are_saved(tmp_path):
+    signed_in(tmp_path)  # a token saved by an older version: no endpoints yet
+    row = by_name(run(settings(tmp_path)))["Sign-in issuer"]
+    assert row.status == INFO and "next fleetwatch login" in row.detail
+
+
+def test_no_sign_in_no_issuer_row(tmp_path):
+    assert "Sign-in issuer" not in by_name(run(settings(tmp_path)))
+    assert "Sign-in issuer" not in by_name(run(settings(tmp_path, epiphan_token="FAKESTATIC")))
+
+
 def _sandbox_in_tmp(monkeypatch) -> None:
     """With token_store="keychain", doctor's sandbox row would build a real Keychain store: keep it on the file."""
     from fleetwatch.epiphan import executor
@@ -233,6 +283,9 @@ def _keychain_store(tokens: bool):
             return tokens
 
         def granted_scope(self):
+            return None
+
+        def oauth_metadata(self):
             return None
 
         def expires_at(self):

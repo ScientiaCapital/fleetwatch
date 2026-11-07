@@ -50,6 +50,10 @@ once and retries the read once. If that fails too, run `fleetwatch login` again.
 right place. A token saved by an older version has no endpoints yet: the log says so once, and the next
 `fleetwatch login` saves them.
 
+After the "Signed in" message, `login` prints one more line, `Sign-in issuer:`, with the issuer (`iss`, RFC 9207) the
+sign-in redirect sent, or "the redirect sent none". `fleetwatch doctor` shows the expected issuer from the saved
+endpoints, and whether Epiphan says its redirect sends one, in an INFO line, "Sign-in issuer".
+
 ## Use a least-access account
 
 Epiphan Edge has no read-only sign-in. The token Fleetwatch keeps can do whatever your Edge account can in the team

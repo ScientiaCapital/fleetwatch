@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from mcp.shared.auth import AuthorizationCodeResult
+
 from fleetwatch.config import Settings, reveal
 from fleetwatch.epiphan.capture import CapturingClient
 from fleetwatch.epiphan.mcp import EpiphanClient
@@ -76,7 +78,19 @@ async def _login(settings: Settings, sandbox: bool = False) -> int:
         )
     else:
         print(f"Signed in. This team has {n} devices. Token saved to {store.where}.")
+    print(_issuer_line(getattr(client, "sign_in_redirect", None)))
     return n
+
+
+def _issuer_line(redirect: AuthorizationCodeResult | None) -> str:
+    """The RFC 9207 `iss` the sign-in redirect reported (#13). It came from a URL, so it goes through redact()."""
+    from fleetwatch.redact import redact
+
+    if redirect is None:
+        return "Sign-in issuer: no browser sign-in this time; the saved sign-in was used"
+    if redirect.iss:
+        return f"Sign-in issuer: {redact(redirect.iss)}"
+    return "Sign-in issuer: the redirect sent none"
 
 
 def _signed_in(settings: Settings) -> bool:

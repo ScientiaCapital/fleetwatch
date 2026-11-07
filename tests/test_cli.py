@@ -6,6 +6,7 @@ from typing import ClassVar
 
 import httpx2
 import pytest
+from mcp.shared.auth import AuthorizationCodeResult
 
 from fleetwatch import cli
 from fleetwatch.epiphan import auth
@@ -151,6 +152,7 @@ class _FakeLoginClient:
     """Stands in for EpiphanClient during `login`: records how it was built and answers the one read login makes."""
 
     built: ClassVar[list[dict]] = []
+    sign_in_redirect: ClassVar[AuthorizationCodeResult | None] = None  # what the browser redirect brought back
 
     def __init__(self, url, tools, **kw):
         _FakeLoginClient.built.append({"url": url, **kw})
@@ -174,6 +176,7 @@ def slots(monkeypatch, tmp_path):
     monkeypatch.setenv("FLEETWATCH_SANDBOX_TOKEN_FILE", str(sandbox))
     monkeypatch.setenv("FLEETWATCH_EPIPHAN_TOKEN", "FAKESTATIC")  # the normal slot's static token: never used here
     _FakeLoginClient.built = []
+    monkeypatch.setattr(_FakeLoginClient, "sign_in_redirect", None)
     monkeypatch.setattr(cli, "EpiphanClient", _FakeLoginClient)
     return normal, sandbox
 
@@ -196,6 +199,37 @@ def test_login_without_sandbox_still_uses_the_normal_slot(slots, monkeypatch):
     cli.main()
     [built] = _FakeLoginClient.built
     assert built["storage"].path == normal and built["static_token"] == "FAKESTATIC"
+
+
+def _login_lines(monkeypatch, capsys, *argv: str) -> list[str]:
+    monkeypatch.setattr(sys, "argv", ["fleetwatch", "login", *argv])
+    cli.main()
+    return capsys.readouterr().out.splitlines()
+
+
+@pytest.mark.parametrize("argv", [(), ("--sandbox",)])
+def test_login_prints_the_issuer_the_redirect_sent(slots, monkeypatch, capsys, argv):
+    # Issue #13: what `iss` Epiphan's redirect reports. The next real sign-in prints it.
+    got = AuthorizationCodeResult(code="FAKECODE", state="FAKESTATE", iss=ISSUER)
+    monkeypatch.setattr(_FakeLoginClient, "sign_in_redirect", got)
+    lines = _login_lines(monkeypatch, capsys, *argv)
+    signed = next(i for i, line in enumerate(lines) if line.startswith("Signed in"))
+    assert lines[-1] == f"Sign-in issuer: {ISSUER}" and signed < len(lines) - 1
+    assert "FAKECODE" not in "\n".join(lines) and "FAKESTATE" not in "\n".join(lines)
+
+
+@pytest.mark.parametrize("argv", [(), ("--sandbox",)])
+def test_login_says_when_the_redirect_sent_no_issuer(slots, monkeypatch, capsys, argv):
+    got = AuthorizationCodeResult(code="FAKECODE", state="FAKESTATE", iss=None)
+    monkeypatch.setattr(_FakeLoginClient, "sign_in_redirect", got)
+    assert _login_lines(monkeypatch, capsys, *argv)[-1] == "Sign-in issuer: the redirect sent none"
+
+
+def test_login_with_a_saved_sign_in_says_no_redirect_ran(slots, monkeypatch, capsys):
+    # A saved token makes `login` a plain read: no browser, so no redirect to report.
+    assert _login_lines(monkeypatch, capsys)[-1] == (
+        "Sign-in issuer: no browser sign-in this time; the saved sign-in was used"
+    )
 
 
 def test_logout_sandbox_clears_only_the_sandbox_slot(slots, monkeypatch, capsys):

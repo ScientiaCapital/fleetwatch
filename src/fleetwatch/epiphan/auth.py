@@ -182,6 +182,7 @@ class _Provider(OAuthClientProvider):
     other process got there first, its token is used and no refresh goes out."""
 
     dead = False  # Epiphan refused the refresh token; only `fleetwatch login` helps
+    redirect: AuthorizationCodeResult | None = None  # this run's sign-in redirect, so `login` can show its `iss`
     _refresh_lock: RefreshLock | None = None  # held from just before a refresh until its response is saved
 
     async def _auth_flow(self, request: httpx2.Request) -> AsyncGenerator[httpx2.Request, httpx2.Response]:
@@ -353,15 +354,18 @@ def make_provider(server_url: str, storage: TokenStore, port: int, interactive: 
             webbrowser.open(url)
 
     async def wait_for_code() -> AuthorizationCodeResult:
-        return await _Redirect(port, prompt=interactive and sys.stdin.isatty()).wait()
+        result = await _Redirect(port, prompt=interactive and sys.stdin.isatty()).wait()
+        provider.redirect = result  # kept before the SDK checks it; `login` prints its `iss` (#13)
+        return result
 
-    return _Provider(
+    provider = _Provider(
         server_url=server_url,
         client_metadata=metadata,
         storage=storage,
         redirect_handler=show_link,
         callback_handler=wait_for_code,
     )
+    return provider
 
 
 REVOKE_TIMEOUT_S = 5.0
