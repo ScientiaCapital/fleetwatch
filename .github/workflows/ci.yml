@@ -47,17 +47,22 @@ jobs:
 
   test-newest-python:
     # Backs the "Python 3.12+" badge. A separate job, so the required "Tests (...)" names stay the same.
-    name: Tests (Python 3.13)
+    name: Tests (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
     env:
-      UV_PYTHON: "3.13" # overrides .python-version (3.12)
+      UV_PYTHON: ${{ matrix.python }} # overrides .python-version (3.12)
+      PYTHON_WANT: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - run: uv sync --frozen
-      - run: uv run --frozen python -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
+      - run: uv run --frozen python -c 'import os, sys; assert "%d.%d" % sys.version_info[:2] == os.environ["PYTHON_WANT"], sys.version'
       - run: uv run --frozen python -m pytest -q
 
   redaction:
