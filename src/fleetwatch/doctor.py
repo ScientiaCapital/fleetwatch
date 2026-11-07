@@ -117,6 +117,26 @@ def _write_capable(s: Settings) -> Check | None:
     return Check("Sign-in can write", INFO, f"{advice}; granted scope: {scope}" if scope else advice)
 
 
+def _issuer(s: Settings) -> Check | None:
+    """The issuer saved at sign-in and whether Epiphan says its redirect sends `iss` (RFC 9207, #13). Offline: read
+    from the endpoints `login` saved, which hold no secrets. None without a stored sign-in."""
+    if reveal(s.epiphan_token):
+        return None
+    try:
+        store = make_token_store(s.token_store, s.token_file)
+        if not store.has_tokens():
+            return None
+        oauth = getattr(store, "oauth_metadata", lambda: None)() or {}
+    except (TokenStoreError, ValueError):
+        return None  # the Sign-in row already reports it
+    meta = oauth.get("metadata") if isinstance(oauth.get("metadata"), dict) else {}
+    issuer = meta.get("issuer") if isinstance(meta.get("issuer"), str) else None
+    sends = {True: "yes", False: "no"}.get(meta.get("authorization_response_iss_parameter_supported"), "not stated")
+    if issuer is None:
+        return Check("Sign-in issuer", INFO, "not saved yet; the next fleetwatch login saves it")
+    return Check("Sign-in issuer", INFO, f"expected {redact(issuer)}; Epiphan says its redirect sends iss: {sends}")
+
+
 def _keychain_access(s: Settings) -> Check | None:
     """The Keychain items trust /usr/bin/security, so any program running as this macOS user can read them without
     a prompt. Only the operating-system user keeps other software out (SECURITY.md, Trust model)."""
@@ -410,7 +430,7 @@ def run_checks(
         _guard(s),
         _redaction(),
         _sign_in(s),
-        *filter(None, [_write_capable(s), _keychain_access(s), _token_expiry(s)]),
+        *filter(None, [_write_capable(s), _issuer(s), _keychain_access(s), _token_expiry(s)]),
         _sandbox(s),
         _fence(s),
         _state_dir(s),

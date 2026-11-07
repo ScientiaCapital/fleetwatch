@@ -14,6 +14,7 @@ import httpx2 as httpx  # the MCP SDK bundles its own httpx fork; its types must
 from mcp.client.client import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
+from mcp.shared.auth import AuthorizationCodeResult
 
 from fleetwatch.epiphan.auth import LoginAuth, TokenStore, make_provider
 from fleetwatch.policy import ToolPolicy
@@ -92,6 +93,11 @@ class EpiphanClient:
         else:
             raise ValueError("either storage or static_token is required")
         self._client: Client | None = None
+
+    @property
+    def sign_in_redirect(self) -> AuthorizationCodeResult | None:
+        """The redirect of a browser sign-in made in this run, or None when none ran (a saved or static token)."""
+        return getattr(self._provider, "redirect", None)
 
     def guard(self, tool: str) -> None:
         if not self.tools.is_read(tool):

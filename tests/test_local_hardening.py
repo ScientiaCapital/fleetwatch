@@ -193,6 +193,20 @@ def test_parse_callback_keeps_iss_and_needs_state():
     assert parse_callback("code=only") is None, "the SDK refuses a missing state anyway; don't end the wait for it"
 
 
+def test_provider_keeps_the_redirect_for_login(tmp_path, monkeypatch):
+    # #13: `login` prints the redirect's iss, so the provider keeps what the callback returned.
+    got = parse_callback("code=abc&state=xyz&iss=https%3A%2F%2Fauth.example")
+
+    async def fake_wait(self):
+        return got
+
+    monkeypatch.setattr(_Redirect, "wait", fake_wait)
+    p = make_provider("https://example.invalid/mcp", FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    assert p.redirect is None
+    assert asyncio.run(p.context.callback_handler()) is got
+    assert p.redirect is got and p.redirect.iss == "https://auth.example"
+
+
 def _get(port: int, path: str) -> tuple[int, str]:
     c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     c.request("GET", path)
