@@ -473,6 +473,8 @@ async def _one_run(monkeypatch, db: Path, now: datetime | None = None) -> list[s
         raise _Stop
 
     monkeypatch.setattr("fleetwatch.runner._sleep", stop)
+    # Quiet hours hold All clear back, so a CI run at night would see nothing: keep the wall clock out of it.
+    monkeypatch.setattr(Policy, "in_quiet_hours", lambda self, now: False)
     if now is not None:
         monkeypatch.setattr("fleetwatch.cli.datetime", _FixedNow(now))
     s = Settings(
