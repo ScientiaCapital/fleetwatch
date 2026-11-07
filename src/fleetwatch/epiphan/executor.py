@@ -1,9 +1,9 @@
 """The v0.2 write executor: runs one approved change, once, through the sandbox sign-in only.
 
 See docs/design/approved-writes.md, "Flow" steps 4-7, "Binding", "Fence: the sandbox sign-in" and "Disruptive tools".
-Nothing in this version calls it yet: there is no approval page. `EpiphanClient.call()` and `guard()` still refuse
-every write tool, unconditionally. This class is the only other place an MCP tool is called, and it calls exactly
-one write tool per consumed approval.
+Only the approval page calls it: `fleetwatch approve --serve` builds one in `cli.py` and runs it on a record a
+person just approved. `EpiphanClient.call()` and `guard()` still refuse every write tool, unconditionally. This class
+is the only other place an MCP tool is called, and it calls exactly one write tool per consumed approval.
 
 `WriteExecutor.execute(record)` takes a record that `State.consume()` returned, and:
 
