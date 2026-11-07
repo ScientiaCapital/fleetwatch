@@ -23,6 +23,7 @@ _STREAM_ID = re.compile(r"^(?:.*[_\-. /:])?stream[ _-]?id$", re.IGNORECASE)
 # name is also tested split into words: a break between a lower-case letter or digit and a capital, and before the
 # last capital of an acronym. Both forms are tested, so a name the split breaks apart (PassPhrase) still matches.
 _WORD_BREAK = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+_COMPOUND = re.compile(r"[_.\-]|[a-z0-9][A-Z]")  # srt_passphrase, srt.passphrase, srtPassphrase
 _PAIR_KEYS = ("id", "name", "key", "label", "field")  # {"name": "Stream key", "value": X} pairs
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
@@ -32,8 +33,10 @@ _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECA
 _M = re.escape(MASK)
 _MASKS = rf"(?:{_M})+(?![\w/.~%+=&:@?#\[-])"  # masks with nothing secret after them: already done
 _USERINFO = rf"(?:(?:{_M}|[^/?#\s\"<>()\[\]])*@)?"  # user:pw@ is dropped, even with a typed mask inside it
+# rtmp:\/\/ is the same URL with JSON's escaped slashes, in text that was never parsed: the host keeps its trailing
+# backslash, and the path after it is masked as usual.
 _STREAM_URL = re.compile(
-    rf"(?P<p>\b(?:rtmp[a-z]*|srt|rtsp|rist)://){_USERINFO}(?P<h>[^/?#\s\"'<>()\[\],@]+)"
+    rf"(?P<p>\b(?:rtmp[a-z]*|srt|rtsp|rist):(?:\\?/){{2}}){_USERINFO}(?P<h>[^/?#\s\"'<>()\[\],@]+)"
     rf"(?P<r>[/?#](?:{_MASKS}|(?:{_M}|[^\s\"'<>()\[\],])*))?",
     re.IGNORECASE,
 )
@@ -57,11 +60,14 @@ _KEY_NAMES = "|".join(
         "pass", "pin", "psk", "pw", "key",
     )
 )  # fmt: skip
-# The name stands alone (\b on both sides), so "monkey: George" and "keyboard: US" are left alone. A quoted value is
-# masked up to its closing quote, spaces and all; an unquoted one up to the first space or delimiter.
+_ASSIGN = "[:=\uff1a\uff1d]"  # also the fullwidth colon and equals sign that CJK input methods type
+# A value after a name: a quoted one up to its closing quote, spaces and all (an escaped quote, password=\"x\" inside a
+# JSON string, closes it too); an unquoted one up to the first space or delimiter.
+_OPEN_QUOTE = r"\\?[\"']?"
+_VALUE = rf"(?P<v>(?<=\")(?:[^\"\\\n]|\\(?!\"))+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)"
+# The name stands alone (\b on both sides), so "monkey: George" and "keyboard: US" are left alone.
 _KEY_VALUE = re.compile(
-    rf"(?P<k>[\"']?\b(?:{_KEY_NAMES})\b[\"']?\s*[:=]\s*[\"']?(?:bearer\s+|basic\s+)?)"
-    rf"(?P<v>(?<=\")[^\"\n]+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)",
+    rf"(?P<k>[\"']?\b(?:{_KEY_NAMES})\b[\"']?\s*{_ASSIGN}\s*{_OPEN_QUOTE}(?:bearer\s+|basic\s+)?)" + _VALUE,
     re.IGNORECASE,
 )
 # A bare "Bearer <token>" or "Basic <base64>" anywhere. The token has to look like one (a digit or + / =, or 20+
@@ -75,7 +81,8 @@ _AUTH_SCHEME = re.compile(
 _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
 _LOOKS_SECRET = re.compile(
-    r"://|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-", re.IGNORECASE
+    r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-",
+    re.IGNORECASE,
 )
 # The same two JSON shapes as text, for output that was never parsed: an id/name/label whose value names a secret
 # followed by its "value", and a publisher's "stream" field (Pearl's name for the RTMP stream key) when a url,
@@ -89,10 +96,11 @@ _PAIR_TEXT = re.compile(
 # A quoted key in text that was never parsed, such as JSON cut off mid-value: its value is masked when the key passes
 # the same test as a parsed key, so compound names that _KEY_VALUE's \b misses (SrtPassphrase, srt_passphrase) are
 # caught too. The value is read as in _KEY_VALUE.
-_QUOTED_KEY = re.compile(
-    rf"(?P<k>(?P<q>[\"'])(?P<name>[A-Za-z][\w.\- /:]{{0,63}})(?P=q)\s*:\s*[\"']?)"
-    rf"(?P<v>(?<=\")[^\"\n]+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)"
-)
+_QUOTED_KEY = re.compile(r"(?P<k>(?P<q>[\"'])(?P<name>[A-Za-z][\w.\- /:]{0,63})(?P=q)\s*:\s*[\"']?)" + _VALUE)
+# The same test for an unquoted compound name in free text: camelCase (authToken: x, secretKey=x) or an env-style line
+# (RTMP_STREAM_KEY=x). The name starts a word, so it isn't the tail of a longer one. A one-word name is left to
+# _KEY_VALUE, so prose such as "Auth: required" is kept.
+_BARE_KEY = re.compile(rf"(?P<k>(?<![\w.\-])(?P<name>[A-Za-z][\w.\-]{{0,63}})\s*{_ASSIGN}\s*{_OPEN_QUOTE})" + _VALUE)
 _STREAM_FIELD_TEXT = re.compile(rf"(?P<k>[\"']stream[\"']\s*:\s*[\"'])(?P<v>(?:{_M}|[^\"'\n])+)", re.IGNORECASE)
 _PUBLISHER_SIBLING = re.compile(r"[\"'](?:url|username|password)[\"']\s*:", re.IGNORECASE)
 # An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
@@ -135,12 +143,17 @@ def _cells(row: str) -> list[str]:
 def _scrub_tables(text: str) -> str:
     sep = "\n" if "\n" in text else "\\n"  # a table inside JSON-escaped text has a literal \n between rows
     lines = text.split(sep)
-    if sum(1 for line in lines if _TABLE_ROW.match(line)) < 2:
+    if sum(1 for line in lines if "|" in line) < 2:
         return text
     out: list[str] = []
     cols: dict[int, bool] | None = None  # secret column -> is it a stream-ID column; None outside a table
-    for line in lines:
-        if not _TABLE_ROW.match(line):
+    for i, line in enumerate(lines):
+        # A row starts with a pipe. Without the outer pipes (Name | Stream key), a line with one is a row when a rule
+        # line (--- | ---) sits under it or it continues a table.
+        rule_next = (
+            i + 1 < len(lines) and "|" in lines[i + 1] and "-" in lines[i + 1] and _TABLE_RULE.match(lines[i + 1])
+        )
+        if not (_TABLE_ROW.match(line) or "|" in line and (cols is not None or rule_next)):
             cols = None
         elif _TABLE_RULE.match(line):
             pass
@@ -170,6 +183,7 @@ def scrub_text(text: str) -> str:
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _QUOTED_KEY.sub(_quoted_key, text)
+    text = _BARE_KEY.sub(lambda m: _quoted_key(m) if _COMPOUND.search(m["name"]) else m[0], text)
     text = _PAIR_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
     if _PUBLISHER_SIBLING.search(text):
         text = _STREAM_FIELD_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)

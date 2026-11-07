@@ -117,6 +117,10 @@ def test_shared_corpus(fn, case):
         "a Bearer of good news",
         "| Name | Keynote speaker |\n|---|---|\n| Hall A | Dr. Example |",
         "| Room | Status |\n|---|---|\n| 204 | online |",
+        "Room | Status\n--- | ---\n204 | online",
+        "Auth: required",
+        "keyboardLayout: US",
+        "FLEETWATCH_HEARTBEAT_SECONDS=180",
     ],
 )
 def test_words_that_only_look_like_key_names_are_kept(text):
@@ -142,6 +146,36 @@ def test_new_secret_shapes(text, leak):
     for fn in (scrub_text, redact):
         out = fn(text)
         assert leak not in out and fn(out) == out
+
+
+# Shapes the redaction loop's dev set found (tests/redaction-holdout.json), with different invented values.
+@pytest.mark.parametrize(
+    ("text", "leak"),
+    [
+        ("refreshToken: FAKE80", "FAKE80"),  # a camelCase name in free text
+        ("sessionToken=FAKE81", "FAKE81"),
+        ("SrtPassphrase: FAKE82", "FAKE82"),
+        ("FLEETWATCH_SLACK_BOT_TOKEN=FAKE83", "FAKE83"),  # an env-style line
+        ("export SRT_PASSPHRASE='FAKE 84'", "FAKE 84"),
+        ("rtmp:\\/\\/a.example\\/live\\/FAKE85", "FAKE85"),  # JSON-escaped slashes in text that was never parsed
+        ("rtmp:\\/\\/a.example\\/app\\/abc86", "abc86"),  # no "key" anywhere, so the fast path must still look
+        ("rtmp:\\/\\/u:FAKE87@a.example\\/app", "FAKE87"),
+        ("password\uff1aFAKE88", "FAKE88"),  # a fullwidth colon
+        ("stream key\uff1d FAKE89", "FAKE89"),  # a fullwidth equals sign
+        ("Destination | Stream key\n--- | ---\nYT | FAKE90", "FAKE90"),  # a table without its outer pipes
+    ],
+)
+def test_dev_set_shapes(text, leak):
+    for fn in (scrub_text, redact):
+        out = fn(text)
+        assert leak not in out and fn(out) == out
+
+
+def test_an_escaped_quote_closes_the_value_in_unparsed_json_text():
+    # scrub_text sees the raw JSON (redact() parses it first), so the value sits between \" and \".
+    text = '{"msg": "login failed, password=\\"FAKE 91\\" was rejected"}'
+    out = scrub_text(text)
+    assert "FAKE" not in out and "was rejected" in out and scrub_text(out) == out
 
 
 def test_table_keeps_other_columns_and_lines():
