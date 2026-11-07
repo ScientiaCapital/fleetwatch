@@ -27,11 +27,11 @@ from fleetwatch.epiphan.token_store import (
 )
 from fleetwatch.policy import KNOWN_WRITE_TOOLS, load_policy, load_tools
 from fleetwatch.redact import redact
+from fleetwatch.runner import LAUNCHD_LABEL
 from fleetwatch.state import MAX_PENDING, PROPOSALS_PER_HOUR, State
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 INFO = "INFO"  # always worth knowing, never something to fix: not counted in the summary
-LAUNCHD_LABEL = "dev.fleetwatch.agent"
 
 
 @dataclass(frozen=True)
@@ -226,6 +226,24 @@ def _state_dir(s: Settings) -> Check:
     return Check("State folder", OK, f"{d}" + ("" if d.exists() else " (created on first run)"))
 
 
+def _last_beat(s: Settings) -> Check | None:
+    """Offline: the last failed heartbeat and its reason (redacted when it was recorded), if none has worked since."""
+    if not s.state_db.exists():
+        return None
+    try:
+        state = State(s.state_db)
+        try:
+            failed = state.last_failed_beat()
+        finally:
+            state.db.close()
+    except Exception:  # noqa: BLE001  (the Audit log row reports an unreadable file)
+        return None
+    if failed is None:
+        return None
+    at, reason = failed
+    return Check("Last heartbeat", WARN, f"failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
+
+
 def _audit_log(s: Settings) -> Check:
     """Offline: walks the audit hash chain. Names the first broken row's ID and nothing from its content."""
     if not s.state_db.exists():
@@ -337,6 +355,21 @@ def can_reach(url: str) -> bool:
         return False
 
 
+def _sign_in_dead(s: Settings) -> bool:
+    if reveal(s.epiphan_token):
+        return False
+    try:
+        return bool(getattr(make_token_store(s.token_store, s.token_file), "is_dead", lambda: False)())
+    except (TokenStoreError, ValueError):
+        return False  # the Sign-in row already reports it
+
+
+def _restart_command() -> str:
+    if platform.system() == "Darwin":
+        return f"launchctl kickstart gui/$(id -u)/{LAUNCHD_LABEL}"
+    return "systemctl --user restart fleetwatch"
+
+
 def service_status() -> tuple[str, str]:
     system = platform.system()
     if system == "Darwin" and shutil.which("launchctl"):
@@ -382,6 +415,7 @@ def run_checks(
         _fence(s),
         _state_dir(s),
         _audit_log(s),
+        *filter(None, [_last_beat(s)]),
         _proposal_queue(s),
         _slack(s),
         _slack_commands(s),
@@ -392,6 +426,8 @@ def run_checks(
     if reveal(s.slack_bot_token):
         checks.append(_reach("Slack reachable", "https://slack.com/api/api.test", reach))
     status, detail = service()
+    if _sign_in_dead(s):  # #122: the agent stopped on purpose; say why and how to start it again
+        status, detail = WARN, f"stopped: sign-in expired. Run  fleetwatch login, then  {_restart_command()}"
     checks.append(Check("Service", status, detail))
     return checks
 

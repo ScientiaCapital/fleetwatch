@@ -6,17 +6,26 @@ systemd (`Restart=on-failure`), launchd (`KeepAlive` on a failed exit) or Docker
 starts it again from clean. A good beat resets the count.
 
 A refresh token Epiphan refuses is different: restarting can't fix it. The process logs "Sign-in expired: run
-fleetwatch login" and exits with `EXIT_CONFIG` (78), which the systemd unit is told not to restart.
+fleetwatch login" and exits with `EXIT_CONFIG` (78), which the systemd unit is told not to restart. launchd has no
+such setting: its `KeepAlive` restarts any non-zero exit every 30 s, so under launchd the process exits 0 instead,
+which `SuccessfulExit=false` leaves stopped (#122).
+
+So is a fleet Fleetwatch can't make sense of (`UnreadableFleet`: the parser, scanner or reconcile step raised on what
+Epiphan sent). A restart reads the same data, so the process keeps beating on the same session. After
+`UNREADABLE_BEATS` in a row it posts one fixed line saying it can't read the fleet, and another when it can again
+(#124). Every failed beat is in the audit log as `beat_failed`, for `status` and `doctor`.
 """
 
 import asyncio
 import logging
+import os
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, NoReturn
 
 from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
-from fleetwatch.epiphan.mcp import SignInDead
-from fleetwatch.heartbeat import tick
+from fleetwatch.epiphan.mcp import SignInDead, schema_mismatches
+from fleetwatch.heartbeat import UnreadableFleet, tick
+from fleetwatch.i18n import t
 from fleetwatch.notify import Notifier
 from fleetwatch.policy import Policy
 from fleetwatch.redact import redact
@@ -25,9 +34,36 @@ from fleetwatch.state import State
 log = logging.getLogger("fleetwatch")
 
 MAX_FAILED_BEATS = 3
+UNREADABLE_BEATS = 3  # unreadable beats in a row before the channel is told
 EXIT_TEMPFAIL = 75  # EX_TEMPFAIL from sysexits.h: try again later
 EXIT_CONFIG = 78  # EX_CONFIG: the sign-in is dead; systemd's RestartPreventExitStatus=78 stops the restarts
+LAUNCHD_LABEL = "dev.fleetwatch.agent"
 _sleep = asyncio.sleep
+
+
+def under_launchd() -> bool:
+    """True when launchd runs this process as Fleetwatch's agent: the plist says so, or (an older plist) launchd's
+    own XPC_SERVICE_NAME is our label."""
+    return (
+        os.environ.get("FLEETWATCH_SERVICE_MANAGER") == "launchd" or os.environ.get("XPC_SERVICE_NAME") == LAUNCHD_LABEL
+    )
+
+
+def dead_sign_in_exit_code() -> int:
+    return 0 if under_launchd() else EXIT_CONFIG
+
+
+def exit_dead_sign_in() -> NoReturn:
+    """Stop for good: only `fleetwatch login` fixes a refresh token Epiphan refused."""
+    log.error(SIGN_IN_EXPIRED)
+    code = dead_sign_in_exit_code()
+    if code == 0:
+        log.error(
+            "Stopping the launchd agent so it doesn't restart every 30 seconds. After fleetwatch login, start it "
+            "again with: launchctl kickstart gui/$(id -u)/%s",
+            LAUNCHD_LABEL,
+        )
+    raise SystemExit(code)
 
 
 async def _close(client: Any) -> None:
@@ -50,7 +86,9 @@ async def run_loop(
 ) -> None:
     """Runs until cancelled, or raises SystemExit(EXIT_TEMPFAIL) after too many failed beats in a row."""
     sleep = sleep or _sleep
-    failures = 0
+    failures = unreadable = 0
+    told = False  # the channel has been told Fleetwatch can't read the fleet
+    off_schema: set[str] = set()  # tools already in the audit log as off-schema in this process (#127)
     client = None
     try:
         while True:
@@ -64,10 +102,21 @@ async def run_loop(
                         raise
                     client = fresh
                 await tick(client, state, policy, notifier, first_run=first_run, on_fleet=slash and slash.see)
-                failures = 0
+                failures = unreadable = 0
+                for tool in set(schema_mismatches()) - off_schema:  # for `status`, which runs in another process
+                    state.audit("schema_mismatch", {"tool": tool})
+                    off_schema.add(tool)
+                if told and notifier.post(t(policy.language, "run.can_read_again")):
+                    told = False
             except SignInDead:
-                log.error(SIGN_IN_EXPIRED)
-                raise SystemExit(EXIT_CONFIG) from None
+                exit_dead_sign_in()
+            except UnreadableFleet as e:  # Epiphan answered, so the session is fine: keep it, and don't exit
+                failures, unreadable = 0, unreadable + 1
+                reason = redact(str(e))
+                log.warning("heartbeat couldn't read the fleet (%d in a row): %s", unreadable, reason)
+                state.audit("beat_failed", {"reason": reason})
+                if unreadable >= UNREADABLE_BEATS and not told:
+                    told = notifier.post(t(policy.language, "run.cant_read", n=unreadable))
             except (Exception, asyncio.CancelledError) as e:  # counted; the next beat retries on a new session
                 # The MCP client runs its own task group in this task. When a read stalls (a Mac waking from sleep),
                 # that scope can cancel this task from inside, and a CancelledError comes out with nobody asking
@@ -79,7 +128,9 @@ async def run_loop(
                 if isinstance(e, asyncio.CancelledError) and (task := asyncio.current_task()) and task.cancelling():
                     raise
                 failures += 1
-                log.warning("heartbeat failed (%d in a row): %s", failures, redact(str(e) or type(e).__name__))
+                reason = redact(str(e) or type(e).__name__)
+                log.warning("heartbeat failed (%d in a row): %s", failures, reason)
+                state.audit("beat_failed", {"reason": f"{type(e).__name__}: {reason}"[:300]})
                 if failures >= MAX_FAILED_BEATS:
                     log.error("%d heartbeats failed in a row; exiting so the service manager restarts", failures)
                     raise SystemExit(EXIT_TEMPFAIL) from None

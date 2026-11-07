@@ -18,7 +18,7 @@ set -euo pipefail
 repo="${FLEETWATCH_REPO:-https://github.com/ScientiaCapital/fleetwatch.git}"
 dir="${FLEETWATCH_DIR:-$HOME/fleetwatch}"
 ref=""  # --ref; otherwise the newest release tag
-uv_version="0.12.23"  # keep in step with the uv image in the Dockerfile
+uv_version="0.13.7"  # keep in step with the uv image in the Dockerfile
 do_login=true
 do_service=true
 dry_run=false

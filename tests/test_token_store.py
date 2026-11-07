@@ -1,7 +1,7 @@
 """Token stores: file, macOS Keychain, systemd-creds. `subprocess.run` is faked; the real keychain is never touched."""
 
 import base64
-import logging
+import json
 import shlex
 import subprocess
 import sys
@@ -168,16 +168,17 @@ def test_systemd_creds_version(creds):
 # --- the refresh lock --------------------------------------------------------------------------------------------
 
 
-async def test_refresh_lock_waits_then_gives_way(tmp_path, caplog):
-    """Two processes (`run`, a cron `digest`) refresh one at a time. A wait that runs out goes ahead with a
-    warning: a lock must never stop a heartbeat. The kernel drops the lock with its process, so none goes stale."""
+async def test_refresh_lock_waits_then_refuses(tmp_path):
+    """Two processes (`run`, a cron `digest`) refresh one at a time. A wait that runs out raises instead of going
+    ahead: refreshing without the lock can spend the other process's refresh token (#162). The kernel drops the
+    lock with its process, so none goes stale."""
     held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
     assert await held.acquire(timeout_s=1)
     other = FileTokenStorage(tmp_path / "t.json").refresh_lock()  # a different open file: contends like a process
     started = time.monotonic()
-    with caplog.at_level(logging.WARNING):
-        assert not await other.acquire(timeout_s=0.4)
-    assert time.monotonic() - started < 2 and "refresh lock" in caplog.text
+    with pytest.raises(ts.RefreshBusy, match="refresh lock"):
+        await other.acquire(timeout_s=0.4)
+    assert time.monotonic() - started < 2
     other.release()  # nothing held: a no-op
     held.release()
     assert await other.acquire(timeout_s=0.4)
@@ -226,6 +227,75 @@ async def test_keychain_clear(security):
     await s.set_tokens(token())
     s.clear()
     assert security.items == {} and not s.has_tokens()
+
+
+class FlakySecurity(FakeSecurity):
+    """FakeSecurity that can fail part way through a `security -i` save, or run a hook on a read."""
+
+    def __init__(self):
+        super().__init__()
+        self.fail_after_adds: int | None = None  # adds allowed in the next save before it fails
+        self.on_find = None  # called once, after the next find-generic-password
+
+    def __call__(self, argv, input=None, **kw):
+        result = super().__call__(argv, input=input, **kw)  # the read's output is fixed before the hook runs
+        if argv[1] == "find-generic-password" and self.on_find is not None:
+            hook, self.on_find = self.on_find, None
+            hook()
+        return result
+
+    def _one(self, args) -> int:
+        if args[0] == "add-generic-password" and self.fail_after_adds is not None:
+            if self.fail_after_adds == 0:
+                return 51
+            self.fail_after_adds -= 1
+        return super()._one(args)
+
+
+@pytest.fixture
+def flaky(monkeypatch):
+    fake = FlakySecurity()
+    monkeypatch.setattr(ts.subprocess, "run", fake)
+    return fake
+
+
+async def test_keychain_save_that_fails_half_way_keeps_the_old_token(flaky):
+    """#121: the token spans several items. A save that dies after some of them must not leave a mix."""
+    s = KeychainTokenStorage()
+    await s.set_tokens(token("OLD" + "A" * 4000))
+    flaky.fail_after_adds = 1  # the first new part lands, then the Keychain refuses
+    with pytest.raises(TokenStoreError):
+        await s.set_tokens(token("NEW" + "B" * 4000))
+    assert (await KeychainTokenStorage().get_tokens()).access_token.startswith("OLD"), "the old token, whole"
+
+
+async def test_keychain_reader_during_a_save_sees_a_whole_token(flaky):
+    """#121: a reader that lands between the writer's item writes gets the old token or the new one, never a
+    torn mix that reads as signed out."""
+    writer, reader = KeychainTokenStorage(), KeychainTokenStorage()
+    await writer.set_tokens(token("OLD" + "A" * 4000))
+
+    def save_now():
+        data = writer._load()
+        data["tokens"]["access_token"] = "NEW" + "B" * 4000
+        writer._save(data)
+        writer._save(data)  # twice: whatever the reader started from is gone by now
+
+    flaky.on_find = save_now
+    got = await reader.get_tokens()
+    assert got is not None and got.access_token in ("OLD" + "A" * 4000, "NEW" + "B" * 4000)
+
+
+async def test_keychain_reads_and_replaces_the_old_part_layout(flaky):
+    """A Keychain written by an earlier Fleetwatch (part-0, part-1, ...) still reads, and the next save moves it."""
+    text = json.dumps({"tokens": {"access_token": "LEGACY" + "C" * 3000, "token_type": "Bearer"}})
+    for i in range(0, len(text), ts.CHUNK):
+        flaky.items[(ts.SERVICE, f"part-{i // ts.CHUNK}")] = text[i : i + ts.CHUNK]
+    s = KeychainTokenStorage()
+    assert (await s.get_tokens()).access_token.startswith("LEGACY")
+    await s.set_tokens(token("NEWER"))
+    assert not [a for (_, a) in flaky.items if a.startswith("part-")], "the old layout is gone after a save"
+    assert (await KeychainTokenStorage().get_tokens()).access_token == "NEWER"
 
 
 def test_keychain_error_is_reported_not_swallowed(monkeypatch):

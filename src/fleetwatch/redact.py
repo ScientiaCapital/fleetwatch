@@ -19,6 +19,10 @@ _SECRET_NAME = re.compile(
 )
 _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
 _STREAM_ID = re.compile(r"^(?:.*[_\-. /:])?stream[ _-]?id$", re.IGNORECASE)
+# A camelCase or PascalCase name has no separator before its secret word (SrtPassphrase, accessToken, RTMPKey), so a
+# name is also tested split into words: a break between a lower-case letter or digit and a capital, and before the
+# last capital of an acronym. Both forms are tested, so a name the split breaks apart (PassPhrase) still matches.
+_WORD_BREAK = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 _PAIR_KEYS = ("id", "name", "key", "label", "field")  # {"name": "Stream key", "value": X} pairs
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
@@ -82,6 +86,13 @@ _PAIR_TEXT = re.compile(
     rf"(?P<v>(?:{_M}|[^\"'\n])+)",
     re.IGNORECASE,
 )
+# A quoted key in text that was never parsed, such as JSON cut off mid-value: its value is masked when the key passes
+# the same test as a parsed key, so compound names that _KEY_VALUE's \b misses (SrtPassphrase, srt_passphrase) are
+# caught too. The value is read as in _KEY_VALUE.
+_QUOTED_KEY = re.compile(
+    rf"(?P<k>(?P<q>[\"'])(?P<name>[A-Za-z][\w.\- /:]{{0,63}})(?P=q)\s*:\s*[\"']?)"
+    rf"(?P<v>(?<=\")[^\"\n]+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)"
+)
 _STREAM_FIELD_TEXT = re.compile(rf"(?P<k>[\"']stream[\"']\s*:\s*[\"'])(?P<v>(?:{_M}|[^\"'\n])+)", re.IGNORECASE)
 _PUBLISHER_SIBLING = re.compile(r"[\"'](?:url|username|password)[\"']\s*:", re.IGNORECASE)
 # An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
@@ -90,11 +101,20 @@ MAX_TEXT = 200_000
 
 
 def _secret_name(name: Any) -> bool:
-    return isinstance(name, str) and bool(_SECRET_NAME.match(name)) and not _PAGING.search(name)
+    return (
+        isinstance(name, str)
+        and bool(_SECRET_NAME.match(name) or _SECRET_NAME.match(_WORD_BREAK.sub("_", name)))
+        and not _PAGING.search(name)
+    )
 
 
 def _stream_id_name(name: Any) -> bool:
-    return isinstance(name, str) and bool(_STREAM_ID.match(name))
+    return isinstance(name, str) and bool(_STREAM_ID.match(name) or _STREAM_ID.match(_WORD_BREAK.sub("_", name)))
+
+
+def _quoted_key(m: re.Match[str]) -> str:
+    keep = not _secret_name(m["name"]) or m["v"] in ("true", "false", "null")
+    return m[0] if keep else f"{m['k']}{MASK}"
 
 
 def _mask(value: Any) -> Any:
@@ -125,7 +145,7 @@ def _scrub_tables(text: str) -> str:
         elif _TABLE_RULE.match(line):
             pass
         elif cols is None:  # the header row
-            names = [re.sub(r"[ -]+", "_", c.strip().lower()) for c in _cells(line)]
+            names = [re.sub(r"[ -]+", "_", c.strip()) for c in _cells(line)]  # case kept for the word split
             cols = {i: _stream_id_name(n) for i, n in enumerate(names) if _secret_name(n) or _stream_id_name(n)}
         elif cols:
             cells = _cells(line)
@@ -149,6 +169,7 @@ def scrub_text(text: str) -> str:
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
+    text = _QUOTED_KEY.sub(_quoted_key, text)
     text = _PAIR_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
     if _PUBLISHER_SIBLING.search(text):
         text = _STREAM_FIELD_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)

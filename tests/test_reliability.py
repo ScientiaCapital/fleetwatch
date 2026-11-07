@@ -156,6 +156,55 @@ async def test_a_device_named_401_is_not_an_auth_error(tmp_path: Path):
     assert c._client.calls == 1
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Error: device 'Room 401 Pearl Mini' is offline",
+        "Error executing tool: channel 401 not found on Lab 401",
+        "Error: source Studio-401 has no signal",
+        '{"error": "no such device", "name": "Room 401"}',
+    ],
+)
+async def test_an_error_naming_401_is_not_a_sign_in_problem(tmp_path: Path, text: str):
+    """#119: a "401" in a name inside an error result must not force a refresh (AGENTS.md rule 4)."""
+    c = await _signed_in_client(tmp_path)
+    c._client = _FakeSDK([(True, text)])
+    refreshes = []
+
+    async def spy() -> bool:
+        refreshes.append(1)
+        return True
+
+    c._force_refresh = spy
+    with pytest.raises(RuntimeError) as e:
+        await c.call("get_devices_in_my_team")
+    assert not isinstance(e.value, SignInExpired)
+    assert refreshes == [] and c._client.calls == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Error: 401 Unauthorized",
+        "Error: 401",
+        "HTTP 401",
+        "HTTP/1.1 401",
+        "status 401",
+        '{"status": 401}',
+        '{"code": "401"}',
+        "status_code=401",
+        "Error: invalid_token",
+        "Error: token has expired",
+    ],
+)
+async def test_a_status_401_or_auth_word_is_still_a_sign_in_problem(tmp_path: Path, text: str):
+    c = await _signed_in_client(tmp_path)
+    c._client = _FakeSDK([(True, text)])
+    with pytest.raises(SignInExpired):
+        await c.call("get_devices_in_my_team")
+    assert c._client.calls == 2, "refreshed once and retried once"
+
+
 def test_doctor_shows_token_expiry_without_the_token(tmp_path: Path):
     from fleetwatch.doctor import run_checks
     from tests.test_doctor import by_name, settings
@@ -305,6 +354,67 @@ async def test_three_failed_beats_in_a_row_exit_75():
     assert log.count("fail") == 3 and "ok" not in log
 
 
+async def _run_unreadable(monkeypatch, bad_beats: int, good_beats: int = 0, lang: str = "en"):
+    """`bad_beats` beats where the scanner chokes on what Epiphan sent, then `good_beats` that work."""
+    from fleetwatch import heartbeat
+    from fleetwatch.runner import run_loop
+
+    real_scan, calls = heartbeat.scan, []
+
+    def scan(fleet, policy):
+        calls.append(1)
+        if len(calls) <= bad_beats:
+            raise KeyError("Uptime")  # a shape Fleetwatch doesn't know yet
+        return real_scan(fleet, policy)
+
+    monkeypatch.setattr(heartbeat, "scan", scan)
+    script = ["ok"] * (bad_beats + good_beats)
+    state, out = State(), Capture()
+
+    async def sleep(_):
+        if not script:
+            raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(
+            lambda: _ScriptedClient(script, []),
+            state,
+            Policy(quiet_start=None, quiet_end=None, language=lang),
+            out,
+            first_run=False,
+            sleep=sleep,
+        )
+    return state, out.posts
+
+
+async def test_a_fleet_it_cannot_parse_says_so_once_and_keeps_beating(monkeypatch):
+    """#124: a shape Fleetwatch doesn't know failed every beat, exited 75 every third, and posted nothing. A restart
+    can't fix it: say so once in the channel and keep trying, without a restart loop."""
+    state, posts = await _run_unreadable(monkeypatch, bad_beats=7)  # no SystemExit
+    cant = [p for p in posts if "can't read the fleet" in p]
+    assert len(cant) == 1, posts
+    assert "Uptime" not in cant[0], "the reason stays on the host; the channel gets a fixed line"
+    failed = state.recent_audit("beat_failed", limit=10)
+    assert len(failed) == 7 and "KeyError" in failed[0][1]["reason"]
+
+
+async def test_reading_again_after_an_unreadable_fleet_says_so(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=3, good_beats=1)
+    assert [p for p in posts if "can't read the fleet" in p]
+    assert [p for p in posts if "can read the fleet again" in p]
+
+
+async def test_two_unreadable_beats_post_nothing(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=2, good_beats=1)
+    assert not [p for p in posts if "read the fleet" in p], "a blip stays in the log"
+
+
+async def test_the_unreadable_line_is_in_spanish_when_the_language_is(monkeypatch):
+    _, posts = await _run_unreadable(monkeypatch, bad_beats=3, good_beats=1, lang="es")
+    assert [p for p in posts if "no puede leer la flota" in p]
+    assert [p for p in posts if "ya puede leer la flota" in p]
+
+
 async def test_a_good_beat_resets_the_failure_count():
     log, err = await _run(["fail", "fail", "ok", "fail", "fail", "ok"])
     assert not isinstance(err, SystemExit), "never three in a row"
@@ -401,6 +511,67 @@ async def test_slack_listener_still_closes_on_exit_75(monkeypatch):
     with pytest.raises(SystemExit) as e:
         await cli._run(s)
     assert e.value.code == 75 and slash.closed
+
+
+class _Stop(Exception):
+    pass
+
+
+async def _one_run(monkeypatch, db: Path, now: datetime | None = None) -> list[str]:
+    """`fleetwatch run` for one beat on the calm sample, against the state in `db`; returns what it posted."""
+    from fleetwatch import cli
+    from fleetwatch.config import Settings
+    from fleetwatch.epiphan.replay import ReplayClient
+
+    out = Capture()
+    tools = load_tool_policy(ROOT / "tool_policy.yaml")
+    monkeypatch.setattr(
+        cli, "_make_client", lambda settings: ReplayClient(ROOT / "tests/fixtures/calm", tools, now=NOW)
+    )
+    monkeypatch.setattr(cli, "from_settings", lambda settings: out)
+
+    async def stop(_):
+        raise _Stop
+
+    monkeypatch.setattr("fleetwatch.runner._sleep", stop)
+    # Quiet hours hold All clear back, so a CI run at night would see nothing: keep the wall clock out of it.
+    monkeypatch.setattr(Policy, "in_quiet_hours", lambda self, now: False)
+    if now is not None:
+        monkeypatch.setattr("fleetwatch.cli.datetime", _FixedNow(now))
+    s = Settings(
+        _env_file=None, policy_file=ROOT / "policy.yaml", tool_policy_file=ROOT / "tool_policy.yaml", state_db=db
+    )
+    with pytest.raises(_Stop):
+        await cli._run(s)
+    return out.posts
+
+
+class _FixedNow:
+    def __init__(self, at: datetime):
+        self.at = at
+
+    def now(self, tz=None):
+        return self.at
+
+    def __getattr__(self, name):
+        return getattr(datetime, name)
+
+
+async def test_a_restart_on_a_calm_fleet_posts_all_clear_once(tmp_path: Path, monkeypatch):
+    """#123: every restart of a healthy fleet posted the first-run "All clear" again."""
+    first = await _one_run(monkeypatch, tmp_path / "state.db")
+    second = await _one_run(monkeypatch, tmp_path / "state.db")
+    assert len([p for p in first if "All clear" in p]) == 1
+    assert not [p for p in second if "All clear" in p], "a restart soon after a good beat says nothing new"
+
+
+async def test_all_clear_posts_again_after_a_long_gap(tmp_path: Path, monkeypatch):
+    """Back after more than a day without a good beat: say All clear again, so people know it's watching."""
+    db = tmp_path / "state.db"
+    await _one_run(monkeypatch, db)
+    later = datetime.now(UTC) + timedelta(days=2)
+    posts = await _one_run(monkeypatch, db, now=later)
+    assert [p for p in posts if "All clear" in p]
 
 
 # --- 4. shapes the parser doesn't know -----------------------------------------------------------------------
@@ -610,6 +781,83 @@ async def test_refresh_lock_is_released_after_the_refresh(tmp_path: Path):
     await flow_a.aclose()
 
 
+async def test_the_refresh_request_has_a_timeout_shorter_than_the_lock_wait(tmp_path: Path):
+    """#162: httpx gives requests an auth flow yields no timeout, so a stuck refresh held the lock forever and the
+    other process's wait ran out. The refresh carries its own timeout, well inside the other process's wait."""
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import make_provider
+
+    provider = make_provider(URL, await _expired_store(tmp_path, _metadata()), 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    assert str(refresh.url) == TOKEN_URL
+    timeout = refresh.extensions.get("timeout")
+    assert timeout, "a refresh with no timeout can hold the lock forever"
+    assert all(v is not None and v < token_store.LOCK_WAIT_S for v in timeout.values()), timeout
+    await flow.aclose()
+
+
+async def test_a_lock_wait_that_runs_out_does_not_refresh(tmp_path: Path, monkeypatch):
+    """#162: two processes that both send the same refresh token kill the sign-in (Epiphan rotates it). When the
+    other process holds the lock too long, this beat fails and the next one tries again; no refresh goes out."""
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import RefreshBusy, make_provider
+
+    monkeypatch.setattr(token_store, "LOCK_WAIT_S", 0.3)
+    await _expired_store(tmp_path, _metadata())
+    held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await held.acquire()
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    with pytest.raises(RefreshBusy):
+        await flow.__anext__()
+    assert not a.dead
+    held.release()
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await other.acquire(timeout_s=1), "the failed beat left the lock free"
+    other.release()
+
+
+async def test_a_lock_wait_that_runs_out_still_uses_a_token_the_other_process_saved(tmp_path: Path, monkeypatch):
+    from fleetwatch.epiphan import token_store
+    from fleetwatch.epiphan.auth import make_provider
+
+    monkeypatch.setattr(token_store, "LOCK_WAIT_S", 0.3)
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    await a._initialize()  # A has the expired token in memory
+    held = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await held.acquire()
+    await FileTokenStorage(tmp_path / "t.json").set_tokens(
+        OAuthToken(access_token="FAKENEW", refresh_token="FAKER2", expires_in=3600)
+    )  # the other process refreshed and is still finishing up
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    main = await flow.__anext__()
+    assert str(main.url) == URL and main.headers["Authorization"] == "Bearer FAKENEW", "no refresh, the saved token"
+    held.release()
+    await flow.aclose()
+
+
+async def test_the_lock_is_not_held_through_the_request_when_no_refresh_goes_out(tmp_path: Path):
+    """#162: after waiting for the lock, a process that finds the other one's new token sends no refresh. It must
+    let go of the lock at once, not hold it through its own (possibly slow) tool call."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    await _expired_store(tmp_path, _metadata())
+    a = make_provider(URL, FileTokenStorage(tmp_path / "t.json"), 8765, interactive=False)
+    await a._initialize()
+    await FileTokenStorage(tmp_path / "t.json").set_tokens(
+        OAuthToken(access_token="FAKENEW", refresh_token="FAKER2", expires_in=3600)
+    )
+    flow = a._auth_flow(httpx2.Request("POST", URL))
+    main = await flow.__anext__()  # A's tool call is now in flight
+    assert str(main.url) == URL
+    other = FileTokenStorage(tmp_path / "t.json").refresh_lock()
+    assert await other.acquire(timeout_s=1), "free while A's tool call is in flight"
+    other.release()
+    await flow.aclose()
+
+
 async def test_no_stored_metadata_falls_back_to_the_guess_with_a_warning(tmp_path: Path, caplog):
     from fleetwatch.epiphan.auth import make_provider
 
@@ -650,6 +898,35 @@ async def test_a_server_error_on_refresh_is_not_dead(tmp_path: Path):
     assert not provider.dead and not store.is_dead()
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"json": {"error": "invalid_request"}},
+        {"json": {"error": "temporarily_unavailable"}},
+        {"json": {"message": "bad gateway upstream"}},
+        {"json": ["invalid_grant"]},
+        {"text": "<html>400 Bad Request</html>"},
+        {"text": "invalid_grant"},
+        {},
+    ],
+    ids=["invalid_request", "temporarily_unavailable", "no-error-field", "list", "html", "bare-text", "empty"],
+)
+async def test_a_400_that_is_not_invalid_grant_is_a_failed_beat_not_dead(tmp_path: Path, answer: dict, caplog):
+    """#120: only `invalid_grant` means the refresh token is gone. Any other 400 retries next beat."""
+    from fleetwatch.epiphan.auth import make_provider
+
+    store = await _expired_store(tmp_path, _metadata())
+    provider = make_provider(URL, store, 8765, interactive=False)
+    flow = provider._auth_flow(httpx2.Request("POST", URL))
+    refresh = await flow.__anext__()
+    with caplog.at_level(logging.WARNING):
+        await flow.asend(httpx2.Response(400, request=refresh, **answer))
+    await flow.aclose()
+    assert not provider.dead and not store.is_dead()
+    assert "next heartbeat" in caplog.text
+    assert "bad gateway upstream" not in caplog.text and "<html>" not in caplog.text, "the body is never logged"
+
+
 async def test_a_new_sign_in_clears_the_dead_mark(tmp_path: Path):
     s = FileTokenStorage(tmp_path / "t.json")
     s.mark_dead()
@@ -669,9 +946,36 @@ async def test_in_band_401_with_a_dead_sign_in_raises_without_retry(tmp_path: Pa
     assert c._client.calls == 1
 
 
-async def test_dead_sign_in_exits_78_at_once(caplog):
+LAUNCHD_ENVS = {
+    "systemd": {},
+    "launchd-plist": {"FLEETWATCH_SERVICE_MANAGER": "launchd"},  # what deploy/dev.fleetwatch.agent.plist sets
+    "launchd-label": {"XPC_SERVICE_NAME": "dev.fleetwatch.agent"},  # what launchd sets for an older plist
+}
+
+
+def _service_env(monkeypatch, which: str) -> int:
+    """Set up the environment a service manager gives Fleetwatch; return the exit code a dead sign-in must use."""
+    for k in ("FLEETWATCH_SERVICE_MANAGER", "XPC_SERVICE_NAME"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in LAUNCHD_ENVS[which].items():
+        monkeypatch.setenv(k, v)
+    return 78 if which == "systemd" else 0  # #122: launchd restarts any non-zero exit, so stop it with 0
+
+
+def test_another_launchd_job_is_not_fleetwatchs(monkeypatch):
+    from fleetwatch.runner import dead_sign_in_exit_code
+
+    _service_env(monkeypatch, "systemd")
+    monkeypatch.setenv("XPC_SERVICE_NAME", "com.apple.Terminal")
+    assert dead_sign_in_exit_code() == 78
+
+
+@pytest.mark.parametrize("which", list(LAUNCHD_ENVS))
+async def test_dead_sign_in_exits_at_once(caplog, monkeypatch, which):
     from fleetwatch.epiphan.mcp import SignInDead
     from fleetwatch.runner import run_loop
+
+    code = _service_env(monkeypatch, which)
 
     class Dead(_ScriptedClient):
         async def call(self, tool, arguments=None):
@@ -682,13 +986,18 @@ async def test_dead_sign_in_exits_78_at_once(caplog):
 
     with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
         await run_loop(lambda: Dead([], []), State(), POLICY, Capture(), first_run=True, sleep=no_sleep)
-    assert e.value.code == 78
+    assert e.value.code == code
     assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
+    if code == 0:
+        assert any("launchctl kickstart" in r.getMessage() for r in caplog.records), "say how to start it again"
 
 
-async def test_run_with_a_dead_store_exits_78_before_calling_epiphan(tmp_path: Path, monkeypatch, caplog):
+@pytest.mark.parametrize("which", list(LAUNCHD_ENVS))
+async def test_run_with_a_dead_store_exits_before_calling_epiphan(tmp_path: Path, monkeypatch, caplog, which):
     from fleetwatch import cli
     from fleetwatch.config import Settings
+
+    code = _service_env(monkeypatch, which)
 
     FileTokenStorage(tmp_path / "t.json").mark_dead()
 
@@ -708,7 +1017,7 @@ async def test_run_with_a_dead_store_exits_78_before_calling_epiphan(tmp_path: P
     )
     with caplog.at_level(logging.ERROR), pytest.raises(SystemExit) as e:
         await cli._run(s)
-    assert e.value.code == 78
+    assert e.value.code == code
     assert any("Sign-in expired: run fleetwatch login" in r.getMessage() for r in caplog.records)
 
 
@@ -728,3 +1037,88 @@ def test_doctor_says_sign_in_again_when_the_token_is_dead(tmp_path: Path):
 def test_systemd_does_not_restart_a_dead_sign_in():
     unit = (ROOT / "deploy/fleetwatch.service").read_text()
     assert "Restart=on-failure" in unit and "RestartPreventExitStatus=78" in unit
+
+
+# --- #124: the last failed beat, for `status` and `doctor` ------------------------------------------------------
+def test_last_failed_beat_is_shown_until_a_good_beat_follows():
+    state = State()
+    assert state.last_failed_beat() is None
+    state.snapshot(NOW, 4, 4)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW + timedelta(minutes=3))
+    at, reason = state.last_failed_beat()
+    assert at == NOW + timedelta(minutes=3) and "KeyError" in reason
+    state.snapshot(NOW + timedelta(minutes=6), 4, 4)
+    assert state.last_failed_beat() is None, "a good beat since: nothing to show"
+
+
+def test_doctor_warns_about_a_failing_heartbeat(tmp_path: Path):
+    from fleetwatch.config import Settings
+    from fleetwatch.doctor import WARN, run_checks
+
+    db = tmp_path / "state.db"
+    state = State(db)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW)
+    state.db.close()
+    s = Settings(_env_file=None, state_db=db, policy_file=ROOT / "policy.yaml", token_store="file",
+                 token_file=tmp_path / "t.json", sandbox_token_file=tmp_path / "s.json")  # fmt: skip
+    rows = {c.name: c for c in run_checks(s, reach=lambda url: True, service=lambda: ("OK", "running"))}
+    row = rows["Last heartbeat"]
+    assert row.status == WARN and "KeyError" in row.detail
+
+
+def test_status_prints_the_last_failed_beat(tmp_path: Path, monkeypatch, capsys):
+    from fleetwatch import cli
+
+    db = tmp_path / "state.db"
+    state = State(db)
+    state.audit("beat_failed", {"reason": "scan: KeyError: 'Uptime'"}, NOW)
+    state.db.close()
+    monkeypatch.setenv("FLEETWATCH_STATE_DB", str(db))
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "status"])
+    cli.main()
+    out = capsys.readouterr().out
+    assert "Last heartbeat failed" in out and "KeyError" in out
+
+
+def test_doctor_service_row_says_stopped_when_the_sign_in_is_dead(tmp_path: Path):
+    """#122: with a dead sign-in the agent has stopped on purpose; say why, and how to start it again."""
+    from fleetwatch.config import Settings
+    from fleetwatch.doctor import run_checks
+
+    FileTokenStorage(tmp_path / "t.json").mark_dead()
+    s = Settings(_env_file=None, state_db=tmp_path / "state.db", policy_file=ROOT / "policy.yaml", token_store="file",
+                 token_file=tmp_path / "t.json", sandbox_token_file=tmp_path / "s.json")  # fmt: skip
+    rows = {
+        c.name: c
+        for c in run_checks(s, reach=lambda url: True, service=lambda: ("WARN", "launchd agent loaded, not running"))
+    }
+    assert "stopped: sign-in expired" in rows["Service"].detail and "fleetwatch login" in rows["Service"].detail
+
+
+def test_the_launchd_plist_says_launchd_is_running_it():
+    import plistlib
+
+    plist = plistlib.loads((ROOT / "deploy/dev.fleetwatch.agent.plist").read_bytes())
+    assert plist["EnvironmentVariables"]["FLEETWATCH_SERVICE_MANAGER"] == "launchd"
+    assert plist["KeepAlive"] == {"SuccessfulExit": False}, "exit 0 is what stops the restarts"
+
+
+# --- #127: which tools returned an off-schema result, for `status` -----------------------------------------------
+async def test_run_records_each_off_schema_tool_once_and_status_shows_it(tmp_path: Path, monkeypatch, capsys):
+    from fleetwatch import cli
+    from fleetwatch.epiphan import mcp
+
+    mcp.reset_schema_warnings()
+    mcp._schema_warned.add("get_devices_in_my_team")  # what tolerate_schema_mismatch does on a mismatch
+    db = tmp_path / "state.db"
+    state = State(db)
+    await _run(["ok", "ok", "ok"], state=state)
+    rows = state.recent_audit("schema_mismatch", limit=10)
+    assert [d["tool"] for _, d in rows] == ["get_devices_in_my_team"], "once per tool, not once per beat"
+    state.db.close()
+    mcp.reset_schema_warnings()
+
+    monkeypatch.setenv("FLEETWATCH_STATE_DB", str(db))
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "status"])
+    cli.main()
+    assert "Off-schema results from Epiphan: get_devices_in_my_team" in capsys.readouterr().out
