@@ -36,7 +36,13 @@ class SignInDead(SignInExpired):
 
 # Epiphan reports an expired or missing sign-in inside the tool result, not as an HTTP 401. Only an error result,
 # or a plain-text (non-JSON) one, is checked: a JSON result carries device names, which are untrusted text.
-_UNAUTHORIZED = re.compile(r"\b401\b|unauthori[sz]ed|invalid[_ ]token|token (?:has )?expired", re.IGNORECASE)
+# A bare "401" isn't enough, because an error can quote a name such as "Room 401" (#119): the number must follow a
+# status word ("Error: 401", "HTTP/1.1 401", "status 401", '"code": "401"').
+_UNAUTHORIZED = re.compile(
+    r"\b(?:error|status(?:_?code)?|code|http(?:/\d(?:\.\d)?)?)\W{0,4}401\b"
+    r"|unauthori[sz]ed|invalid[_ ]token|token (?:has )?expired",
+    re.IGNORECASE,
+)
 
 
 class _HttpTransport:
@@ -150,6 +156,18 @@ class EpiphanClient:
         raise AssertionError("unreachable")  # pragma: no cover
 
 
+_schema_warned: set[str] = set()  # tools whose off-schema result was already a WARNING in this process (#127)
+
+
+def schema_mismatches() -> list[str]:
+    """The tools that returned an off-schema result since this process started."""
+    return sorted(_schema_warned)
+
+
+def reset_schema_warnings() -> None:
+    _schema_warned.clear()
+
+
 def tolerate_schema_mismatch(session: Any) -> None:
     """Epiphan's tool output schemas don't always match its data (a live read had `null` where the schema said
     object), and the SDK raises on that before Fleetwatch sees anything. Results are untrusted and parsed
@@ -167,7 +185,11 @@ def tolerate_schema_mismatch(session: Any) -> None:
             )
             if not mismatch:
                 raise
-            log.warning("%s: Epiphan's result doesn't match its own output schema; reading it anyway", name)
+            # Once per tool per process at WARNING, then DEBUG: it repeats on every heartbeat and would bury the
+            # warnings that matter (#127).
+            level = logging.DEBUG if name in _schema_warned else logging.WARNING
+            _schema_warned.add(name)
+            log.log(level, "%s: Epiphan's result doesn't match its own output schema; reading it anyway", name)
 
     session.validate_tool_result = validate
 

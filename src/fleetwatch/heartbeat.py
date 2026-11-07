@@ -29,6 +29,15 @@ class FailedRead(RuntimeError):
     """The device list couldn't be read. Never treat it as an empty fleet: that would mark everything fixed."""
 
 
+class UnreadableFleet(RuntimeError):
+    """Epiphan answered, but Fleetwatch couldn't make sense of it: the parser, the scanner or the reconcile step
+    raised. A restart can't fix that, so `fleetwatch run` says so once and keeps trying instead of exiting (#124)."""
+
+
+def _unreadable(stage: str, e: Exception) -> UnreadableFleet:
+    return UnreadableFleet(f"{stage}: {type(e).__name__}: {redact(str(e))[:200]}")
+
+
 async def snapshot(client: EpiphanClient, now: datetime, *, strict: bool = False) -> Fleet:
     """Read the fleet. Raises FailedRead when the device list is text, or a shape we don't know.
 
@@ -39,7 +48,10 @@ async def snapshot(client: EpiphanClient, now: datetime, *, strict: bool = False
     if device_items(raw) is None:
         kind = "text instead of JSON" if isinstance(raw, str) else "a shape Fleetwatch doesn't know"
         raise FailedRead(f"get_devices_in_my_team returned {kind}")
-    fleet = parse_devices(raw, now)
+    try:
+        fleet = parse_devices(raw, now)
+    except Exception as e:
+        raise _unreadable("parse_devices", e) from e
     online = [d.id for d in fleet.devices.values() if d.online]
     if online:
         for tool, apply in (
@@ -101,8 +113,14 @@ async def tick(
     state.snapshot(now, len(fleet.devices), sum(d.online for d in fleet.devices.values()))
     state.record_devices(fleet, now)
 
-    findings = scan(fleet, policy)
-    new, reminders, resolved = state.reconcile(findings, now, timedelta(minutes=policy.remind_after_minutes))
+    try:
+        findings = scan(fleet, policy)
+    except Exception as e:
+        raise _unreadable("scan", e) from e
+    try:
+        new, reminders, resolved = state.reconcile(findings, now, timedelta(minutes=policy.remind_after_minutes))
+    except Exception as e:
+        raise _unreadable("reconcile", e) from e
     quiet = policy.in_quiet_hours(now.astimezone().time())
     if quiet:  # only Fix first gets through at night; the rest waits (never sent, so it posts later)
         new = [f for f in new if f.priority is Priority.FIX_FIRST]

@@ -1,6 +1,6 @@
 {
   "about": "Shared redaction cases for Fleetwatch (src/fleetwatch/redact.py) and the Epiphan Edge Claude Kit (.claude/hooks/epiphan-redact.sh). Keep this file byte-identical in both repos. Each case: the text must not contain any of must_not_contain after redaction, must contain every must_contain, and redacting twice must give the same text as once. All values are fake.",
-  "version": 3,
+  "version": 4,
   "cases": [
     {"id": "kv-password", "input": "password=hunter2", "must_not_contain": ["hunter2"]},
     {"id": "kv-stream-key-colon", "input": "stream key: live_9f8e7d6c", "must_not_contain": ["9f8e7d6c"]},
@@ -45,9 +45,17 @@
     {"id": "json-pin-and-pass", "input": "{\"pin\": \"FAKEPIN50\", \"pass\": \"FAKEPASS51\"}", "must_not_contain": ["FAKEPIN50", "FAKEPASS51"]},
     {"id": "publisher-stream-field", "input": "{\"url\": \"rtmp://a.example/live2\", \"stream\": \"FAKESTREAM52\", \"password\": \"\"}", "must_not_contain": ["FAKESTREAM52"]},
     {"id": "https-live-path", "input": "{\"url\": \"https://a.example/live/FAKELIVE53\"}", "must_not_contain": ["FAKELIVE53"]},
+    {"id": "json-pascal-case-keys", "input": "{\"PrimaryStreamKey\": \"FAKEPASCAL54\", \"SrtPassphrase\": \"FAKEPASCAL55\", \"RtmpPassword\": \"FAKEPASCAL56\"}", "must_not_contain": ["FAKEPASCAL54", "FAKEPASCAL55", "FAKEPASCAL56"]},
+    {"id": "json-camel-case-keys", "input": "{\"accessToken\": \"FAKECAMEL57\", \"clientSecret\": \"FAKECAMEL58\", \"backupStreamKey\": \"FAKECAMEL59\"}", "must_not_contain": ["FAKECAMEL57", "FAKECAMEL58", "FAKECAMEL59"]},
+    {"id": "json-acronym-key", "input": "{\"SRTPassphrase\": \"FAKEACRONYM60\", \"RTMPKey\": \"FAKEACRONYM61\"}", "must_not_contain": ["FAKEACRONYM60", "FAKEACRONYM61"]},
+    {"id": "pair-pascal-case-name", "input": "{\"name\": \"BackupStreamKey\", \"value\": \"FAKEPAIR62\"}", "must_not_contain": ["FAKEPAIR62"]},
+    {"id": "cut-off-json-compound-keys", "input": "{\"Name\": \"Room 204\", \"SrtPassphrase\": \"FAKECUT63\", \"srt_passphrase\": \"FAKECUT64\", \"Status\": \"onl", "must_not_contain": ["FAKECUT63", "FAKECUT64"], "must_contain": ["Room 204"]},
+    {"id": "table-pascal-case-header", "input": "| Destination | PrimaryStreamKey |\n|---|---|\n| YT | FAKETABLE65 |", "must_not_contain": ["FAKETABLE65"], "must_contain": ["YT"]},
 
     {"id": "keep-stream-flag", "input": "{\"record\": true, \"stream\": true}", "must_not_contain": [], "must_contain": ["\"stream\": true"]},
     {"id": "keep-stream-name-without-url", "input": "{\"stream\": \"Program\", \"name\": \"Stream 1\"}", "must_not_contain": [], "must_contain": ["Program", "Stream 1"]},
+    {"id": "keep-compound-keys-that-are-not-secrets", "input": "{\"Keynote\": \"Opening session\", \"Monkey\": \"George\", \"Turnkey\": \"yes\", \"DeviceName\": \"Room 204\", \"nextPageToken\": \"p2\", \"StreamingStatus\": \"live\"}", "must_not_contain": [], "must_contain": ["Opening session", "George", "\"yes\"", "Room 204", "p2", "live"]},
+    {"id": "keep-cut-off-json-plain-keys", "input": "{\"Keynote\": \"Opening session\", \"DeviceName\": \"Room 204\", \"Status\": \"onl", "must_not_contain": [], "must_contain": ["Opening session", "Room 204"]},
 
     {"id": "keep-plain-text", "input": "Room 204 Pearl Mini is offline", "must_not_contain": [], "must_contain": ["Room 204 Pearl Mini is offline"]},
     {"id": "keep-docs-url", "input": "see https://kb.epiphan.com/pearl-2/firmware-upgrade", "must_not_contain": [], "must_contain": ["kb.epiphan.com/pearl-2/firmware-upgrade"]},

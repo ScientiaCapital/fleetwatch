@@ -20,6 +20,8 @@
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/usr/bin:/bin:/usr/local/bin:__HOME__/.local/bin</string>
     <key>PYTHONUNBUFFERED</key><string>1</string>
+    <!-- A dead sign-in exits 0 under launchd, so KeepAlive stops instead of restarting it every 30 s. -->
+    <key>FLEETWATCH_SERVICE_MANAGER</key><string>launchd</string>
   </dict>
 </dict>
 </plist>

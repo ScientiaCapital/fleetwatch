@@ -511,15 +511,25 @@ def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Setti
     raise SystemExit(code)
 
 
+ALL_CLEAR_GAP = timedelta(days=1)  # back after this long without a good beat: say All clear again
+
+
+def _says_all_clear(state: State, now: datetime) -> bool:
+    """Whether this start's first beat may post the first-run "All clear". Not on a restart soon after a good beat
+    (#123): a service manager restarting a calm fleet would repeat it in the channel every time."""
+    if state.open_findings():
+        return False
+    last = state.last_snapshot()
+    return last is None or now - last > ALL_CLEAR_GAP
+
+
 async def _run(settings: Settings) -> None:
-    from fleetwatch.epiphan.auth import SIGN_IN_EXPIRED
-    from fleetwatch.runner import EXIT_CONFIG, run_loop
+    from fleetwatch.runner import exit_dead_sign_in, run_loop
     from fleetwatch.slack_command import start_listener
 
     if not reveal(settings.epiphan_token) and make_token_store(settings.token_store, settings.token_file).is_dead():
         # Epiphan refused the refresh token last time. Don't call it again; a restart loop only adds noise.
-        logging.getLogger("fleetwatch").error(SIGN_IN_EXPIRED)
-        raise SystemExit(EXIT_CONFIG)
+        exit_dead_sign_in()
     state, notifier = State(settings.state_db), from_settings(settings)
     policy = load_policy(settings.policy_file)
     slash = await start_listener(settings, policy, state)  # None unless FLEETWATCH_SLACK_APP_TOKEN is set
@@ -529,7 +539,7 @@ async def _run(settings: Settings) -> None:
             state,
             policy,
             notifier,
-            first_run=not state.open_findings(),
+            first_run=_says_all_clear(state, datetime.now(UTC)),
             slash=slash,
             after_beat=lambda client: _maybe_sweep(client, state, policy, notifier),
         )
@@ -660,6 +670,11 @@ def main() -> None:
         )
         for f in items:
             print(f"  {f.priority.value}: {f.what}")
+        if tools := state.schema_mismatch_tools(datetime.now(UTC) - timedelta(days=1)):
+            print(f"Off-schema results from Epiphan: {', '.join(tools)} (read anyway; last 24 h)")
+        if failed := state.last_failed_beat():
+            at, reason = failed
+            print(f"Last heartbeat failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
 
 
 if __name__ == "__main__":

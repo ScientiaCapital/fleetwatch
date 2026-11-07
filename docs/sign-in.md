@@ -29,6 +29,8 @@ the team to watch. Fleetwatch sees only what your account sees in that team.
   which one is in use. A Mac that runs Fleetwatch while nobody is logged in can't open the login Keychain;
   use `FLEETWATCH_TOKEN_STORE=file` there. Whichever store is in use, `~/.fleetwatch/epiphan-oauth.lock` is an
   empty file the processes on one machine (`run`, a cron `digest`) take turns on, so only one refreshes at a time.
+  A process that waits more than 30 seconds for it skips that heartbeat instead of refreshing on its own, because
+  Epiphan accepts each refresh token once.
 - `uv run fleetwatch status` shows whether you are signed in. `uv run fleetwatch logout` asks Epiphan to revoke
   the token (RFC 7009) when Epiphan offers that, then deletes it from this machine either way. It tells you which
   happened: "Epiphan revoked the token", or "Signed out on this machine" when Epiphan doesn't offer revocation or
@@ -101,14 +103,16 @@ The approval page (`fleetwatch approve --serve`) is the only thing that uses the
 ## When the sign-in can't be refreshed
 
 If Epiphan refuses the refresh token (it was revoked, or the account changed), restarting won't help. Fleetwatch
-logs `Sign-in expired: run fleetwatch login`, remembers it, and `fleetwatch run` exits with code 78.
-`fleetwatch doctor` shows "sign in again". Run `fleetwatch login`, then start the service again.
+logs `Sign-in expired: run fleetwatch login`, remembers it, and `fleetwatch run` stops. `fleetwatch doctor` shows
+"sign in again", and its Service row says "stopped: sign-in expired". Run `fleetwatch login`, then start the
+service again.
 
-- Linux (systemd): the unit has `RestartPreventExitStatus=78`, so it stays stopped until you sign in and run
-  `systemctl --user restart fleetwatch`.
-- Mac (launchd): launchd can't skip one exit code. `KeepAlive` → `SuccessfulExit = false` restarts on any
-  non-zero exit, and `Crashed` only covers crashes. The agent is started again every 30 seconds, sees the saved
-  "sign in again" mark, logs the line, and exits at once, without contacting Epiphan. After `fleetwatch login`
-  the next start works on its own.
+- Linux (systemd): it exits with code 78. The unit has `RestartPreventExitStatus=78`, so it stays stopped until
+  you sign in and run `systemctl --user restart fleetwatch`.
+- Mac (launchd): launchd can't skip one exit code (`KeepAlive` → `SuccessfulExit = false` restarts on any
+  non-zero exit), so under launchd Fleetwatch exits with code 0 instead, and launchd leaves it stopped. It logs
+  how to start it again: after `fleetwatch login`, run `launchctl kickstart gui/$(id -u)/dev.fleetwatch.agent`.
+  At your next login it starts once, sees the saved "sign in again" mark and stops again, without contacting
+  Epiphan.
 - Docker: `restart: unless-stopped` behaves like launchd. Sign in again with
   `docker compose run --rm fleetwatch login`, or `docker compose stop` until you can.
