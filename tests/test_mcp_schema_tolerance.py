@@ -8,7 +8,15 @@ import logging
 
 import pytest
 
+from fleetwatch.epiphan import mcp
 from fleetwatch.epiphan.mcp import tolerate_schema_mismatch
+
+
+@pytest.fixture(autouse=True)
+def _fresh_process():
+    mcp.reset_schema_warnings()
+    yield
+    mcp.reset_schema_warnings()
 
 
 class FakeSession:
@@ -55,3 +63,20 @@ async def test_a_conforming_result_passes_through_untouched():
     tolerate_schema_mismatch(s)
     await s.validate_tool_result("get_x", object())
     assert s.calls == ["get_x"]
+
+
+async def test_the_mismatch_is_a_warning_once_per_tool_then_debug(caplog):
+    """#127: the live soak logged the same mismatch on every heartbeat, about 480 WARNING lines a day."""
+    mismatch = RuntimeError("Invalid structured content returned by tool get_x: None is not of type 'object'")
+    caplog.set_level(logging.DEBUG, logger="fleetwatch.epiphan.mcp")
+    for _ in range(3):  # three heartbeats, each on a fresh session after a failed beat
+        s = FakeSession(mismatch)
+        tolerate_schema_mismatch(s)
+        await s.validate_tool_result("get_x", object())
+    s = FakeSession(mismatch)
+    tolerate_schema_mismatch(s)
+    await s.validate_tool_result("get_y", object())
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len([w for w in warnings if "get_x" in w]) == 1 and len([w for w in warnings if "get_y" in w]) == 1
+    assert len([r for r in caplog.records if r.levelno == logging.DEBUG and "get_x" in r.getMessage()]) == 2
+    assert mcp.schema_mismatches() == ["get_x", "get_y"]

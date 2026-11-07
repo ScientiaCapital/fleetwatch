@@ -1040,3 +1040,24 @@ def test_the_launchd_plist_says_launchd_is_running_it():
     plist = plistlib.loads((ROOT / "deploy/dev.fleetwatch.agent.plist").read_bytes())
     assert plist["EnvironmentVariables"]["FLEETWATCH_SERVICE_MANAGER"] == "launchd"
     assert plist["KeepAlive"] == {"SuccessfulExit": False}, "exit 0 is what stops the restarts"
+
+
+# --- #127: which tools returned an off-schema result, for `status` -----------------------------------------------
+async def test_run_records_each_off_schema_tool_once_and_status_shows_it(tmp_path: Path, monkeypatch, capsys):
+    from fleetwatch import cli
+    from fleetwatch.epiphan import mcp
+
+    mcp.reset_schema_warnings()
+    mcp._schema_warned.add("get_devices_in_my_team")  # what tolerate_schema_mismatch does on a mismatch
+    db = tmp_path / "state.db"
+    state = State(db)
+    await _run(["ok", "ok", "ok"], state=state)
+    rows = state.recent_audit("schema_mismatch", limit=10)
+    assert [d["tool"] for _, d in rows] == ["get_devices_in_my_team"], "once per tool, not once per beat"
+    state.db.close()
+    mcp.reset_schema_warnings()
+
+    monkeypatch.setenv("FLEETWATCH_STATE_DB", str(db))
+    monkeypatch.setattr("sys.argv", ["fleetwatch", "status"])
+    cli.main()
+    assert "Off-schema results from Epiphan: get_devices_in_my_team" in capsys.readouterr().out
