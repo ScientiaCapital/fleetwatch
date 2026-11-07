@@ -14,6 +14,7 @@ from fleetwatch.epiphan.mcp import EpiphanClient
 from fleetwatch.epiphan.replay import ReplayClient
 from fleetwatch.epiphan.token_store import make_token_store
 from fleetwatch.heartbeat import FailedRead, tick
+from fleetwatch.i18n import t
 from fleetwatch.logsetup import configure_logging
 from fleetwatch.notify import from_settings
 from fleetwatch.policy import load_policy, load_tools
@@ -495,6 +496,25 @@ def _history(settings: Settings, days: int) -> None:
     print(render_history(State(settings.state_db), since=now - timedelta(days=days), now=now, lang=lang))
 
 
+def _status(settings: Settings) -> None:
+    """`fleetwatch status`: sign-in, open items and the last failed beat, in the policy's language. Stored text
+    (each item's `what`, a failure reason) is shown as it was saved."""
+    lang = load_policy(settings.policy_file).language
+    state = State(settings.state_db)
+    items = state.open_findings()
+    store = make_token_store(settings.token_store, settings.token_file)
+    signed_in = bool(reveal(settings.epiphan_token)) or store.has_tokens()
+    print(t(lang, "status.signed_in" if signed_in else "status.signed_out"))
+    print(t(lang, "status.open_items", n=len(items), date=f"{datetime.now(UTC):%Y-%m-%d %H:%M}"))
+    for f in items:
+        print(f"  {f.priority.label(lang)}: {f.what}")
+    if tools := state.schema_mismatch_tools(datetime.now(UTC) - timedelta(days=1)):
+        print(t(lang, "status.off_schema", tools=", ".join(tools)))
+    if failed := state.last_failed_beat():
+        at, reason = failed
+        print(t(lang, "status.last_failed", when=f"{at.astimezone():%Y-%m-%d %H:%M}", reason=reason))
+
+
 def _notes(p: argparse.ArgumentParser, args: argparse.Namespace, settings: Settings) -> None:
     from fleetwatch.notes import add_note, default_author, list_notes
 
@@ -657,24 +677,12 @@ def main() -> None:
     elif args.check:
         from fleetwatch.heartbeat import health
 
-        ok, msg = health(State(settings.state_db), load_policy(settings.policy_file).heartbeat_seconds)
+        policy = load_policy(settings.policy_file)
+        ok, msg = health(State(settings.state_db), policy.heartbeat_seconds, lang=policy.language)
         print(msg)
         raise SystemExit(0 if ok else 1)
     else:
-        state = State(settings.state_db)
-        items = state.open_findings()
-        store = make_token_store(settings.token_store, settings.token_file)
-        signed_in = bool(reveal(settings.epiphan_token)) or store.has_tokens()
-        print(
-            f"Signed in: {'yes' if signed_in else 'no (run fleetwatch login)'}\nOpen items: {len(items)}  ({datetime.now(UTC):%Y-%m-%d %H:%M} UTC)"
-        )
-        for f in items:
-            print(f"  {f.priority.value}: {f.what}")
-        if tools := state.schema_mismatch_tools(datetime.now(UTC) - timedelta(days=1)):
-            print(f"Off-schema results from Epiphan: {', '.join(tools)} (read anyway; last 24 h)")
-        if failed := state.last_failed_beat():
-            at, reason = failed
-            print(f"Last heartbeat failed at {at.astimezone():%Y-%m-%d %H:%M}: {reason}")
+        _status(settings)
 
 
 if __name__ == "__main__":
