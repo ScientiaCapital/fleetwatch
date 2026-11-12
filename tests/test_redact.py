@@ -261,7 +261,7 @@ def _leaks(value, *leaks):
         "| Room | Status |\n|---|---|\n| Key Room | online |",
         "Chroma key\noverlay on",  # "key" alone on a line is not a label for a secret
         "Key\nRed = offline",
-        "hotplug: yes, footprint: 3, spotlight: on",
+        "hotplug: yes, footprint: 3, spotlight: on, tokens: 1500",
         "bypass_mode: on, compass: north, passage: 2",
         "accessLevel: admin, access_point: AP-3",
         "the secretary is Dana",
@@ -302,3 +302,27 @@ def test_audit_lookalike_fields_are_kept(value):
 )
 def test_every_authorization_scheme_has_its_whole_value_masked(text, leak):
     _leaks(text, leak)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"passcode": "FAKENAME1"},
+        {"otp": "FAKENAME2"},
+        {"otp_code": "FAKENAME3"},
+        {"accessCode": "FAKENAME4"},
+        {"srt_pass_phrase": "FAKENAME5"},
+        {"clientSecretValue": "FAKENAME6"},
+        {"keys": ["FAKENAME7"]},
+        {"basicAuthHeader": "FAKENAME8"},
+        "streamkeys: FAKENAME9",
+        "passcode: FAKENAME10",
+        "OTP: FAKENAME11",
+        "access code = FAKENAME12",
+        "accessCode: FAKENAME13",
+        "srt_pass_phrase=FAKENAME14",
+        "clientSecretValue: FAKENAME15",
+    ],
+)
+def test_more_secret_names(value):
+    _leaks(value, "FAKENAME")

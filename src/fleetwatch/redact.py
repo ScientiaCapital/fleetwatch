@@ -14,7 +14,14 @@ MASK = "[redacted]"
 # A secret name may sit behind a dotted, spaced or slashed prefix (srt.passphrase, "Stream key", publisher.rtmp.key).
 _SECRET_NAME = re.compile(
     r"^(?:.*[_\-. /:])?(?:streaming[ _-]?key|stream[ _-]?key|stream[ _-]?name|key|api[ _-]?key|private[ _-]?key"
-    r"|password|passphrase|passwd|pwd|pw|pin|psk|pass|secret|token|authorization|auth|credentials?)$",
+    r"|password|pass[ _-]?phrase|pass[ _-]?code|access[ _-]?code|passwd|pwd|pw|pin|psk|pass|secret|token"
+    r"|authorization|auth|auth(?:orization)?[ _-]?header|credentials?)$",
+    re.IGNORECASE,
+)
+# Some words name a secret wherever they sit in the name (clientSecretValue, passphrase_v2) or as any one segment of it
+# (otp, otp_code, totpSeed). "secretary" is a person, not a secret.
+_SECRET_ANYWHERE = re.compile(
+    r"secret(?!ar)|pass[ _-]?phrase|(?:^|[_\-. /:])[th]?otp(?:$|[_\-. /:])",
     re.IGNORECASE,
 )
 _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
@@ -77,10 +84,12 @@ _KEY_NAMES = "|".join(
     re.sub(r"[ _-]", lambda _: _SEP, name)
     for name in (
         "streaming key", "stream key", "stream name", "x-api-key", "api key", "private key", "client secret",
-        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token",
-        "pass", "pin", "psk", "pw", "key",
+        "access token", "password", "pass phrase", "pass code", "access code", "passwd", "pwd", "secret", "token",
+        "pass", "pin", "psk", "pw", "otp", "key",
     )
 )  # fmt: skip
+# A plural name counts too (stream keys, passwords, secrets), but not "tokens", which is far more often a count.
+_KEY_NAMES = re.sub(r"(key|word|phrase|secret)(?=\||$)", r"\1s?", _KEY_NAMES)
 _ASSIGN = "[:=\uff1a\uff1d]"  # also the fullwidth colon and equals sign that CJK input methods type
 # A value after a name: a list or object up to its closing bracket ("passwords": ["x"] in unparsed JSON), a quoted one
 # up to its closing quote, spaces and all (an escaped quote, password=\"x\" inside a JSON string, closes it too); an
@@ -110,7 +119,8 @@ _AUTH_SCHEME = re.compile(
 _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
 _LOOKS_SECRET = re.compile(
-    r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-",
+    r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-|otp"
+    r"|access[ _-]?code",
     re.IGNORECASE,
 )
 # The same two JSON shapes as text, for output that was never parsed: an id/name/label whose value names a secret
@@ -143,7 +153,14 @@ def _secret_name(name: Any) -> bool:
         return False
     if _PLURAL.search(name):
         name = name[:-1]
-    return bool(_SECRET_NAME.match(name) or _SECRET_NAME.match(_WORD_BREAK.sub("_", name)) or _RUN_TOGETHER.match(name))
+    words = _WORD_BREAK.sub("_", name)
+    return bool(
+        _SECRET_NAME.match(name)
+        or _SECRET_NAME.match(words)
+        or _RUN_TOGETHER.match(name)
+        or _SECRET_ANYWHERE.search(name)
+        or _SECRET_ANYWHERE.search(words)
+    )
 
 
 def _stream_id_name(name: Any) -> bool:
