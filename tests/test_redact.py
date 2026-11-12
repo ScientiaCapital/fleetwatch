@@ -326,3 +326,31 @@ def test_every_authorization_scheme_has_its_whole_value_masked(text, leak):
 )
 def test_more_secret_names(value):
     _leaks(value, "FAKENAME")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"label": "Stream key", "data": "FAKESHAPE1"},
+        {"name": "Password", "current": "FAKESHAPE2"},
+        "| Setting | Value |\n|---|---|\n| Stream key | FAKESHAPE3 |",
+        "| Field | Current | Unit |\n|---|---|---|\n| Room | 204 | - |\n| Password | FAKESHAPE4 | - |",
+        "Destination | Value\n--- | ---\nStream key | FAKESHAPE5",
+        "Stream key\nFAKESHAPE6",
+        "Password\n\n  FAKESHAPE7\nnext line",
+        "**Stream key**\nFAKESHAPE8",
+    ],
+)
+def test_a_value_held_beside_its_secret_name(value):
+    _leaks(value, "FAKESHAPE")
+
+
+def test_a_table_row_named_like_a_secret_keeps_the_columns_that_describe_it():
+    text = "| Setting | Value | Type | Status |\n|---|---|---|---|\n| Stream key | FAKESHAPE9 | text | set |"
+    out = scrub_text(text)
+    assert "FAKESHAPE9" not in out and "| text | set |" in out and "Stream key" in out
+
+
+def test_the_line_after_a_secret_label_is_masked_and_the_rest_kept():
+    out = scrub_text("Stream key\nFAKESHAPE10\nStatus: live")
+    assert out == f"Stream key\n{MASK}\nStatus: live"

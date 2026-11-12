@@ -123,6 +123,17 @@ _LOOKS_SECRET = re.compile(
     r"|access[ _-]?code",
     re.IGNORECASE,
 )
+# A secret's name alone on a line ("Stream key", "**Password**", "API key:") with its value on the next non-blank line,
+# as a settings page reads when copied. Only names that can't be an ordinary word: "Key" or "Chroma key" alone is not one.
+_LABEL_NAMES = "|".join(
+    name.replace(" ", "[ _-]?")
+    for name in (
+        "streaming key", "stream key", "stream name", "api key", "private key", "secret key", "client secret",
+        "access token", "auth token", "access code", "password", "pass phrase", "pass code", "passwd", "secret", "otp",
+    )
+)  # fmt: skip
+_LABEL = rf"[ \t>*_#-]{{0,8}}(?:{_LABEL_NAMES})[ \t*_]{{0,8}}(?::[ \t*_]{{0,8}})?"  # bounded: no slow backtracking
+_LABEL_LINE = re.compile(rf"^(?P<k>{_LABEL}(?:\r?\n[ \t]*)+)(?!{_LABEL}$)(?P<v>\S[^\n]*)", re.IGNORECASE | re.MULTILINE)
 # The same two JSON shapes as text, for output that was never parsed: an id/name/label whose value names a secret
 # followed by its "value", and a publisher's "stream" field (Pearl's name for the RTMP stream key) when a url,
 # username or password field is in the same text. A bare "stream": true flag has no quoted value and is left alone.
@@ -209,6 +220,10 @@ def _cells(row: str) -> list[str]:
     return re.sub(r"\|\s*$", "", re.sub(r"^\s*\|", "", row)).split("|")
 
 
+def _cell_name(cell: str) -> str:
+    return re.sub(r"[ -]+", "_", cell.strip())  # case kept for the word split
+
+
 def _scrub_tables(text: str) -> str:
     sep = "\n" if "\n" in text else "\\n"  # a table inside JSON-escaped text has a literal \n between rows
     lines = text.split(sep)
@@ -216,6 +231,7 @@ def _scrub_tables(text: str) -> str:
         return text
     out: list[str] = []
     cols: dict[int, bool] | None = None  # secret column -> is it a stream-ID column; None outside a table
+    header: list[str] = []
     for i, line in enumerate(lines):
         # A row starts with a pipe. Without the outer pipes (Name | Stream key), a line with one is a row when a rule
         # line (--- | ---) sits under it or it continues a table.
@@ -227,15 +243,27 @@ def _scrub_tables(text: str) -> str:
         elif _TABLE_RULE.match(line):
             pass
         elif cols is None:  # the header row
-            names = [re.sub(r"[ -]+", "_", c.strip()) for c in _cells(line)]  # case kept for the word split
-            cols = {i: _stream_id_name(n) for i, n in enumerate(names) if _secret_name(n) or _stream_id_name(n)}
-        elif cols:
+            header = [_cell_name(c) for c in _cells(line)]
+            cols = {i: _stream_id_name(n) for i, n in enumerate(header) if _secret_name(n) or _stream_id_name(n)}
+        else:
             cells = _cells(line)
-            for i, is_stream_id in cols.items():
+            # A row whose cell names a secret (| Stream key | x |) holds it in its other cells, except in a column that
+            # only describes the row (Type, Status, Unit...), as in a settings row in JSON.
+            named = [i for i, c in enumerate(cells) if _names_secret(_cell_name(c))]
+            row_is_stream_id = named and not any(_secret_name(_cell_name(cells[i])) for i in named)
+            masked = set(cols.items())
+            if named:
+                masked |= {
+                    (i, bool(row_is_stream_id))
+                    for i in range(len(cells))
+                    if i not in named and not (i < len(header) and _describes_row(header[i]))
+                }
+            for i, is_stream_id in masked:
                 value = cells[i].strip() if i < len(cells) else ""
                 if value and not (is_stream_id and _UUID.match(value)):  # Epiphan's StreamID is a UUID: kept
                     cells[i] = f" {MASK} "
-            line = "|" + "|".join(cells) + "|"
+            if masked:
+                line = "|" + "|".join(cells) + "|"
         out.append(line)
     return sep.join(out)
 
@@ -250,6 +278,7 @@ def scrub_text(text: str) -> str:
     text = _STREAM_URL.sub(lambda m: f"{m['p']}{m['h']}{'/' + MASK if m['r'] else ''}", text)
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
+    text = _LABEL_LINE.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _AUTHORIZATION.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _QUOTED_KEY.sub(_quoted_key, text)
