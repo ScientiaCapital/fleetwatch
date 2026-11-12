@@ -77,7 +77,7 @@ _KEY_NAMES = "|".join(
     re.sub(r"[ _-]", lambda _: _SEP, name)
     for name in (
         "streaming key", "stream key", "stream name", "x-api-key", "api key", "private key", "client secret",
-        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token", "authorization",
+        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token",
         "pass", "pin", "psk", "pw", "key",
     )
 )  # fmt: skip
@@ -90,6 +90,13 @@ _VALUE = rf"(?P<v>(?!{_M})\[[^\[\]]*\]|(?!{_M})\{{[^{{}}]*\}}|(?<=\")(?:[^\"\\\n
 # The name stands alone (\b on both sides), so "monkey: George" and "keyboard: US" are left alone.
 _KEY_VALUE = re.compile(
     rf"(?P<k>[\"']?\b(?:{_KEY_NAMES})\b[\"']?\s*{_ASSIGN}\s*{_OPEN_QUOTE}(?:bearer\s+|basic\s+)?)" + _VALUE,
+    re.IGNORECASE,
+)
+# An Authorization header's whole value, whatever its scheme (Bearer, Basic, Token, Digest with its quoted fields...):
+# a quoted one up to its closing quote, read through escaped quotes; an unquoted one to the end of the line.
+_AUTHORIZATION = re.compile(
+    rf"(?P<k>[\"']?\b(?:proxy{_SEP})?authorization[\"']?\s*{_ASSIGN}\s*{_OPEN_QUOTE})"
+    r"(?P<v>(?<=\")(?:[^\"\\\n]|\\.)+|(?<=')[^'\n]+|(?:[^\n\\]|\\(?!n))+)",
     re.IGNORECASE,
 )
 # A bare "Bearer <token>" or "Basic <base64>" anywhere. The token has to look like one (a digit or + / =, or 20+
@@ -226,6 +233,7 @@ def scrub_text(text: str) -> str:
     text = _STREAM_URL.sub(lambda m: f"{m['p']}{m['h']}{'/' + MASK if m['r'] else ''}", text)
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
+    text = _AUTHORIZATION.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _QUOTED_KEY.sub(_quoted_key, text)
     text = _BARE_KEY.sub(lambda m: _quoted_key(m) if _COMPOUND.search(m["name"]) else m[0], text)

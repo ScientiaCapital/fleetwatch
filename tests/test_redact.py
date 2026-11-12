@@ -237,3 +237,68 @@ def test_encodable_writes_a_lone_surrogate_as_a_visible_escape_and_leaves_other_
     assert encodable("Room \ud800 204").encode("utf-8") == b"Room \\ud800 204"
     plain = "Sala 204 " + chr(0xF1) + " " + chr(0x202E)  # accented letter and a bidi override: valid text, left alone
     assert encodable(plain) == plain
+
+
+def _leaks(value, *leaks):
+    """Every leak is gone from scrub_text and redact of `value` (and its JSON text), and a second pass changes nothing."""
+    shapes = [value] if isinstance(value, str) else [value, json.dumps(value)]
+    for shape in shapes:
+        for fn in (scrub_text, redact) if isinstance(shape, str) else (redact,):
+            once = fn(shape)
+            text = once if isinstance(once, str) else json.dumps(once)
+            for leak in leaks:
+                assert leak not in text, (fn.__name__, shape, text)
+            assert fn(once) == once
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "keyboard: US, monkey: George, keynote_speaker: Dana",
+        "hotkeys: F5, Keynotes: Opening",
+        'channel "Key Room" is live',
+        "| Layer | Type |\n|---|---|\n| Chroma key | overlay |",
+        "| Room | Status |\n|---|---|\n| Key Room | online |",
+        "Chroma key\noverlay on",  # "key" alone on a line is not a label for a secret
+        "Key\nRed = offline",
+        "hotplug: yes, footprint: 3, spotlight: on",
+        "bypass_mode: on, compass: north, passage: 2",
+        "accessLevel: admin, access_point: AP-3",
+        "the secretary is Dana",
+        "-----BEGIN " + "PUBLIC KEY-----",
+        "a task-proj-1 ticket, ghp_short, AKIA-docs, xoxb, eyJ alone",
+        "Sala \uff12\uff10\uff14 en l\u00ednea",  # fullwidth digits with nothing secret: left exactly as it is
+        "Room\u200b204 online",
+    ],
+)
+def test_audit_lookalikes_are_kept(text):
+    assert scrub_text(text) == text and redact(text) == text
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"monkeys": ["George"], "hotkeys": ["F5"], "Keynotes": ["Opening"]},
+        {"id": "3", "name": "Chroma key", "type": "layer", "status": "on"},
+        {"name": "Key Room", "status": "online"},
+        {"secretary": "Dana", "hotplug": True, "accessLevel": "admin"},
+    ],
+)
+def test_audit_lookalike_fields_are_kept(value):
+    assert redact(value) == value
+
+
+# An independent audit of redact.py. Every value is invented.
+@pytest.mark.parametrize(
+    ("text", "leak"),
+    [
+        ("Authorization: Token " + "abcdef" + "123456", "abcdef" + "123456"),  # pieces: secret scanners skip it
+        ('Authorization: Digest username="u", realm="r", nonce="FAKENONCE1", response="FAKERESP2"', "FAKE"),
+        ("authorization=Token FAKEAUTH3", "FAKE"),
+        ('Proxy-Authorization: Digest response="FAKERESP4"', "FAKE"),
+        ('{"msg": "sent Authorization: Digest response=\\"FAKERESP5\\", got 401"}', "FAKE"),
+        ({"headers": {"Authorization": "Token FAKEAUTH6"}}, "FAKE"),
+    ],
+)
+def test_every_authorization_scheme_has_its_whole_value_masked(text, leak):
+    _leaks(text, leak)
