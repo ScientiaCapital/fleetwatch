@@ -58,7 +58,8 @@ refuse anything wider.
   every write tool in both modes, and v0.2 writes use a separate executor, below), and `dry_run` is forced to `true`; any other autonomy value fails at start-up.
 - Redaction first. Every tool result passes through `src/fleetwatch/redact.py` before it's parsed, stored,
   logged, or posted. Known shapes of stream keys, passwords, tokens, and credentialed or ingest URLs become
-  `[redacted]`.
+  `[redacted]`, and so do well-known bare tokens (JWTs, AWS access key IDs, GitHub, Slack and API keys, PEM private
+  key blocks), even with no name in front of them.
 - No model call by default. Every digest, readiness post and keyword answer is built from fixed templates. Only
   `fleetwatch ask` with `FLEETWATCH_ANTHROPIC_API_KEY` set calls a model (v0.2, off by default); see
   [Data sent to the model](#data-sent-to-the-model-v02).

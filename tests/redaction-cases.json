@@ -1,6 +1,6 @@
 {
   "about": "Shared redaction cases for Fleetwatch (src/fleetwatch/redact.py) and the Epiphan Edge Claude Kit (.claude/hooks/epiphan-redact.sh). Keep this file byte-identical in both repos. Each case: the text must not contain any of must_not_contain after redaction, must contain every must_contain, and redacting twice must give the same text as once. All values are fake.",
-  "version": 4,
+  "version": 5,
   "cases": [
     {"id": "kv-password", "input": "password=hunter2", "must_not_contain": ["hunter2"]},
     {"id": "kv-stream-key-colon", "input": "stream key: live_9f8e7d6c", "must_not_contain": ["9f8e7d6c"]},
@@ -51,12 +51,20 @@
     {"id": "pair-pascal-case-name", "input": "{\"name\": \"BackupStreamKey\", \"value\": \"FAKEPAIR62\"}", "must_not_contain": ["FAKEPAIR62"]},
     {"id": "cut-off-json-compound-keys", "input": "{\"Name\": \"Room 204\", \"SrtPassphrase\": \"FAKECUT63\", \"srt_passphrase\": \"FAKECUT64\", \"Status\": \"onl", "must_not_contain": ["FAKECUT63", "FAKECUT64"], "must_contain": ["Room 204"]},
     {"id": "table-pascal-case-header", "input": "| Destination | PrimaryStreamKey |\n|---|---|\n| YT | FAKETABLE65 |", "must_not_contain": ["FAKETABLE65"], "must_contain": ["YT"]},
+    {"id": "text-prefixed-secret-names", "input": "srt_passphrase: FAKEPREFIX66, rtmp_key: FAKEPREFIX67", "must_not_contain": ["FAKEPREFIX66", "FAKEPREFIX67"]},
+    {"id": "json-plural-secret-names", "input": "{\"passwords\": [\"FAKEPLURAL68\"], \"keys\": [\"FAKEPLURAL69\"], \"secrets\": {\"a\": \"FAKEPLURAL70\"}}", "must_not_contain": ["FAKEPLURAL68", "FAKEPLURAL69", "FAKEPLURAL70"]},
+    {"id": "json-run-together-secret-names", "input": "{\"sharedsecret\": \"FAKERUN71\", \"adminpassword\": \"FAKERUN72\"}", "must_not_contain": ["FAKERUN71", "FAKERUN72"]},
+    {"id": "pair-param-val", "input": "{\"param\": \"srt_passphrase\", \"val\": \"FAKEROW73\"}", "must_not_contain": ["FAKEROW73"]},
+    {"id": "pair-setting-current", "input": "{\"setting\": \"rtmp.key\", \"current\": \"FAKEROW74\"}", "must_not_contain": ["FAKEROW74"]},
 
     {"id": "keep-stream-flag", "input": "{\"record\": true, \"stream\": true}", "must_not_contain": [], "must_contain": ["\"stream\": true"]},
     {"id": "keep-stream-name-without-url", "input": "{\"stream\": \"Program\", \"name\": \"Stream 1\"}", "must_not_contain": [], "must_contain": ["Program", "Stream 1"]},
     {"id": "keep-compound-keys-that-are-not-secrets", "input": "{\"Keynote\": \"Opening session\", \"Monkey\": \"George\", \"Turnkey\": \"yes\", \"DeviceName\": \"Room 204\", \"nextPageToken\": \"p2\", \"StreamingStatus\": \"live\"}", "must_not_contain": [], "must_contain": ["Opening session", "George", "\"yes\"", "Room 204", "p2", "live"]},
     {"id": "keep-cut-off-json-plain-keys", "input": "{\"Keynote\": \"Opening session\", \"DeviceName\": \"Room 204\", \"Status\": \"onl", "must_not_contain": [], "must_contain": ["Opening session", "Room 204"]},
 
+    {"id": "keep-words-containing-key", "input": "keyboard: US, monkey: George, keynote_speaker: Dana, channel \"Key Room\" is live", "must_not_contain": [], "must_contain": ["keyboard: US, monkey: George, keynote_speaker: Dana, channel \"Key Room\" is live"]},
+    {"id": "keep-plural-lookalikes", "input": "{\"monkeys\": [\"George\"], \"hotkeys\": [\"F5\"], \"Keynotes\": [\"Opening\"]}", "must_not_contain": [], "must_contain": ["George", "F5", "Opening"]},
+    {"id": "keep-row-named-like-a-key", "input": "{\"id\": \"3\", \"name\": \"Chroma key\", \"type\": \"layer\"}", "must_not_contain": [], "must_contain": ["\"id\": \"3\"", "Chroma key", "layer"]},
     {"id": "keep-plain-text", "input": "Room 204 Pearl Mini is offline", "must_not_contain": [], "must_contain": ["Room 204 Pearl Mini is offline"]},
     {"id": "keep-docs-url", "input": "see https://kb.epiphan.com/pearl-2/firmware-upgrade", "must_not_contain": [], "must_contain": ["kb.epiphan.com/pearl-2/firmware-upgrade"]},
     {"id": "keep-uuid-stream-id", "input": "{\"stream_id\": \"0f8fad5b-d9cb-469f-a165-70867728950e\"}", "must_not_contain": [], "must_contain": ["0f8fad5b-d9cb-469f-a165-70867728950e"]},

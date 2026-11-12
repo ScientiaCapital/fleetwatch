@@ -7,6 +7,7 @@ so nothing downstream ever holds a secret.
 
 import json
 import re
+import unicodedata
 from typing import Any
 
 MASK = "[redacted]"
@@ -14,7 +15,14 @@ MASK = "[redacted]"
 # A secret name may sit behind a dotted, spaced or slashed prefix (srt.passphrase, "Stream key", publisher.rtmp.key).
 _SECRET_NAME = re.compile(
     r"^(?:.*[_\-. /:])?(?:streaming[ _-]?key|stream[ _-]?key|stream[ _-]?name|key|api[ _-]?key|private[ _-]?key"
-    r"|password|passphrase|passwd|pwd|pw|pin|psk|pass|secret|token|authorization|auth|credentials?)$",
+    r"|password|pass[ _-]?phrase|pass[ _-]?code|access[ _-]?code|passwd|pwd|pw|pin|psk|pass|secret|token"
+    r"|authorization|auth|auth(?:orization)?[ _-]?header|credentials?)$",
+    re.IGNORECASE,
+)
+# Some words name a secret wherever they sit in the name (clientSecretValue, passphrase_v2) or as any one segment of it
+# (otp, otp_code, totpSeed). "secretary" is a person, not a secret.
+_SECRET_ANYWHERE = re.compile(
+    r"secret(?!ar)|pass[ _-]?phrase|(?:^|[_\-. /:])[th]?otp(?:$|[_\-. /:])",
     re.IGNORECASE,
 )
 _PAGING = re.compile(r"page|cursor", re.IGNORECASE)
@@ -24,7 +32,28 @@ _STREAM_ID = re.compile(r"^(?:.*[_\-. /:])?stream[ _-]?id$", re.IGNORECASE)
 # last capital of an acronym. Both forms are tested, so a name the split breaks apart (PassPhrase) still matches.
 _WORD_BREAK = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 _COMPOUND = re.compile(r"[_.\-]|[a-z0-9][A-Z]")  # srt_passphrase, srt.passphrase, srtPassphrase
+# A plural (stream_keys, passwords, secrets) is read as its singular, and a few unambiguous secret words count even run
+# together with the word before them (sharedsecret, adminpassword, rtmpkey). "key", "pin" and "pass" alone do not, so
+# monkey, hotkeys, spin and bypass are kept. Same rule as the Kit's secret_name.
+_PLURAL = re.compile(r"(?:key|password|passphrase|secret|token)s$", re.IGNORECASE)
+_RUN_TOGETHER = re.compile(
+    r"^[a-z0-9]+(?:password|passphrase|passwd|secret|token"
+    r"|(?:streaming|stream|api|private|access|secret|auth|rtmp|srt|publish|ingest)key)$",
+    re.IGNORECASE,
+)
+# A settings row names its secret in one field and holds it in another. When id, name, key, label or field names a
+# secret, a value-like field is masked; when a parameter-like field names one, every other field is masked except
+# those that only describe the row (*id, *name, label, type, unit, status...). As in the Kit's scrub_row.
 _PAIR_KEYS = ("id", "name", "key", "label", "field")  # {"name": "Stream key", "value": X} pairs
+_VALUE_FIELDS = frozenset({"value", "val", "v", "current", "current_value", "default", "default_value", "data"})
+_PARAM_FIELDS = frozenset(
+    {"param", "parameter", "param_name", "setting", "setting_name", "option", "property", "prop", "attribute", "attr",
+     "variable", "var", "field", "field_name", "key", "key_name", "k"}
+)  # fmt: skip
+_DESCRIBES_ROW = frozenset(
+    {"label", "title", "type", "kind", "unit", "units", "description", "desc", "help", "hint", "comment", "note",
+     "notes", "category", "group", "section", "status", "state", "format"}
+)  # fmt: skip
 _UUID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.IGNORECASE)
 
 # A mask already in the text is read as part of the value around it, so the whole value is masked again: scrubbing
@@ -56,18 +85,28 @@ _KEY_NAMES = "|".join(
     re.sub(r"[ _-]", lambda _: _SEP, name)
     for name in (
         "streaming key", "stream key", "stream name", "x-api-key", "api key", "private key", "client secret",
-        "access token", "password", "passphrase", "passwd", "pwd", "secret", "token", "authorization",
-        "pass", "pin", "psk", "pw", "key",
+        "access token", "password", "pass phrase", "pass code", "access code", "passwd", "pwd", "secret", "token",
+        "pass", "pin", "psk", "pw", "otp", "key",
     )
 )  # fmt: skip
+# A plural name counts too (stream keys, passwords, secrets), but not "tokens", which is far more often a count.
+_KEY_NAMES = re.sub(r"(key|word|phrase|secret)(?=\||$)", r"\1s?", _KEY_NAMES)
 _ASSIGN = "[:=\uff1a\uff1d]"  # also the fullwidth colon and equals sign that CJK input methods type
-# A value after a name: a quoted one up to its closing quote, spaces and all (an escaped quote, password=\"x\" inside a
-# JSON string, closes it too); an unquoted one up to the first space or delimiter.
+# A value after a name: a list or object up to its closing bracket ("passwords": ["x"] in unparsed JSON), a quoted one
+# up to its closing quote, spaces and all (an escaped quote, password=\"x\" inside a JSON string, closes it too); an
+# unquoted one up to the first space or delimiter.
 _OPEN_QUOTE = r"\\?[\"']?"
-_VALUE = rf"(?P<v>(?<=\")(?:[^\"\\\n]|\\(?!\"))+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)"
+_VALUE = rf"(?P<v>(?!{_M})\[[^\[\]]*\]|(?!{_M})\{{[^{{}}]*\}}|(?<=\")(?:[^\"\\\n]|\\(?!\"))+|(?<=')[^'\n]+|{_MASKS}|(?:{_M}|[^\s\"',;}}\]|])+)"
 # The name stands alone (\b on both sides), so "monkey: George" and "keyboard: US" are left alone.
 _KEY_VALUE = re.compile(
     rf"(?P<k>[\"']?\b(?:{_KEY_NAMES})\b[\"']?\s*{_ASSIGN}\s*{_OPEN_QUOTE}(?:bearer\s+|basic\s+)?)" + _VALUE,
+    re.IGNORECASE,
+)
+# An Authorization header's whole value, whatever its scheme (Bearer, Basic, Token, Digest with its quoted fields...):
+# a quoted one up to its closing quote, read through escaped quotes; an unquoted one to the end of the line.
+_AUTHORIZATION = re.compile(
+    rf"(?P<k>[\"']?\b(?:proxy{_SEP})?authorization[\"']?\s*{_ASSIGN}\s*{_OPEN_QUOTE})"
+    r"(?P<v>(?<=\")(?:[^\"\\\n]|\\.)+|(?<=')[^'\n]+|(?:[^\n\\]|\\(?!n))+)",
     re.IGNORECASE,
 )
 # A bare "Bearer <token>" or "Basic <base64>" anywhere. The token has to look like one (a digit or + / =, or 20+
@@ -81,16 +120,29 @@ _AUTH_SCHEME = re.compile(
 _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
 _LOOKS_SECRET = re.compile(
-    r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-",
+    r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-|otp"
+    r"|access[ _-]?code|eyj|akia|gh[pousr]_|github_pat_|sk-proj-|xox[abpr]-",
     re.IGNORECASE,
 )
+# A secret's name alone on a line ("Stream key", "**Password**", "API key:") with its value on the next non-blank line,
+# as a settings page reads when copied. Only names that can't be an ordinary word: "Key" or "Chroma key" alone is not one.
+_LABEL_NAMES = "|".join(
+    name.replace(" ", "[ _-]?")
+    for name in (
+        "streaming key", "stream key", "stream name", "api key", "private key", "secret key", "client secret",
+        "access token", "auth token", "access code", "password", "pass phrase", "pass code", "passwd", "secret", "otp",
+    )
+)  # fmt: skip
+_LABEL = rf"[ \t>*_#-]{{0,8}}(?:{_LABEL_NAMES})[ \t*_]{{0,8}}(?::[ \t*_]{{0,8}})?"  # bounded: no slow backtracking
+_LABEL_LINE = re.compile(rf"^(?P<k>{_LABEL}(?:\r?\n[ \t]*)+)(?!{_LABEL}$)(?P<v>\S[^\n]*)", re.IGNORECASE | re.MULTILINE)
 # The same two JSON shapes as text, for output that was never parsed: an id/name/label whose value names a secret
 # followed by its "value", and a publisher's "stream" field (Pearl's name for the RTMP stream key) when a url,
 # username or password field is in the same text. A bare "stream": true flag has no quoted value and is left alone.
 _PAIR_TEXT = re.compile(
-    rf"(?P<k>[\"'](?:{'|'.join(_PAIR_KEYS)})[\"']\s*:\s*[\"'][^\"'\n]*"
-    rf"(?:key|password|passphrase|passwd|pwd|pin|psk|pass|secret|token)[\"']\s*,\s*[\"']value[\"']\s*:\s*[\"'])"
-    rf"(?P<v>(?:{_M}|[^\"'\n])+)",
+    rf"(?P<k>[\"'](?:{'|'.join(sorted({*_PAIR_KEYS, *_PARAM_FIELDS}))})[\"']\s*:\s*[\"'][^\"'\n]*"
+    rf"(?:key|password|passphrase|passwd|pwd|pin|psk|pass|secret|token)s?[\"']\s*,\s*"
+    rf"[\"'](?:{'|'.join(sorted(_VALUE_FIELDS))})[\"']\s*:\s*[\"']?)"
+    rf"(?P<v>(?<=[\"'])(?:{_M}|[^\"'\n])+|(?:{_M}|[^\"'\n,}}\]\s])+)",
     re.IGNORECASE,
 )
 # A quoted key in text that was never parsed, such as JSON cut off mid-value: its value is masked when the key passes
@@ -105,19 +157,67 @@ _STREAM_FIELD_TEXT = re.compile(rf"(?P<k>[\"']stream[\"']\s*:\s*[\"'])(?P<v>(?:{
 _PUBLISHER_SIBLING = re.compile(r"[\"'](?:url|username|password)[\"']\s*:", re.IGNORECASE)
 # An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
 _ANTHROPIC_KEY = re.compile(rf"\bsk-ant-(?:{_M}|[\w-])+", re.IGNORECASE)
+# Other well-known token shapes, masked even bare, as in the Kit: an OpenAI project key, a JWT, an AWS access key ID,
+# GitHub and Slack tokens. A PEM private key block goes up to its END line or, if cut off, the end of the text.
+_BARE_TOKEN = re.compile(
+    rf"\bsk-proj-(?:{_M}|[\w-])+|\beyJ[\w-]{{4,}}\.eyJ[\w-]{{4,}}\.[\w-]*|\bAKIA[0-9A-Z]{{16}}\b"
+    r"|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,})|\bxox[abpr]-[A-Za-z0-9-]{8,}"
+)
+_PEM_PRIVATE_KEY = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----|[\s\S]*$)"
+)
+# Text is matched in NFKC form with invisible characters removed, so a fullwidth "ｐａｓｓｗｏｒｄ" or a zero-width space
+# inside a name or a token can't hide it. Text with nothing secret in it is returned exactly as it came.
+_INVISIBLE = re.compile("[\u00ad\u034f\u180e\u200b-\u200d\u2060-\u2064\ufeff]")
 MAX_TEXT = 200_000
 
 
+def _normal(text: str) -> str:
+    return _INVISIBLE.sub("", unicodedata.normalize("NFKC", text))
+
+
 def _secret_name(name: Any) -> bool:
-    return (
-        isinstance(name, str)
-        and bool(_SECRET_NAME.match(name) or _SECRET_NAME.match(_WORD_BREAK.sub("_", name)))
-        and not _PAGING.search(name)
+    if not isinstance(name, str):
+        return False
+    name = _normal(name)
+    if _PAGING.search(name):
+        return False
+    if _PLURAL.search(name):
+        name = name[:-1]
+    words = _WORD_BREAK.sub("_", name)
+    return bool(
+        _SECRET_NAME.match(name)
+        or _SECRET_NAME.match(words)
+        or _RUN_TOGETHER.match(name)
+        or _SECRET_ANYWHERE.search(name)
+        or _SECRET_ANYWHERE.search(words)
     )
 
 
 def _stream_id_name(name: Any) -> bool:
     return isinstance(name, str) and bool(_STREAM_ID.match(name) or _STREAM_ID.match(_WORD_BREAK.sub("_", name)))
+
+
+def _names_secret(name: Any) -> bool:
+    return _secret_name(name) or _stream_id_name(name)
+
+
+def _describes_row(field: str) -> bool:
+    f = field.lower()
+    return f.endswith(("id", "name")) or f in _DESCRIBES_ROW
+
+
+def _row_secret_fields(row: dict[Any, Any]) -> set[str]:
+    """The fields of a settings row that hold the secret it names; empty when it names none."""
+    named = any(_names_secret(row.get(k)) for k in _PAIR_KEYS)
+    params = {k for k, v in row.items() if isinstance(k, str) and k.lower() in _PARAM_FIELDS and _names_secret(v)}
+    if not (named or params):
+        return set()
+    return {
+        k
+        for k in row
+        if isinstance(k, str) and k not in params and (k.lower() in _VALUE_FIELDS or params and not _describes_row(k))
+    }
 
 
 def _quoted_key(m: re.Match[str]) -> str:
@@ -140,6 +240,10 @@ def _cells(row: str) -> list[str]:
     return re.sub(r"\|\s*$", "", re.sub(r"^\s*\|", "", row)).split("|")
 
 
+def _cell_name(cell: str) -> str:
+    return re.sub(r"[ -]+", "_", cell.strip())  # case kept for the word split
+
+
 def _scrub_tables(text: str) -> str:
     sep = "\n" if "\n" in text else "\\n"  # a table inside JSON-escaped text has a literal \n between rows
     lines = text.split(sep)
@@ -147,6 +251,7 @@ def _scrub_tables(text: str) -> str:
         return text
     out: list[str] = []
     cols: dict[int, bool] | None = None  # secret column -> is it a stream-ID column; None outside a table
+    header: list[str] = []
     for i, line in enumerate(lines):
         # A row starts with a pipe. Without the outer pipes (Name | Stream key), a line with one is a row when a rule
         # line (--- | ---) sits under it or it continues a table.
@@ -158,29 +263,52 @@ def _scrub_tables(text: str) -> str:
         elif _TABLE_RULE.match(line):
             pass
         elif cols is None:  # the header row
-            names = [re.sub(r"[ -]+", "_", c.strip()) for c in _cells(line)]  # case kept for the word split
-            cols = {i: _stream_id_name(n) for i, n in enumerate(names) if _secret_name(n) or _stream_id_name(n)}
-        elif cols:
+            header = [_cell_name(c) for c in _cells(line)]
+            cols = {i: _stream_id_name(n) for i, n in enumerate(header) if _secret_name(n) or _stream_id_name(n)}
+        else:
             cells = _cells(line)
-            for i, is_stream_id in cols.items():
+            # A row whose cell names a secret (| Stream key | x |) holds it in its other cells, except in a column that
+            # only describes the row (Type, Status, Unit...), as in a settings row in JSON.
+            named = [i for i, c in enumerate(cells) if _names_secret(_cell_name(c))]
+            row_is_stream_id = named and not any(_secret_name(_cell_name(cells[i])) for i in named)
+            masked = set(cols.items())
+            if named:
+                masked |= {
+                    (i, bool(row_is_stream_id))
+                    for i in range(len(cells))
+                    if i not in named and not (i < len(header) and _describes_row(header[i]))
+                }
+            for i, is_stream_id in masked:
                 value = cells[i].strip() if i < len(cells) else ""
                 if value and not (is_stream_id and _UUID.match(value)):  # Epiphan's StreamID is a UUID: kept
                     cells[i] = f" {MASK} "
-            line = "|" + "|".join(cells) + "|"
+            if masked:
+                line = "|" + "|".join(cells) + "|"
         out.append(line)
     return sep.join(out)
 
 
 def scrub_text(text: str) -> str:
+    normal = _normal(text)
+    if normal != text:
+        cleaned = _scrub(normal)
+        return cleaned if cleaned != normal else _scrub(text)
+    return _scrub(text)
+
+
+def _scrub(text: str) -> str:
     if not _LOOKS_SECRET.search(text):
         return text
     if len(text) > MAX_TEXT:
         return "[withheld: a long text value was too long to check for stream keys]"
+    text = _PEM_PRIVATE_KEY.sub(MASK, text)
     if "|" in text:
         text = _scrub_tables(text)
     text = _STREAM_URL.sub(lambda m: f"{m['p']}{m['h']}{'/' + MASK if m['r'] else ''}", text)
     text = _HTTP_URL.sub(_http, text)
     text = _USERINFO_URL.sub(lambda m: f"{m['p']}{MASK}@", text)
+    text = _LABEL_LINE.sub(lambda m: f"{m['k']}{MASK}", text)
+    text = _AUTHORIZATION.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _KEY_VALUE.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _QUOTED_KEY.sub(_quoted_key, text)
     text = _BARE_KEY.sub(lambda m: _quoted_key(m) if _COMPOUND.search(m["name"]) else m[0], text)
@@ -188,7 +316,8 @@ def scrub_text(text: str) -> str:
     if _PUBLISHER_SIBLING.search(text):
         text = _STREAM_FIELD_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _AUTH_SCHEME.sub(lambda m: f"{m['s']} {MASK}", text)
-    return _ANTHROPIC_KEY.sub(MASK, text)
+    text = _ANTHROPIC_KEY.sub(MASK, text)
+    return _BARE_TOKEN.sub(MASK, text)
 
 
 def encodable(text: str) -> str:
@@ -199,17 +328,17 @@ def encodable(text: str) -> str:
 
 def redact(value: Any) -> Any:
     if isinstance(value, dict):
-        pair = "value" in value and any(_secret_name(value.get(k)) or _stream_id_name(value.get(k)) for k in _PAIR_KEYS)
+        held = _row_secret_fields(value)
         # A publisher's "stream" field is the RTMP stream key when it sits next to url/username/password.
         lower_keys = {k.lower() for k in value if isinstance(k, str)}
         publisher = "stream" in lower_keys and bool(lower_keys & {"url", "username", "password"})
         out = {}
         for key, item in value.items():
             if (
-                key == "value"
-                and pair
+                key in held
+                # a secret-named field that names the row's secret ({"key": "stream_key", "value": X}) is kept
                 or _secret_name(key)
-                and not ("value" in value and isinstance(item, str) and _secret_name(item))
+                and not (held and isinstance(item, str) and _names_secret(item))
                 or publisher
                 and isinstance(key, str)
                 and key.lower() == "stream"

@@ -46,7 +46,8 @@ timeout (60 seconds) or a forbidden change scores as `inf` and the change is rev
 - **No real data.** Every case is invented. Real captures stay off the repo and out of the loop.
 - **Not "never stop".** autoresearch runs until interrupted. This stops at the cap.
 - **Scope.** The dev set covers shapes in Epiphan results: stream keys, passwords, credentialed URLs. Bare vendor
-  tokens (Slack, GitHub, AWS, JWT, PEM blocks) are a separate decision about scope, not something the loop settles.
+  tokens (Slack, GitHub, AWS, JWT, PEM blocks) are masked by fixed patterns that match the Kit's; the loop doesn't
+  tune them.
 
 ## Run it
 
