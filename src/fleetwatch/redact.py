@@ -7,6 +7,7 @@ so nothing downstream ever holds a secret.
 
 import json
 import re
+import unicodedata
 from typing import Any
 
 MASK = "[redacted]"
@@ -120,7 +121,7 @@ _TABLE_ROW = re.compile(r"^\s*\|")
 _TABLE_RULE = re.compile(r"^\s*\|?[\s:|-]+$")
 _LOOKS_SECRET = re.compile(
     r":(?:\\?/){2}|key|pass|pwd|pin|psk|\bpw\b|secret|token|auth|cred|bearer|basic|stream|webhook|sk-ant-|otp"
-    r"|access[ _-]?code",
+    r"|access[ _-]?code|eyj|akia|gh[pousr]_|github_pat_|sk-proj-|xox[abpr]-",
     re.IGNORECASE,
 )
 # A secret's name alone on a line ("Stream key", "**Password**", "API key:") with its value on the next non-blank line,
@@ -156,11 +157,30 @@ _STREAM_FIELD_TEXT = re.compile(rf"(?P<k>[\"']stream[\"']\s*:\s*[\"'])(?P<v>(?:{
 _PUBLISHER_SIBLING = re.compile(r"[\"'](?:url|username|password)[\"']\s*:", re.IGNORECASE)
 # An Anthropic API key (sk-ant-api03-..., sk-ant-admin01-...), masked even bare, with no "key:" in front of it.
 _ANTHROPIC_KEY = re.compile(rf"\bsk-ant-(?:{_M}|[\w-])+", re.IGNORECASE)
+# Other well-known token shapes, masked even bare, as in the Kit: an OpenAI project key, a JWT, an AWS access key ID,
+# GitHub and Slack tokens. A PEM private key block goes up to its END line or, if cut off, the end of the text.
+_BARE_TOKEN = re.compile(
+    rf"\bsk-proj-(?:{_M}|[\w-])+|\beyJ[\w-]{{4,}}\.eyJ[\w-]{{4,}}\.[\w-]*|\bAKIA[0-9A-Z]{{16}}\b"
+    r"|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,})|\bxox[abpr]-[A-Za-z0-9-]{8,}"
+)
+_PEM_PRIVATE_KEY = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----|[\s\S]*$)"
+)
+# Text is matched in NFKC form with invisible characters removed, so a fullwidth "ｐａｓｓｗｏｒｄ" or a zero-width space
+# inside a name or a token can't hide it. Text with nothing secret in it is returned exactly as it came.
+_INVISIBLE = re.compile("[\u00ad\u034f\u180e\u200b-\u200d\u2060-\u2064\ufeff]")
 MAX_TEXT = 200_000
 
 
+def _normal(text: str) -> str:
+    return _INVISIBLE.sub("", unicodedata.normalize("NFKC", text))
+
+
 def _secret_name(name: Any) -> bool:
-    if not isinstance(name, str) or _PAGING.search(name):
+    if not isinstance(name, str):
+        return False
+    name = _normal(name)
+    if _PAGING.search(name):
         return False
     if _PLURAL.search(name):
         name = name[:-1]
@@ -269,10 +289,19 @@ def _scrub_tables(text: str) -> str:
 
 
 def scrub_text(text: str) -> str:
+    normal = _normal(text)
+    if normal != text:
+        cleaned = _scrub(normal)
+        return cleaned if cleaned != normal else _scrub(text)
+    return _scrub(text)
+
+
+def _scrub(text: str) -> str:
     if not _LOOKS_SECRET.search(text):
         return text
     if len(text) > MAX_TEXT:
         return "[withheld: a long text value was too long to check for stream keys]"
+    text = _PEM_PRIVATE_KEY.sub(MASK, text)
     if "|" in text:
         text = _scrub_tables(text)
     text = _STREAM_URL.sub(lambda m: f"{m['p']}{m['h']}{'/' + MASK if m['r'] else ''}", text)
@@ -287,7 +316,8 @@ def scrub_text(text: str) -> str:
     if _PUBLISHER_SIBLING.search(text):
         text = _STREAM_FIELD_TEXT.sub(lambda m: f"{m['k']}{MASK}", text)
     text = _AUTH_SCHEME.sub(lambda m: f"{m['s']} {MASK}", text)
-    return _ANTHROPIC_KEY.sub(MASK, text)
+    text = _ANTHROPIC_KEY.sub(MASK, text)
+    return _BARE_TOKEN.sub(MASK, text)
 
 
 def encodable(text: str) -> str:

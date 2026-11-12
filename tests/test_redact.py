@@ -1,6 +1,7 @@
 """The redaction cases from the Edge Claude Kit's tests/hook-test.sh. None may leave FAKE in the output."""
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -288,6 +289,16 @@ def test_audit_lookalike_fields_are_kept(value):
     assert redact(value) == value
 
 
+@pytest.mark.parametrize(
+    "text",
+    ["Password" + " *" * 90_000 + "\nx", "Authorization: " + "\\" * 190_000, "\uff50\uff41\uff53\uff53 " * 40_000],
+)
+def test_long_text_near_the_limit_is_checked_quickly(text):
+    start = time.perf_counter()
+    scrub_text(text)
+    assert time.perf_counter() - start < 2
+
+
 # An independent audit of redact.py. Every value is invented.
 @pytest.mark.parametrize(
     ("text", "leak"),
@@ -354,3 +365,48 @@ def test_a_table_row_named_like_a_secret_keeps_the_columns_that_describe_it():
 def test_the_line_after_a_secret_label_is_masked_and_the_rest_kept():
     out = scrub_text("Stream key\nFAKESHAPE10\nStatus: live")
     assert out == f"Stream key\n{MASK}\nStatus: live"
+
+
+# Bare tokens, masked with nothing in front of them. Built from pieces so secret scanners don't read the file as a leak.
+_JWT = "ey" + "JFAKEHEADER1." + "ey" + "JFAKEPAYLOAD1.FAKESIG1"
+_AWS = "AK" + "IA" + "FAKEFAKEFAKE0001"
+_GHP = "gh" + "p_" + "FAKE" * 6
+_GHO = "gh" + "o_" + "FAKE" * 6
+_GH_PAT = "github" + "_pat_" + "FAKE_" * 5
+_SK_PROJ = "sk-" + "proj-" + "FAKE" * 5
+_SLACK = "xo" + "xb-" + "1234-FAKE-5678"
+_PEM = "-----BEGIN " + "RSA PRIVATE KEY-----\nFAKEPEMLINE1\nFAKEPEMLINE2\n-----END " + "RSA PRIVATE KEY-----"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        f"the session cookie was {_JWT} yesterday",
+        f"found {_AWS} in the log",
+        f"push with {_GHP}",
+        f"oauth {_GHO}.",
+        f"pat ({_GH_PAT})",
+        f"model call with {_SK_PROJ} failed",
+        f"slack said invalid_auth for {_SLACK}",
+        f"cert dump:\n{_PEM}\ndone",
+        "cut off: -----BEGIN " + "PRIVATE KEY-----\nFAKEPEMLINE3",
+        f'{{"detail": "bad credentials {_GHP}"}}',
+    ],
+)
+def test_bare_token_shapes_are_masked(text):
+    _leaks(text, "FAKE")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "\uff50\uff41\uff53\uff53\uff57\uff4f\uff52\uff44=FAKEWIDE1",  # fullwidth "password"
+        "pass\u200bword=FAKEWIDE2",  # a zero-width space inside the name
+        "stream\u2060key: FAKEWIDE3",
+        "s\u00adk-proj-FAKEWIDE4FAKEWIDE4",  # a soft hyphen inside the prefix
+        "\uff21\uff2b\uff29\uff21FAKEFAKEFAKE0002",  # fullwidth AKIA
+        "gh\u200bp_" + "FAKE" * 6,
+    ],
+)
+def test_lookalike_and_hidden_characters_cannot_hide_a_secret(text):
+    _leaks(text, "FAKE")
