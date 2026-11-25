@@ -1,7 +1,7 @@
 # Fleetwatch for Epiphan Edge, as a container. Read-only watcher; listens on no port.
 #   docker compose run --rm fleetwatch login    # one-time sign-in; paste the redirect URL when asked
 #   docker compose up -d                        # heartbeat every 3 minutes
-FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.10@sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f AS uv
 
 FROM python:3.14-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b AS build
 COPY --from=uv /uv /usr/local/bin/uv
